@@ -377,7 +377,7 @@ func BenchmarkPrioritySamplerGetRate(b *testing.B) {
 	}
 	oldGetRate := func(ops *oldPrioritySampler, spn *Span) float64 {
 		// Allocation doesn't escape to the heap.
-		key := "service:" + spn.service + ",env:" + spn.env
+		key := "service:" + spn.service + ",env:" + spn.env.v
 		if rate, ok := ops.rates[key]; ok {
 			return rate
 		}
@@ -394,11 +394,11 @@ func BenchmarkPrioritySamplerGetRate(b *testing.B) {
 	ps.rates[serviceEnvKey{service: "web", env: "prod"}] = 0.5
 
 	spnHit := newSpan("op", "web", "resource", 1, 1, 0)
-	spnHit.env = "prod"
+	spnHit.env = tagValue{v: "prod", set: true}
 	spnHit.SetTag(ext.Environment, "prod")
 
 	spnMiss := newSpan("op", "other", "resource", 1, 1, 0)
-	spnMiss.env = "staging"
+	spnMiss.env = tagValue{v: "staging", set: true}
 	spnMiss.SetTag(ext.Environment, "staging")
 
 	b.ResetTimer()
@@ -2365,7 +2365,7 @@ func TestPrioritySamplerRampCooldownNoReset(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			s := &Span{service: svc, env: env}
+			s := &Span{service: svc, env: tagValue{v: env, set: true}}
 			return s
 		}
 
@@ -2410,7 +2410,7 @@ func TestPrioritySamplerRampUp(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			s := &Span{service: svc, env: env}
+			s := &Span{service: svc, env: tagValue{v: env, set: true}}
 			return s
 		}
 
@@ -2452,7 +2452,7 @@ func TestPrioritySamplerRampDown(t *testing.T) {
 	assert := assert.New(t)
 
 	mkSpan := func(svc, env string) *Span {
-		s := &Span{service: svc, env: env}
+		s := &Span{service: svc, env: tagValue{v: env, set: true}}
 		return s
 	}
 
@@ -2475,7 +2475,7 @@ func TestPrioritySamplerRampConverges(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			s := &Span{service: svc, env: env}
+			s := &Span{service: svc, env: tagValue{v: env, set: true}}
 			return s
 		}
 
@@ -2501,7 +2501,7 @@ func TestPrioritySamplerRampDefaultRate(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			s := &Span{service: svc, env: env}
+			s := &Span{service: svc, env: tagValue{v: env, set: true}}
 			return s
 		}
 

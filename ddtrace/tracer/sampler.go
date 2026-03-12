@@ -275,7 +275,7 @@ func (ps *prioritySampler) getRate(spn *Span) float64 {
 // +checklocksignore — Called during initialization in StartSpan, span not yet shared.
 func (ps *prioritySampler) getRateLocked(spn *Span) float64 {
 	assert.RWMutexRLocked(&ps.mu)
-	key := serviceEnvKey{service: spn.service, env: spn.env}
+	key := serviceEnvKey{service: spn.service, env: spn.env.v}
 	if rate, ok := ps.rates[key]; ok {
 		return rate
 	}
