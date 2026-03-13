@@ -68,12 +68,14 @@ func TestPrioritySampler(t *testing.T) {
 		assert := assert.New(t)
 		s := mkSpan("my-service", "my-env")
 		assert.Equal("my-service", s.service)
-		assert.Equal("my-env", s.attrs.Env.Val())
+		assert.Equal("my-env", s.attrs.Val(attrEnv))
 		assert.Equal("my-env", s.meta[ext.Environment])
 
 		s = mkSpan("my-service2", "")
 		assert.Equal("my-service2", s.service)
-		assert.Equal(tagOf(""), s.attrs.Env) // set to empty string, not absent
+		v, ok := s.attrs.Get(attrEnv)
+		assert.Equal("", v)
+		assert.True(ok) // set to empty string, not absent
 		assert.Contains(s.meta, ext.Environment)
 	})
 
@@ -377,7 +379,7 @@ func BenchmarkPrioritySamplerGetRate(b *testing.B) {
 	}
 	oldGetRate := func(ops *oldPrioritySampler, spn *Span) float64 {
 		// Allocation doesn't escape to the heap.
-		key := "service:" + spn.service + ",env:" + spn.attrs.Env.Val()
+		key := "service:" + spn.service + ",env:" + spn.attrs.Val(attrEnv)
 		if rate, ok := ops.rates[key]; ok {
 			return rate
 		}
@@ -394,11 +396,11 @@ func BenchmarkPrioritySamplerGetRate(b *testing.B) {
 	ps.rates[serviceEnvKey{service: "web", env: "prod"}] = 0.5
 
 	spnHit := newSpan("op", "web", "resource", 1, 1, 0)
-	spnHit.attrs.Env = tagOf("prod")
+	spnHit.attrs.Set(attrEnv, "prod")
 	spnHit.SetTag(ext.Environment, "prod")
 
 	spnMiss := newSpan("op", "other", "resource", 1, 1, 0)
-	spnMiss.attrs.Env = tagOf("staging")
+	spnMiss.attrs.Set(attrEnv, "staging")
 	spnMiss.SetTag(ext.Environment, "staging")
 
 	b.ResetTimer()
@@ -2365,8 +2367,9 @@ func TestPrioritySamplerRampCooldownNoReset(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			s := &Span{service: svc, attrs: spanAttributes{Env: tagOf(env)}}
-			return s
+			var a spanAttributes
+			a.Set(attrEnv, env)
+			return &Span{service: svc, attrs: a}
 		}
 
 		// Set initial low rate.
@@ -2410,8 +2413,9 @@ func TestPrioritySamplerRampUp(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			s := &Span{service: svc, attrs: spanAttributes{Env: tagOf(env)}}
-			return s
+			var a spanAttributes
+			a.Set(attrEnv, env)
+			return &Span{service: svc, attrs: a}
 		}
 
 		// Set initial low rate (decrease from default 1.0, applied immediately).
@@ -2452,8 +2456,9 @@ func TestPrioritySamplerRampDown(t *testing.T) {
 	assert := assert.New(t)
 
 	mkSpan := func(svc, env string) *Span {
-		s := &Span{service: svc, attrs: spanAttributes{Env: tagOf(env)}}
-		return s
+		var a spanAttributes
+		a.Set(attrEnv, env)
+		return &Span{service: svc, attrs: a}
 	}
 
 	// Set initial rate (decrease from default 1.0).
@@ -2475,8 +2480,9 @@ func TestPrioritySamplerRampConverges(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			s := &Span{service: svc, attrs: spanAttributes{Env: tagOf(env)}}
-			return s
+			var a spanAttributes
+			a.Set(attrEnv, env)
+			return &Span{service: svc, attrs: a}
 		}
 
 		// Start at 0.1, target 0.5.
@@ -2501,8 +2507,9 @@ func TestPrioritySamplerRampDefaultRate(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			s := &Span{service: svc, attrs: spanAttributes{Env: tagOf(env)}}
-			return s
+			var a spanAttributes
+			a.Set(attrEnv, env)
+			return &Span{service: svc, attrs: a}
 		}
 
 		// Set default rate to 0.1 (decrease from initial 1.0, applied immediately).

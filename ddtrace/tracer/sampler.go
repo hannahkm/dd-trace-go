@@ -277,7 +277,7 @@ func (ps *prioritySampler) getRateLocked(spn *Span) float64 {
 	assert.RWMutexRLocked(&ps.mu)
 	// val() is used: a span with env explicitly set to "" and one with env never set
 	// both map to the same rate-table key (both fall back to the default rate).
-	key := serviceEnvKey{service: spn.service, env: spn.attrs.Env.Val()}
+	key := serviceEnvKey{service: spn.service, env: spn.attrs.Val(attrEnv)}
 	if rate, ok := ps.rates[key]; ok {
 		return rate
 	}
