@@ -849,15 +849,15 @@ func setPeerService(s *Span, tc TracerConf) {
 	// val() is used: only specific non-empty values ("client", "producer") qualify as
 	// outbound requests, so an unset and an explicitly-empty spanKind are both correctly
 	// treated as non-outbound.
-	spanKind := s.attrs.Val(tinternal.AttrSpanKind)
+	spanKind := s.meta.attrs.Val(tinternal.AttrSpanKind)
 	isOutboundRequest := spanKind == ext.SpanKindClient || spanKind == ext.SpanKindProducer
 
-	if _, ok := s.meta[ext.PeerService]; ok { // peer.service already set on the span
+	if _, ok := s.meta.m[ext.PeerService]; ok { // peer.service already set on the span
 		s.setMetaLocked(keyPeerServiceSource, ext.PeerService)
 	} else if isServerless(tc) {
 		// Set peerService only in outbound Lambda requests
 		if isOutboundRequest {
-			if ps := deriveAWSPeerService(s.meta); ps != "" {
+			if ps := deriveAWSPeerService(s.meta.m); ps != "" {
 				s.setMetaLocked(ext.PeerService, ps)
 				s.setMetaLocked(keyPeerServiceSource, ext.PeerService)
 			} else {
@@ -877,7 +877,7 @@ func setPeerService(s *Span, tc TracerConf) {
 		s.setMetaLocked(keyPeerServiceSource, source)
 	}
 	// Overwrite existing peer.service value if remapped by the user
-	ps := s.meta[ext.PeerService]
+	ps := s.meta.m[ext.PeerService]
 	if to, ok := tc.PeerServiceMappings[ps]; ok {
 		s.setMetaLocked(keyPeerServiceRemappedFrom, ps)
 		s.setMetaLocked(ext.PeerService, to)
@@ -936,7 +936,7 @@ func deriveAWSPeerService(sm map[string]string) string {
 // +checklocks:s.mu
 func (s *Span) hasMetaKeyLocked(tag string) bool {
 	assert.RWMutexLocked(&s.mu)
-	_, ok := s.meta[tag]
+	_, ok := s.meta.m[tag]
 	return ok
 }
 
@@ -959,7 +959,7 @@ func setPeerServiceFromSource(s *Span) string {
 			"tablename",
 			"bucketname",
 		}
-	case s.meta[ext.DBSystem] == ext.DBSystemCassandra:
+	case s.meta.m[ext.DBSystem] == ext.DBSystemCassandra:
 		sources = []string{
 			ext.CassandraContactPoints,
 		}
@@ -987,7 +987,7 @@ func setPeerServiceFromSource(s *Span) string {
 		}...)
 	}
 	for _, source := range sources {
-		if val, ok := s.meta[source]; ok {
+		if val, ok := s.meta.m[source]; ok {
 			s.setMetaLocked(ext.PeerService, val)
 			return source
 		}

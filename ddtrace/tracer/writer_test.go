@@ -42,7 +42,7 @@ func makeSpan(n int) *Span {
 	s := newSpan("encodeName", "encodeService", "encodeResource", randUint64(), randUint64(), randUint64())
 	for i := range n {
 		istr := fmt.Sprintf("%0.10d", i)
-		s.meta[istr] = istr
+		s.meta.m[istr] = istr
 		s.metrics[istr] = float64(i)
 	}
 	return s
@@ -186,10 +186,10 @@ func TestLogWriter(t *testing.T) {
 			name:     "basicName",
 			service:  "basicService",
 			resource: "basicResource",
-			meta: map[string]string{
+			meta: spanMeta{m: map[string]string{
 				"env":     "prod",
 				"version": "1.26.0",
-			},
+			}},
 			metaStruct: map[string]any{
 				"_dd.stack": map[string]string{
 					"0": "github.com/DataDog/dd-trace-go/v1/internal/tracer.TestLogWriter",
@@ -247,7 +247,7 @@ func TestLogWriter(t *testing.T) {
 		assert := assert.New(t)
 		s := newSpan("name\n", "srv\t", `"res"`, 2, 1, 3)
 		s.start = 12
-		s.meta["query\n"] = "Select * from \n Where\nvalue"
+		s.meta.m["query\n"] = "Select * from \n Where\nvalue"
 		s.metrics["version\n"] = 3
 
 		var w logTraceWriter

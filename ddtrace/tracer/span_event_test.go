@@ -137,10 +137,10 @@ func Test_spanAddEvent(t *testing.T) {
 		s.Finish()
 
 		require.Empty(t, s.spanEvents)
-		assert.NotEmpty(t, s.meta["events"])
+		assert.NotEmpty(t, s.meta.m["events"])
 
 		var spanEvents []spanEvent
-		err := json.Unmarshal([]byte(s.meta["events"]), &spanEvents)
+		err := json.Unmarshal([]byte(s.meta.m["events"]), &spanEvents)
 		require.NoError(t, err)
 
 		require.Len(t, spanEvents, 3)

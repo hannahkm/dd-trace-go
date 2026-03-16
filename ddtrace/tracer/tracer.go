@@ -495,7 +495,11 @@ func newUnstartedTracer(opts ...StartOption) (t *tracer, err error) {
 	if env := c.internalConfig.Env(); env != "" {
 		t.sharedAttrs.Set(tinternal.AttrEnv, env)
 	}
-	if ver := c.internalConfig.Version(); ver != "" {
+	if ver := c.internalConfig.Version(); ver != "" && c.universalVersion {
+		// Only include version in shared attrs when universalVersion is true,
+		// because non-universal version should only be set on spans whose
+		// service name matches the tracer's configured service name. That
+		// check happens at span-start time in StartSpan.
 		t.sharedAttrs.Set(tinternal.AttrVersion, ver)
 	}
 	t.sharedAttrs.MarkShared()
@@ -817,7 +821,7 @@ func spanStart(operationName string, sharedAttrs *tinternal.SpanAttributes, opti
 		traceID:       id,
 		start:         startTime,
 		integration:   "manual",
-		attrs:         sharedAttrs, // COW: shared until a per-span field is set
+		meta:          spanMeta{attrs: sharedAttrs}, // COW: shared until a per-span field is set
 	}
 
 	span.spanLinks = append(span.spanLinks, opts.SpanLinks...)

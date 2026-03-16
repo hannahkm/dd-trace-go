@@ -62,32 +62,10 @@ func (z *Span) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 		case "meta":
-			var zb0002 uint32
-			zb0002, err = dc.ReadMapHeader()
+			err = z.meta.DecodeMsg(dc)
 			if err != nil {
 				err = msgp.WrapError(err, "meta")
 				return
-			}
-			if z.meta == nil {
-				z.meta = make(map[string]string, zb0002)
-			} else if len(z.meta) > 0 {
-				clear(z.meta)
-			}
-			for zb0002 > 0 {
-				zb0002--
-				var za0001 string
-				za0001, err = dc.ReadString()
-				if err != nil {
-					err = msgp.WrapError(err, "meta")
-					return
-				}
-				var za0002 string
-				za0002, err = dc.ReadString()
-				if err != nil {
-					err = msgp.WrapError(err, "meta", za0001)
-					return
-				}
-				z.meta[za0001] = za0002
 			}
 		case "meta_struct":
 			err = z.metaStruct.DecodeMsg(dc)
@@ -203,7 +181,7 @@ func (z *Span) EncodeMsg(en *msgp.Writer) (err error) {
 	zb0001Len := uint32(15)
 	var zb0001Mask uint16 /* 15 bits */
 	_ = zb0001Mask
-	if z.meta == nil {
+	if z.meta.m == nil && z.meta.attrs.Count() == 0 {
 		zb0001Len--
 		zb0001Mask |= 0x40
 	}
@@ -293,22 +271,10 @@ func (z *Span) EncodeMsg(en *msgp.Writer) (err error) {
 			if err != nil {
 				return
 			}
-			err = en.WriteMapHeader(uint32(len(z.meta)))
+			err = z.meta.EncodeMsg(en)
 			if err != nil {
 				err = msgp.WrapError(err, "meta")
 				return
-			}
-			for za0001, za0002 := range z.meta {
-				err = en.WriteString(za0001)
-				if err != nil {
-					err = msgp.WrapError(err, "meta")
-					return
-				}
-				err = en.WriteString(za0002)
-				if err != nil {
-					err = msgp.WrapError(err, "meta", za0001)
-					return
-				}
 			}
 		}
 		// write "meta_struct"
@@ -430,13 +396,7 @@ func (z *Span) EncodeMsg(en *msgp.Writer) (err error) {
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 // +checklocksignore — Generated code: post-finish serialization or pre-share deserialization.
 func (z *Span) Msgsize() (s int) {
-	s = 1 + 5 + msgp.StringPrefixSize + len(z.name) + 8 + msgp.StringPrefixSize + len(z.service) + 9 + msgp.StringPrefixSize + len(z.resource) + 5 + msgp.StringPrefixSize + len(z.spanType) + 6 + msgp.Int64Size + 9 + msgp.Int64Size + 5 + msgp.MapHeaderSize
-	if z.meta != nil {
-		for za0001, za0002 := range z.meta {
-			_ = za0002
-			s += msgp.StringPrefixSize + len(za0001) + msgp.StringPrefixSize + len(za0002)
-		}
-	}
+	s = 1 + 5 + msgp.StringPrefixSize + len(z.name) + 8 + msgp.StringPrefixSize + len(z.service) + 9 + msgp.StringPrefixSize + len(z.resource) + 5 + msgp.StringPrefixSize + len(z.spanType) + 6 + msgp.Int64Size + 9 + msgp.Int64Size + 5 + z.meta.Msgsize()
 	s += 12 + z.metaStruct.Msgsize() + 8 + msgp.MapHeaderSize
 	if z.metrics != nil {
 		for za0003, za0004 := range z.metrics {

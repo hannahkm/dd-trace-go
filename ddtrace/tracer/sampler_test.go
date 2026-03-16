@@ -69,15 +69,13 @@ func TestPrioritySampler(t *testing.T) {
 		assert := assert.New(t)
 		s := mkSpan("my-service", "my-env")
 		assert.Equal("my-service", s.service)
-		assert.Equal("my-env", s.attrs.Val(tinternal.AttrEnv))
-		assert.Equal("my-env", s.meta[ext.Environment])
+		assert.Equal("my-env", s.meta.attrs.Val(tinternal.AttrEnv))
 
 		s = mkSpan("my-service2", "")
 		assert.Equal("my-service2", s.service)
-		v, ok := s.attrs.Get(tinternal.AttrEnv)
+		v, ok := s.meta.attrs.Get(tinternal.AttrEnv)
 		assert.Equal("", v)
 		assert.True(ok) // set to empty string, not absent
-		assert.Contains(s.meta, ext.Environment)
 	})
 
 	t.Run("ops", func(t *testing.T) {
@@ -380,7 +378,7 @@ func BenchmarkPrioritySamplerGetRate(b *testing.B) {
 	}
 	oldGetRate := func(ops *oldPrioritySampler, spn *Span) float64 {
 		// Allocation doesn't escape to the heap.
-		key := "service:" + spn.service + ",env:" + spn.attrs.Val(tinternal.AttrEnv)
+		key := "service:" + spn.service + ",env:" + spn.meta.attrs.Val(tinternal.AttrEnv)
 		if rate, ok := ops.rates[key]; ok {
 			return rate
 		}
@@ -397,11 +395,11 @@ func BenchmarkPrioritySamplerGetRate(b *testing.B) {
 	ps.rates[serviceEnvKey{service: "web", env: "prod"}] = 0.5
 
 	spnHit := newSpan("op", "web", "resource", 1, 1, 0)
-	spnHit.attrs.Set(tinternal.AttrEnv, "prod")
+	spnHit.meta.attrs.Set(tinternal.AttrEnv, "prod")
 	spnHit.SetTag(ext.Environment, "prod")
 
 	spnMiss := newSpan("op", "other", "resource", 1, 1, 0)
-	spnMiss.attrs.Set(tinternal.AttrEnv, "staging")
+	spnMiss.meta.attrs.Set(tinternal.AttrEnv, "staging")
 	spnMiss.SetTag(ext.Environment, "staging")
 
 	b.ResetTimer()
@@ -2125,8 +2123,8 @@ func TestSampleTagsRootOnly(t *testing.T) {
 		assert.Equal(0., root.metrics[keyRulesSamplerAppliedRate])
 		assert.NotContains(root.metrics, keyRulesSamplerLimiterRate)
 		// Knuth sampling rate tag should be set even when rate is 0
-		assert.Contains(root.meta, keyKnuthSamplingRate)
-		assert.Equal("0", root.meta[keyKnuthSamplingRate])
+		assert.Contains(root.meta.m, keyKnuthSamplingRate)
+		assert.Equal("0", root.meta.m[keyKnuthSamplingRate])
 
 		// neither"_dd.limit_psr", nor "_dd.rule_psr" should be present
 		// on the child span
@@ -2178,15 +2176,15 @@ func TestSampleTagsRootOnly(t *testing.T) {
 		assert.Contains(root.metrics, keyRulesSamplerAppliedRate)
 		assert.NotContains(root.metrics, keyRulesSamplerLimiterRate)
 		// Knuth sampling rate tag should be set even when rate is 0
-		assert.Contains(root.meta, keyKnuthSamplingRate)
-		assert.Equal("0", root.meta[keyKnuthSamplingRate])
+		assert.Contains(root.meta.m, keyKnuthSamplingRate)
+		assert.Equal("0", root.meta.m[keyKnuthSamplingRate])
 
 		// neither"_dd.limit_psr", nor "_dd.rule_psr" should be present
 		// on the child span
 		assert.NotContains(child.metrics, keyRulesSamplerAppliedRate)
 		assert.NotContains(child.metrics, keyRulesSamplerLimiterRate)
 		// child span should not have Knuth sampling rate tag
-		assert.NotContains(child.meta, keyKnuthSamplingRate)
+		assert.NotContains(child.meta.m, keyKnuthSamplingRate)
 
 		// context propagation locks the span, so no re-sampling should occur
 		tr.Inject(root.Context(), TextMapCarrier(map[string]string{}))
@@ -2370,7 +2368,7 @@ func TestPrioritySamplerRampCooldownNoReset(t *testing.T) {
 		mkSpan := func(svc, env string) *Span {
 			a := new(tinternal.SpanAttributes)
 			a.Set(tinternal.AttrEnv, env)
-			return &Span{service: svc, attrs: a}
+			return &Span{service: svc, meta: spanMeta{attrs: a}}
 		}
 
 		// Set initial low rate.
@@ -2416,7 +2414,7 @@ func TestPrioritySamplerRampUp(t *testing.T) {
 		mkSpan := func(svc, env string) *Span {
 			a := new(tinternal.SpanAttributes)
 			a.Set(tinternal.AttrEnv, env)
-			return &Span{service: svc, attrs: a}
+			return &Span{service: svc, meta: spanMeta{attrs: a}}
 		}
 
 		// Set initial low rate (decrease from default 1.0, applied immediately).
@@ -2459,7 +2457,7 @@ func TestPrioritySamplerRampDown(t *testing.T) {
 	mkSpan := func(svc, env string) *Span {
 		a := new(tinternal.SpanAttributes)
 		a.Set(tinternal.AttrEnv, env)
-		return &Span{service: svc, attrs: a}
+		return &Span{service: svc, meta: spanMeta{attrs: a}}
 	}
 
 	// Set initial rate (decrease from default 1.0).
@@ -2483,7 +2481,7 @@ func TestPrioritySamplerRampConverges(t *testing.T) {
 		mkSpan := func(svc, env string) *Span {
 			a := new(tinternal.SpanAttributes)
 			a.Set(tinternal.AttrEnv, env)
-			return &Span{service: svc, attrs: a}
+			return &Span{service: svc, meta: spanMeta{attrs: a}}
 		}
 
 		// Start at 0.1, target 0.5.
@@ -2510,7 +2508,7 @@ func TestPrioritySamplerRampDefaultRate(t *testing.T) {
 		mkSpan := func(svc, env string) *Span {
 			a := new(tinternal.SpanAttributes)
 			a.Set(tinternal.AttrEnv, env)
-			return &Span{service: svc, attrs: a}
+			return &Span{service: svc, meta: spanMeta{attrs: a}}
 		}
 
 		// Set default rate to 0.1 (decrease from initial 1.0, applied immediately).

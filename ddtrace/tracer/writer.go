@@ -245,7 +245,7 @@ func (h *logTraceWriter) encodeSpan(s *Span) {
 	h.buf.Write(strconv.AppendInt(scratch[:0], int64(s.error), 10))
 	h.buf.WriteString(`,"meta":{`)
 	first := true
-	for k, v := range s.meta {
+	for k, v := range s.meta.m {
 		if first {
 			first = false
 		} else {
@@ -255,6 +255,16 @@ func (h *logTraceWriter) encodeSpan(s *Span) {
 		h.buf.WriteString(":")
 		h.marshalString(v)
 	}
+	s.meta.attrs.ForEach(func(name, val string) {
+		if first {
+			first = false
+		} else {
+			h.buf.WriteString(",")
+		}
+		h.marshalString(name)
+		h.buf.WriteString(":")
+		h.marshalString(val)
+	})
 	// We cannot pack messagepack into JSON, so we need to marshal the meta struct as JSON, and send them through the `meta` field
 	for k, v := range s.metaStruct {
 		if first {
