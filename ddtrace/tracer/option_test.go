@@ -1818,7 +1818,7 @@ func TestWithStartSpanConfig(t *testing.T) {
 	s := tracer.StartSpan("test", WithStartSpanConfig(cfg))
 	defer s.Finish()
 	assert.Equal(float64(1), s.metrics[keyMeasured])
-	assert.Equal("value", s.meta["key"])
+	assert.Equal("value", s.meta.m["key"])
 	assert.Equal(parent.Context().SpanID(), s.parentID)
 	assert.Equal(parent.Context().TraceID(), s.Context().TraceID())
 	assert.Equal("resource", s.resource)
@@ -1867,8 +1867,8 @@ func TestWithStartSpanConfigNonEmptyTags(t *testing.T) {
 		Tag("key", "after_start_span_config"),
 	)
 	defer s.Finish()
-	assert.Equal("should_override", s.meta["k2"])
-	assert.Equal("after_start_span_config", s.meta["key"])
+	assert.Equal("should_override", s.meta.m["k2"])
+	assert.Equal("after_start_span_config", s.meta.m["key"])
 }
 
 func optsTestConsumer(opts ...StartSpanOption) {

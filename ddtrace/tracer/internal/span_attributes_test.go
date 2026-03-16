@@ -92,6 +92,57 @@ func TestSpanAttributesValUnset(t *testing.T) {
 	}
 }
 
+func TestSpanAttributesForEach(t *testing.T) {
+	var a SpanAttributes
+	a.Set(AttrEnv, "prod")
+	a.Set(AttrSpanKind, "server")
+	// AttrVersion and AttrComponent are NOT set
+
+	got := make(map[string]string)
+	a.ForEach(func(name, val string) {
+		got[name] = val
+	})
+	if len(got) != 2 {
+		t.Fatalf("expected 2 entries, got %d: %v", len(got), got)
+	}
+	if got["env"] != "prod" {
+		t.Errorf("expected env=prod, got %q", got["env"])
+	}
+	if got["span.kind"] != "server" {
+		t.Errorf("expected span.kind=server, got %q", got["span.kind"])
+	}
+}
+
+func TestSpanAttributesForEachNil(t *testing.T) {
+	var a *SpanAttributes
+	called := false
+	a.ForEach(func(_, _ string) { called = true })
+	if called {
+		t.Error("ForEach should not call fn on nil receiver")
+	}
+}
+
+func TestAttrKeyForTag(t *testing.T) {
+	tests := []struct {
+		tag string
+		key AttrKey
+		ok  bool
+	}{
+		{"env", AttrEnv, true},
+		{"version", AttrVersion, true},
+		{"component", AttrComponent, true},
+		{"span.kind", AttrSpanKind, true},
+		{"unknown", 0, false},
+		{"", 0, false},
+	}
+	for _, tt := range tests {
+		key, ok := AttrKeyForTag(tt.tag)
+		if ok != tt.ok || key != tt.key {
+			t.Errorf("AttrKeyForTag(%q) = (%d, %v), want (%d, %v)", tt.tag, key, ok, tt.key, tt.ok)
+		}
+	}
+}
+
 // BenchmarkSpanAttributesSet benchmarks setting all four promoted fields using
 // SpanAttributes versus an equivalent map[string]string.
 func BenchmarkSpanAttributesSet(b *testing.B) {

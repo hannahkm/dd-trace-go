@@ -533,18 +533,13 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		// span attributes combine the meta (tags), metrics and meta_struct.
 		// To avoid increased allocations, we serialize attributes immediately without
 		// creating an intermediate map.
-		// Promoted fields (env, version, component, spanKind) are encoded as
-		// dedicated span fields 13-16, so we exclude them from the meta loop
-		// to avoid double-encoding.
-		promoted := span.attrs.Count()
-		size := len(span.meta) - promoted + len(span.metrics) + len(span.metaStruct)
+		// Promoted fields (env, version, component, spanKind) live in
+		// span.meta.attrs and are encoded as dedicated span fields 13-16.
+		// They are no longer in span.meta.m, so no skip logic is needed.
+		size := len(span.meta.m) + len(span.metrics) + len(span.metaStruct)
 		p.buf = msgp.AppendUint32(p.buf, uint32(9))           // attributes fieldID
 		p.buf = msgp.AppendArrayHeader(p.buf, uint32(size)*3) // number of attributes
-		for k, v := range span.meta {
-			switch k {
-			case ext.Environment, ext.Version, ext.Component, ext.SpanKind:
-				continue // promoted fields: encoded as dedicated span fields (13-16) or not needed in attributes
-			}
+		for k, v := range span.meta.m {
 			p.buf = st.serialize(k, p.buf)
 			p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))
 			p.buf = st.serialize(v, p.buf)
@@ -571,10 +566,10 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 
 		// val() is used: an absent key and an empty value are both encoded as an
 		// empty string, so the "was it set?" distinction is irrelevant for wire encoding.
-		p.buf = encodeField(p.buf, fullSetBitmap, 13, span.attrs.Val(tinternal.AttrEnv), st)
-		p.buf = encodeField(p.buf, fullSetBitmap, 14, span.attrs.Val(tinternal.AttrVersion), st)
-		p.buf = encodeField(p.buf, fullSetBitmap, 15, span.attrs.Val(tinternal.AttrComponent), st)
-		p.buf = encodeField(p.buf, fullSetBitmap, 16, getSpanKindValue(span.attrs.Val(tinternal.AttrSpanKind)), st)
+		p.buf = encodeField(p.buf, fullSetBitmap, 13, span.meta.attrs.Val(tinternal.AttrEnv), st)
+		p.buf = encodeField(p.buf, fullSetBitmap, 14, span.meta.attrs.Val(tinternal.AttrVersion), st)
+		p.buf = encodeField(p.buf, fullSetBitmap, 15, span.meta.attrs.Val(tinternal.AttrComponent), st)
+		p.buf = encodeField(p.buf, fullSetBitmap, 16, getSpanKindValue(span.meta.attrs.Val(tinternal.AttrSpanKind)), st)
 	}
 	return true, nil
 }

@@ -85,7 +85,7 @@ type abandonedSpanCandidate struct {
 // +checklocksignore — Called while span is locked or during initialization.
 func newAbandonedSpanCandidate(s *Span, finished bool) *abandonedSpanCandidate {
 	var component string
-	if v, ok := s.attrs.Get(tinternal.AttrComponent); ok {
+	if v, ok := s.meta.attrs.Get(tinternal.AttrComponent); ok {
 		component = v
 	} else {
 		component = "manual"

@@ -320,10 +320,10 @@ func TestStatsIncludeHTTPMethodAndEndpoint(t *testing.T) {
 		start:    time.Now().UnixNano(),
 		duration: int64(time.Millisecond),
 		metrics:  map[string]float64{keyMeasured: 1},
-		meta: map[string]string{
+		meta: spanMeta{m: map[string]string{
 			ext.HTTPMethod:   uniqueMethod,
 			ext.HTTPEndpoint: uniqueEndpoint,
-		},
+		}},
 	}
 	transport := newDummyTransport()
 	c := newConcentrator(newTestConfigWithTransport(t, transport), bucketSize, &statsd.NoOpClientDirect{})

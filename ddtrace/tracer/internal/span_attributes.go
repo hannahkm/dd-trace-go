@@ -88,3 +88,44 @@ func (a *SpanAttributes) Clone() *SpanAttributes {
 	cp.shared = false
 	return &cp
 }
+
+// AttrDef maps an AttrKey to its canonical tag name.
+type AttrDef struct {
+	Key  AttrKey
+	Name string
+}
+
+// Defs enumerates all promoted attribute definitions.
+var Defs = [numAttrs]AttrDef{
+	{AttrEnv, "env"},
+	{AttrVersion, "version"},
+	{AttrComponent, "component"},
+	{AttrSpanKind, "span.kind"},
+}
+
+// ForEach calls fn for each attribute that has been set.
+func (a *SpanAttributes) ForEach(fn func(name, val string)) {
+	if a == nil {
+		return
+	}
+	for _, d := range Defs {
+		if a.setMask>>d.Key&1 != 0 {
+			fn(d.Name, a.vals[d.Key])
+		}
+	}
+}
+
+// AttrKeyForTag returns the AttrKey for a promoted tag name, if any.
+func AttrKeyForTag(tag string) (AttrKey, bool) {
+	switch tag {
+	case "env":
+		return AttrEnv, true
+	case "version":
+		return AttrVersion, true
+	case "component":
+		return AttrComponent, true
+	case "span.kind":
+		return AttrSpanKind, true
+	}
+	return 0, false
+}
