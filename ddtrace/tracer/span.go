@@ -758,33 +758,26 @@ func (s *Span) setMetaInit(key, v string) {
 	switch key {
 	case ext.SpanName:
 		s.name = v
-		return
 	case ext.ServiceName:
 		s.service = v
-		return
 	case ext.ResourceName:
 		s.resource = v
-		return
 	case ext.SpanType:
 		s.spanType = v
-		return
 	case ext.Environment:
 		s.setAttrCOW(tinternal.AttrEnv, v)
-		return
 	case ext.Version:
 		s.setAttrCOW(tinternal.AttrVersion, v)
-		return
 	case ext.Component:
 		s.setAttrCOW(tinternal.AttrComponent, v)
-		return
 	case ext.SpanKind:
 		s.setAttrCOW(tinternal.AttrSpanKind, v)
-		return
+	default:
+		if s.meta.m == nil {
+			s.meta.m = initMeta()
+		}
+		s.meta.m[key] = v
 	}
-	if s.meta.m == nil {
-		s.meta.m = initMeta()
-	}
-	s.meta.m[key] = v
 }
 
 // setAttrCOW sets a promoted attribute with copy-on-write semantics.

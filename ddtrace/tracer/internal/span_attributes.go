@@ -79,6 +79,16 @@ func (a *SpanAttributes) MarkShared() { a.shared = true }
 // IsShared reports whether this is a shared instance requiring COW.
 func (a *SpanAttributes) IsShared() bool { return a != nil && a.shared }
 
+// Reset clears all set attributes, returning the instance to its zero state.
+// It is nil-safe and does not free the underlying memory, making it suitable
+// for reuse (e.g. in a decode loop that reuses Span objects).
+func (a *SpanAttributes) Reset() {
+	if a == nil {
+		return
+	}
+	*a = SpanAttributes{}
+}
+
 // Clone returns a mutable (non-shared) shallow copy.
 func (a *SpanAttributes) Clone() *SpanAttributes {
 	if a == nil {
