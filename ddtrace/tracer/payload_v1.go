@@ -16,6 +16,7 @@ import (
 	"github.com/tinylib/msgp/msgp"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
+	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
 	"github.com/DataDog/dd-trace-go/v2/internal/processtags"
 )
@@ -570,10 +571,10 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 
 		// val() is used: an absent key and an empty value are both encoded as an
 		// empty string, so the "was it set?" distinction is irrelevant for wire encoding.
-		p.buf = encodeField(p.buf, fullSetBitmap, 13, span.attrs.Val(attrEnv), st)
-		p.buf = encodeField(p.buf, fullSetBitmap, 14, span.attrs.Val(attrVersion), st)
-		p.buf = encodeField(p.buf, fullSetBitmap, 15, span.attrs.Val(attrComponent), st)
-		p.buf = encodeField(p.buf, fullSetBitmap, 16, getSpanKindValue(span.attrs.Val(attrSpanKind)), st)
+		p.buf = encodeField(p.buf, fullSetBitmap, 13, span.attrs.Val(tinternal.AttrEnv), st)
+		p.buf = encodeField(p.buf, fullSetBitmap, 14, span.attrs.Val(tinternal.AttrVersion), st)
+		p.buf = encodeField(p.buf, fullSetBitmap, 15, span.attrs.Val(tinternal.AttrComponent), st)
+		p.buf = encodeField(p.buf, fullSetBitmap, 16, getSpanKindValue(span.attrs.Val(tinternal.AttrSpanKind)), st)
 	}
 	return true, nil
 }
