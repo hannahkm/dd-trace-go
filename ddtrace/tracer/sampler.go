@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
+	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/locking"
 	"github.com/DataDog/dd-trace-go/v2/internal/samplernames"
 )
@@ -227,7 +228,7 @@ func (ps *prioritySampler) readRatesJSON(rc io.ReadCloser) error {
 func (ps *prioritySampler) getRate(spn *Span) float64 {
 	// val() is used: a span with env explicitly set to "" and one with env never set
 	// both map to the same rate-table key (both fall back to the default rate).
-	key := serviceEnvKey{service: spn.service, env: spn.attrs.Val(attrEnv)}
+	key := serviceEnvKey{service: spn.service, env: spn.attrs.Val(tinternal.AttrEnv)}
 	ps.mu.RLock()
 	defer ps.mu.RUnlock()
 	if rate, ok := ps.rates[key]; ok {

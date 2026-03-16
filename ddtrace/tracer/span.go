@@ -118,16 +118,6 @@ func (s *Span) spanEventsAsJSONString() string {
 	return string(events)
 }
 
-// spanAttributes is a package-level alias for tinternal.SpanAttributes.
-type spanAttributes = tinternal.SpanAttributes
-
-const (
-	attrEnv       = tinternal.AttrEnv
-	attrVersion   = tinternal.AttrVersion
-	attrComponent = tinternal.AttrComponent
-	attrSpanKind  = tinternal.AttrSpanKind
-)
-
 // Span represents a computation. Callers must call Finish when a Span is
 // complete to ensure it's submitted.
 type Span struct {
@@ -148,7 +138,7 @@ type Span struct {
 	// They are dual-stored: attrs is used by the V1 encoder and internal callers to avoid
 	// a map lookup; the meta map copy ensures V0.4 (msgp) encoding and the external stats
 	// concentrator (which reads Meta["span.kind"]) continue to work without change.
-	attrs spanAttributes `msg:"-"`
+	attrs tinternal.SpanAttributes `msg:"-"`
 	// +checklocks:mu
 	start int64 `msg:"start"` // span start time expressed in nanoseconds since epoch
 	// +checklocks:mu
@@ -303,7 +293,7 @@ func (s *Span) debugInfo() (name string, spanID, traceID uint64, integration str
 	name = s.name
 	spanID = s.spanID
 	traceID = s.traceID
-	if v, ok := s.attrs.Get(attrComponent); ok {
+	if v, ok := s.attrs.Get(tinternal.AttrComponent); ok {
 		integration = v
 	} else {
 		integration = "manual"
@@ -761,13 +751,13 @@ func (s *Span) setMetaInit(key, v string) {
 		s.spanType = v
 		return
 	case ext.Environment:
-		s.attrs.Set(attrEnv, v)
+		s.attrs.Set(tinternal.AttrEnv, v)
 	case ext.Version:
-		s.attrs.Set(attrVersion, v)
+		s.attrs.Set(tinternal.AttrVersion, v)
 	case ext.Component:
-		s.attrs.Set(attrComponent, v)
+		s.attrs.Set(tinternal.AttrComponent, v)
 	case ext.SpanKind:
-		s.attrs.Set(attrSpanKind, v)
+		s.attrs.Set(tinternal.AttrSpanKind, v)
 	}
 	// Promoted fields (env/version/component/spanKind) fall through here so they
 	// remain in meta too. The V0.4 encoder and the external stats concentrator both
@@ -1244,13 +1234,13 @@ func getMeta(s *Span, key string) (string, bool) {
 	// semantics without a map lookup.
 	switch key {
 	case ext.Environment:
-		return s.attrs.Get(attrEnv)
+		return s.attrs.Get(tinternal.AttrEnv)
 	case ext.Version:
-		return s.attrs.Get(attrVersion)
+		return s.attrs.Get(tinternal.AttrVersion)
 	case ext.Component:
-		return s.attrs.Get(attrComponent)
+		return s.attrs.Get(tinternal.AttrComponent)
 	case ext.SpanKind:
-		return s.attrs.Get(attrSpanKind)
+		return s.attrs.Get(tinternal.AttrSpanKind)
 	}
 	val, ok := s.meta[key]
 	return val, ok
