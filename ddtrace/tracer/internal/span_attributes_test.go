@@ -11,7 +11,7 @@ import (
 
 func TestSpanAttributesZeroValue(t *testing.T) {
 	var a SpanAttributes
-	for _, key := range []AttrKey{AttrEnv, AttrVersion, AttrComponent, AttrSpanKind, AttrLanguage} {
+	for _, key := range []AttrKey{AttrEnv, AttrVersion, AttrComponent, AttrSpanKind} {
 		if v, ok := a.Get(key); ok || v != "" {
 			t.Errorf("key %d: expected absent zero value, got (%q, %v)", key, v, ok)
 		}
@@ -27,7 +27,6 @@ func TestSpanAttributesSetAndGet(t *testing.T) {
 		{AttrVersion, "1.2.3"},
 		{AttrComponent, "net/http"},
 		{AttrSpanKind, "server"},
-		{AttrLanguage, "go"},
 	}
 	var a SpanAttributes
 	for _, tt := range tests {
@@ -78,7 +77,7 @@ func TestSpanAttributesIndependentKeys(t *testing.T) {
 	a.Set(AttrEnv, "prod")
 
 	// Other keys must remain absent.
-	for _, key := range []AttrKey{AttrVersion, AttrComponent, AttrSpanKind, AttrLanguage} {
+	for _, key := range []AttrKey{AttrVersion, AttrComponent, AttrSpanKind} {
 		if _, ok := a.Get(key); ok {
 			t.Errorf("key %d should be absent after setting only AttrEnv", key)
 		}
@@ -105,7 +104,6 @@ func BenchmarkSpanAttributesSet(b *testing.B) {
 			a.Set(AttrVersion, "1.2.3")
 			a.Set(AttrComponent, "net/http")
 			a.Set(AttrSpanKind, "server")
-			a.Set(AttrLanguage, "go")
 		}
 		_ = a
 	})
@@ -132,7 +130,6 @@ func BenchmarkSpanAttributesGet(b *testing.B) {
 		a.Set(AttrVersion, "1.2.3")
 		a.Set(AttrComponent, "net/http")
 		a.Set(AttrSpanKind, "server")
-		a.Set(AttrLanguage, "go")
 		b.ReportAllocs()
 		b.ResetTimer()
 		var s string

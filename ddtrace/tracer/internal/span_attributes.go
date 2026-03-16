@@ -11,15 +11,11 @@ import "math/bits"
 // Use the pre-declared constants; do not construct AttrKey from arbitrary integers.
 type AttrKey uint8
 
-// Count returns the number of promoted fields that have been set.
-func (a *SpanAttributes) Count() int { return bits.OnesCount8(a.setMask) }
-
 const (
 	AttrEnv       AttrKey = 0
 	AttrVersion   AttrKey = 1
 	AttrComponent AttrKey = 2
 	AttrSpanKind  AttrKey = 3
-	AttrLanguage  AttrKey = 4
 	numAttrs      AttrKey = 5
 )
 
@@ -31,19 +27,64 @@ var (
 	_ = [1]byte{}[AttrVersion-1]   // AttrVersion must be 1
 	_ = [1]byte{}[AttrComponent-2] // AttrComponent must be 2
 	_ = [1]byte{}[AttrSpanKind-3]  // AttrSpanKind must be 3
-	_ = [1]byte{}[AttrLanguage-4]  // AttrLanguage must be 4
 )
 
-// SpanAttributes holds the four V1-protocol promoted span fields.
+// SpanAttributes holds the V1-protocol promoted span fields.
 // Zero value = all fields absent.
 // Set(key, "") is distinct from never-Set: the bit is set, the string is "".
 //
-// Layout: 1-byte setMask + 7B padding + [5]string (80B) = 88 bytes.
+// Layout: 1-byte setMask + 1-byte shared + 6B padding + [5]string (80B) = 88 bytes.
+//
+// When shared is true, the instance is owned by the tracer and must not be
+// mutated. Callers must Clone before writing (copy-on-write).
 type SpanAttributes struct {
 	setMask uint8
+	shared  bool
 	vals    [numAttrs]string
 }
 
-func (a *SpanAttributes) Set(key AttrKey, v string)      { a.vals[key] = v; a.setMask |= 1 << key }
-func (a *SpanAttributes) Val(key AttrKey) string         { return a.vals[key] }
-func (a *SpanAttributes) Get(key AttrKey) (string, bool) { return a.vals[key], a.setMask>>key&1 != 0 }
+// All read methods are nil-safe so callers holding a *SpanAttributes don't
+// need nil guards.
+
+func (a *SpanAttributes) Set(key AttrKey, v string) {
+	a.vals[key] = v
+	a.setMask |= 1 << key
+}
+
+func (a *SpanAttributes) Val(key AttrKey) string {
+	if a == nil {
+		return ""
+	}
+	return a.vals[key]
+}
+
+func (a *SpanAttributes) Get(key AttrKey) (string, bool) {
+	if a == nil {
+		return "", false
+	}
+	return a.vals[key], a.setMask>>key&1 != 0
+}
+
+// Count returns the number of promoted fields that have been set.
+func (a *SpanAttributes) Count() int {
+	if a == nil {
+		return 0
+	}
+	return bits.OnesCount8(a.setMask)
+}
+
+// MarkShared marks this instance as shared (read-only). Clone before mutating.
+func (a *SpanAttributes) MarkShared() { a.shared = true }
+
+// IsShared reports whether this is a shared instance requiring COW.
+func (a *SpanAttributes) IsShared() bool { return a != nil && a.shared }
+
+// Clone returns a mutable (non-shared) shallow copy.
+func (a *SpanAttributes) Clone() *SpanAttributes {
+	if a == nil {
+		return &SpanAttributes{}
+	}
+	cp := *a
+	cp.shared = false
+	return &cp
+}

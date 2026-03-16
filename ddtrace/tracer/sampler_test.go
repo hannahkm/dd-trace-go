@@ -2190,7 +2190,7 @@ func TestPrioritySamplerRampCooldownNoReset(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			var a tinternal.SpanAttributes
+			a := new(tinternal.SpanAttributes)
 			a.Set(tinternal.AttrEnv, env)
 			return &Span{service: svc, attrs: a}
 		}
@@ -2236,7 +2236,7 @@ func TestPrioritySamplerRampUp(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			var a tinternal.SpanAttributes
+			a := new(tinternal.SpanAttributes)
 			a.Set(tinternal.AttrEnv, env)
 			return &Span{service: svc, attrs: a}
 		}
@@ -2279,7 +2279,7 @@ func TestPrioritySamplerRampDown(t *testing.T) {
 	assert := assert.New(t)
 
 	mkSpan := func(svc, env string) *Span {
-		var a tinternal.SpanAttributes
+		a := new(tinternal.SpanAttributes)
 		a.Set(tinternal.AttrEnv, env)
 		return &Span{service: svc, attrs: a}
 	}
@@ -2303,7 +2303,7 @@ func TestPrioritySamplerRampConverges(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			var a tinternal.SpanAttributes
+			a := new(tinternal.SpanAttributes)
 			a.Set(tinternal.AttrEnv, env)
 			return &Span{service: svc, attrs: a}
 		}
@@ -2330,7 +2330,7 @@ func TestPrioritySamplerRampDefaultRate(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			var a tinternal.SpanAttributes
+			a := new(tinternal.SpanAttributes)
 			a.Set(tinternal.AttrEnv, env)
 			return &Span{service: svc, attrs: a}
 		}

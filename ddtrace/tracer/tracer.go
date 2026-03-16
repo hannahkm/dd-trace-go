@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/internal/tracerstats"
+	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	globalinternal "github.com/DataDog/dd-trace-go/v2/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/appsec"
 	appsecConfig "github.com/DataDog/dd-trace-go/v2/internal/appsec/config"
@@ -172,6 +173,11 @@ type tracer struct {
 
 	// State related to the Dynamic Instrumentation product.
 	dynInstSubscriptions dynInstSubscriptions
+
+	// sharedAttrs holds the process-level promoted span attributes (env, version,
+	// language). All spans start by sharing this pointer; copy-on-write clones it
+	// only when a span needs to set per-span fields (component, spanKind).
+	sharedAttrs tinternal.SpanAttributes
 }
 
 type dynInstSubscriptions struct {
@@ -482,6 +488,16 @@ func newUnstartedTracer(opts ...StartOption) (t *tracer, err error) {
 		dataStreams: dataStreamsProcessor,
 		logFile:     logFile,
 	}
+	// Build the shared SpanAttributes that every span will start from.
+	// Process-level values (env, version, language) are set once here;
+	// spans share this pointer and only clone on per-span overrides.
+	if env := c.internalConfig.Env(); env != "" {
+		t.sharedAttrs.Set(tinternal.AttrEnv, env)
+	}
+	if ver := c.internalConfig.Version(); ver != "" {
+		t.sharedAttrs.Set(tinternal.AttrVersion, ver)
+	}
+	t.sharedAttrs.MarkShared()
 	return t, nil
 }
 
@@ -660,7 +676,7 @@ func (t *tracer) pushChunk(trace *chunk) {
 }
 
 // +checklocksignore — Initialization time, span not yet shared.
-func spanStart(operationName string, options ...StartSpanOption) *Span {
+func spanStart(operationName string, sharedAttrs *tinternal.SpanAttributes, options ...StartSpanOption) *Span {
 	var opts StartSpanConfig
 	for _, fn := range options {
 		if fn == nil {
@@ -722,6 +738,7 @@ func spanStart(operationName string, options ...StartSpanOption) *Span {
 		traceID:     id,
 		start:       startTime,
 		integration: "manual",
+		attrs:       sharedAttrs, // COW: shared until a per-span field is set
 	}
 
 	span.spanLinks = append(span.spanLinks, opts.SpanLinks...)
@@ -770,7 +787,7 @@ func (t *tracer) StartSpan(operationName string, options ...StartSpanOption) *Sp
 	if !t.config.enabled.get() {
 		return nil
 	}
-	span := spanStart(operationName, options...)
+	span := spanStart(operationName, &t.sharedAttrs, options...)
 	if span.service == "" {
 		span.service = t.config.serviceName
 	}
