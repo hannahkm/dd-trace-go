@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
+	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	"github.com/DataDog/dd-trace-go/v2/instrumentation/errortrace"
 	sharedinternal "github.com/DataDog/dd-trace-go/v2/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
@@ -428,7 +429,7 @@ func TestSpanSetTag(t *testing.T) {
 	assert.Equal("web.request", span.name)
 
 	span.SetTag("component", "tracer")
-	assert.Equal("tracer", span.attrs.Val(attrComponent))
+	assert.Equal("tracer", span.attrs.Val(tinternal.AttrComponent))
 	assert.Equal("tracer", span.meta[ext.Component]) // dual-stored
 
 	span.SetTag("tagInt", 1234)
@@ -550,10 +551,10 @@ func TestPromotedFieldsDualStorage(t *testing.T) {
 		tag   string
 		field func(*Span) string
 	}{
-		{ext.Environment, func(s *Span) string { return s.attrs.Val(attrEnv) }},
-		{ext.Version, func(s *Span) string { return s.attrs.Val(attrVersion) }},
-		{ext.Component, func(s *Span) string { return s.attrs.Val(attrComponent) }},
-		{ext.SpanKind, func(s *Span) string { return s.attrs.Val(attrSpanKind) }},
+		{ext.Environment, func(s *Span) string { return s.attrs.Val(tinternal.AttrEnv) }},
+		{ext.Version, func(s *Span) string { return s.attrs.Val(tinternal.AttrVersion) }},
+		{ext.Component, func(s *Span) string { return s.attrs.Val(tinternal.AttrComponent) }},
+		{ext.SpanKind, func(s *Span) string { return s.attrs.Val(tinternal.AttrSpanKind) }},
 	} {
 		t.Run(tc.tag, func(t *testing.T) {
 			span := newBasicSpan("op")

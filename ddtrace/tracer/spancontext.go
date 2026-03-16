@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/internal/tracerstats"
+	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	sharedinternal "github.com/DataDog/dd-trace-go/v2/internal"
 	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
 	"github.com/DataDog/dd-trace-go/v2/internal/locking"
@@ -848,7 +849,7 @@ func setPeerService(s *Span, tc TracerConf) {
 	// val() is used: only specific non-empty values ("client", "producer") qualify as
 	// outbound requests, so an unset and an explicitly-empty spanKind are both correctly
 	// treated as non-outbound.
-	spanKind := s.attrs.Val(attrSpanKind)
+	spanKind := s.attrs.Val(tinternal.AttrSpanKind)
 	isOutboundRequest := spanKind == ext.SpanKindClient || spanKind == ext.SpanKindProducer
 
 	if _, ok := s.meta[ext.PeerService]; ok { // peer.service already set on the span

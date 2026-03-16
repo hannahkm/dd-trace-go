@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
 
@@ -84,7 +85,7 @@ type abandonedSpanCandidate struct {
 // +checklocksignore — Called while span is locked or during initialization.
 func newAbandonedSpanCandidate(s *Span, finished bool) *abandonedSpanCandidate {
 	var component string
-	if v, ok := s.attrs.Get(attrComponent); ok {
+	if v, ok := s.attrs.Get(tinternal.AttrComponent); ok {
 		component = v
 	} else {
 		component = "manual"

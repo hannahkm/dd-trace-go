@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
+	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
 	"github.com/DataDog/dd-trace-go/v2/internal/locking"
 	"github.com/DataDog/dd-trace-go/v2/internal/samplernames"
@@ -68,12 +69,12 @@ func TestPrioritySampler(t *testing.T) {
 		assert := assert.New(t)
 		s := mkSpan("my-service", "my-env")
 		assert.Equal("my-service", s.service)
-		assert.Equal("my-env", s.attrs.Val(attrEnv))
+		assert.Equal("my-env", s.attrs.Val(tinternal.AttrEnv))
 		assert.Equal("my-env", s.meta[ext.Environment])
 
 		s = mkSpan("my-service2", "")
 		assert.Equal("my-service2", s.service)
-		v, ok := s.attrs.Get(attrEnv)
+		v, ok := s.attrs.Get(tinternal.AttrEnv)
 		assert.Equal("", v)
 		assert.True(ok) // set to empty string, not absent
 		assert.Contains(s.meta, ext.Environment)
@@ -379,7 +380,7 @@ func BenchmarkPrioritySamplerGetRate(b *testing.B) {
 	}
 	oldGetRate := func(ops *oldPrioritySampler, spn *Span) float64 {
 		// Allocation doesn't escape to the heap.
-		key := "service:" + spn.service + ",env:" + spn.attrs.Val(attrEnv)
+		key := "service:" + spn.service + ",env:" + spn.attrs.Val(tinternal.AttrEnv)
 		if rate, ok := ops.rates[key]; ok {
 			return rate
 		}
@@ -396,11 +397,11 @@ func BenchmarkPrioritySamplerGetRate(b *testing.B) {
 	ps.rates[serviceEnvKey{service: "web", env: "prod"}] = 0.5
 
 	spnHit := newSpan("op", "web", "resource", 1, 1, 0)
-	spnHit.attrs.Set(attrEnv, "prod")
+	spnHit.attrs.Set(tinternal.AttrEnv, "prod")
 	spnHit.SetTag(ext.Environment, "prod")
 
 	spnMiss := newSpan("op", "other", "resource", 1, 1, 0)
-	spnMiss.attrs.Set(attrEnv, "staging")
+	spnMiss.attrs.Set(tinternal.AttrEnv, "staging")
 	spnMiss.SetTag(ext.Environment, "staging")
 
 	b.ResetTimer()
@@ -2367,8 +2368,8 @@ func TestPrioritySamplerRampCooldownNoReset(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			var a spanAttributes
-			a.Set(attrEnv, env)
+			var a tinternal.SpanAttributes
+			a.Set(tinternal.AttrEnv, env)
 			return &Span{service: svc, attrs: a}
 		}
 
@@ -2413,8 +2414,8 @@ func TestPrioritySamplerRampUp(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			var a spanAttributes
-			a.Set(attrEnv, env)
+			var a tinternal.SpanAttributes
+			a.Set(tinternal.AttrEnv, env)
 			return &Span{service: svc, attrs: a}
 		}
 
@@ -2456,8 +2457,8 @@ func TestPrioritySamplerRampDown(t *testing.T) {
 	assert := assert.New(t)
 
 	mkSpan := func(svc, env string) *Span {
-		var a spanAttributes
-		a.Set(attrEnv, env)
+		var a tinternal.SpanAttributes
+		a.Set(tinternal.AttrEnv, env)
 		return &Span{service: svc, attrs: a}
 	}
 
@@ -2480,8 +2481,8 @@ func TestPrioritySamplerRampConverges(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			var a spanAttributes
-			a.Set(attrEnv, env)
+			var a tinternal.SpanAttributes
+			a.Set(tinternal.AttrEnv, env)
 			return &Span{service: svc, attrs: a}
 		}
 
@@ -2507,8 +2508,8 @@ func TestPrioritySamplerRampDefaultRate(t *testing.T) {
 		assert := assert.New(t)
 
 		mkSpan := func(svc, env string) *Span {
-			var a spanAttributes
-			a.Set(attrEnv, env)
+			var a tinternal.SpanAttributes
+			a.Set(tinternal.AttrEnv, env)
 			return &Span{service: svc, attrs: a}
 		}
 
