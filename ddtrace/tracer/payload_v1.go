@@ -529,13 +529,21 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		p.buf = encodeField(p.buf, fullSetBitmap, 7, span.duration, st)
 		p.buf = encodeField(p.buf, fullSetBitmap, 8, span.error != 0, st)
 
-		// span attributes combine the meta (tags), metrics and meta_struct
+		// span attributes combine the meta (tags), metrics and meta_struct.
 		// To avoid increased allocations, we serialize attributes immediately without
 		// creating an intermediate map.
-		size := len(span.meta) + len(span.metrics) + len(span.metaStruct)
+		// Promoted fields (env, version, component, spanKind) are encoded as
+		// dedicated span fields 13-16, so we exclude them from the meta loop
+		// to avoid double-encoding.
+		promoted := span.attrs.Count()
+		size := len(span.meta) - promoted + len(span.metrics) + len(span.metaStruct)
 		p.buf = msgp.AppendUint32(p.buf, uint32(9))           // attributes fieldID
 		p.buf = msgp.AppendArrayHeader(p.buf, uint32(size)*3) // number of attributes
 		for k, v := range span.meta {
+			switch k {
+			case ext.Environment, ext.Version, ext.Component, ext.SpanKind, ext.Language:
+				continue // promoted fields: encoded as dedicated span fields (13-16) or not needed in attributes
+			}
 			p.buf = st.serialize(k, p.buf)
 			p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))
 			p.buf = st.serialize(v, p.buf)
