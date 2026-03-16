@@ -178,10 +178,17 @@ type tracer struct {
 	// State related to the Dynamic Instrumentation product.
 	dynInstSubscriptions dynInstSubscriptions
 
-	// sharedAttrs holds the process-level promoted span attributes (env, version).
+	// sharedAttrs holds the process-level promoted span attributes.
+	// When universalVersion=true it includes env+version; otherwise env only.
 	// All spans start by sharing this pointer; copy-on-write clones it
 	// only when a span needs to set per-span fields (component, spanKind).
 	sharedAttrs tinternal.SpanAttributes
+
+	// sharedAttrsForMainSvc is like sharedAttrs but always includes version
+	// (when a version is configured). It is used for main-service spans when
+	// universalVersion=false so that the version write in StartSpan is a
+	// copy-on-write no-op rather than triggering an unnecessary Clone.
+	sharedAttrsForMainSvc tinternal.SpanAttributes
 }
 
 type dynInstSubscriptions struct {
@@ -494,15 +501,20 @@ func newUnstartedTracer(opts ...StartOption) (t *tracer, err error) {
 	// spans share this pointer and only clone on per-span overrides.
 	if env := c.internalConfig.Env(); env != "" {
 		t.sharedAttrs.Set(tinternal.AttrEnv, env)
+		t.sharedAttrsForMainSvc.Set(tinternal.AttrEnv, env)
 	}
-	if ver := c.internalConfig.Version(); ver != "" && c.universalVersion {
-		// Only include version in shared attrs when universalVersion is true,
-		// because non-universal version should only be set on spans whose
-		// service name matches the tracer's configured service name. That
-		// check happens at span-start time in StartSpan.
-		t.sharedAttrs.Set(tinternal.AttrVersion, ver)
+	if ver := c.internalConfig.Version(); ver != "" {
+		if c.universalVersion {
+			// universalVersion=true: all spans get version via sharedAttrs.
+			t.sharedAttrs.Set(tinternal.AttrVersion, ver)
+		}
+		// Always pre-populate sharedAttrsForMainSvc with version so that
+		// main-service spans in non-universal mode get a COW no-op rather
+		// than a Clone when StartSpan applies version (see below).
+		t.sharedAttrsForMainSvc.Set(tinternal.AttrVersion, ver)
 	}
 	t.sharedAttrs.MarkShared()
+	t.sharedAttrsForMainSvc.MarkShared()
 	return t, nil
 }
 
@@ -873,6 +885,13 @@ func (t *tracer) StartSpan(operationName string, options ...StartSpanOption) *Sp
 	span := spanStart(operationName, &t.sharedAttrs, options...)
 	if span.service == "" {
 		span.service = t.config.internalConfig.ServiceName()
+	}
+
+	// For non-universal version, promote main-service spans to the version-inclusive
+	// shared attrs before applying any tags. This makes the subsequent version write
+	// (from config or global tags) a COW no-op instead of triggering a Clone.
+	if !t.config.universalVersion && span.service == t.config.internalConfig.ServiceName() && span.meta.attrs == &t.sharedAttrs {
+		span.meta.attrs = &t.sharedAttrsForMainSvc
 	}
 
 	cfg := t.config.internalConfig
