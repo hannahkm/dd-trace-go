@@ -763,6 +763,8 @@ func (s *Span) setMetaInit(key, v string) {
 	case ext.SpanType:
 		s.spanType = v
 		return
+	case ext.Language:
+		s.attrs.Set(tinternal.AttrLanguage, v)
 	case ext.Environment:
 		s.attrs.Set(tinternal.AttrEnv, v)
 	case ext.Version:
