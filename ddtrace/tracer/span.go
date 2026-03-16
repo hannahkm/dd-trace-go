@@ -133,12 +133,12 @@ type Span struct {
 	// +checklocks:mu
 	spanType string `msg:"type"` // protocol associated with the span (i.e. "web", "db", "cache")
 	// +checklocks:mu
-	// attrs holds the four V1-protocol promoted fields (env, version, component, spanKind)
-	// as tagValue so callers can distinguish "never set" from "explicitly set to empty".
-	// They are dual-stored: attrs is used by the V1 encoder and internal callers to avoid
-	// a map lookup; the meta map copy ensures V0.4 (msgp) encoding and the external stats
-	// concentrator (which reads Meta["span.kind"]) continue to work without change.
-	attrs tinternal.SpanAttributes `msg:"-"`
+	// attrs holds the V1-protocol promoted fields (env, version, component, spanKind, language).
+	// Pointer to allow copy-on-write sharing: the tracer creates one shared instance with
+	// process-level values (env, version, language). Spans that only inherit those values
+	// share the pointer (8 bytes). Spans that set per-span fields (component, spanKind)
+	// clone on first write. Nil-safe read methods avoid nil checks at call sites.
+	attrs *tinternal.SpanAttributes `msg:"-"`
 	// +checklocks:mu
 	start int64 `msg:"start"` // span start time expressed in nanoseconds since epoch
 	// +checklocks:mu
@@ -763,16 +763,14 @@ func (s *Span) setMetaInit(key, v string) {
 	case ext.SpanType:
 		s.spanType = v
 		return
-	case ext.Language:
-		s.attrs.Set(tinternal.AttrLanguage, v)
 	case ext.Environment:
-		s.attrs.Set(tinternal.AttrEnv, v)
+		s.setAttrCOW(tinternal.AttrEnv, v)
 	case ext.Version:
-		s.attrs.Set(tinternal.AttrVersion, v)
+		s.setAttrCOW(tinternal.AttrVersion, v)
 	case ext.Component:
-		s.attrs.Set(tinternal.AttrComponent, v)
+		s.setAttrCOW(tinternal.AttrComponent, v)
 	case ext.SpanKind:
-		s.attrs.Set(tinternal.AttrSpanKind, v)
+		s.setAttrCOW(tinternal.AttrSpanKind, v)
 	}
 	// Promoted fields (env/version/component/spanKind) fall through here so they
 	// remain in meta too. The V0.4 encoder and the external stats concentrator both
@@ -781,6 +779,30 @@ func (s *Span) setMetaInit(key, v string) {
 		s.meta = make(map[string]string, 1)
 	}
 	s.meta[key] = v
+}
+
+// setAttrCOW sets a promoted attribute with copy-on-write semantics.
+// If the value already matches what's in attrs (e.g. from the shared tracer
+// instance), the write is skipped entirely — no clone, no allocation.
+// +checklocksignore — Initialization time, span not yet shared.
+func (s *Span) setAttrCOW(key tinternal.AttrKey, v string) {
+	if s.attrs != nil && s.attrs.Val(key) == v {
+		return // already has the right value (shared or local)
+	}
+	s.ensureAttrsLocal()
+	s.attrs.Set(key, v)
+}
+
+// ensureAttrsLocal guarantees s.attrs is a mutable, span-local instance.
+// +checklocksignore — Initialization time, span not yet shared.
+func (s *Span) ensureAttrsLocal() {
+	if s.attrs == nil {
+		s.attrs = new(tinternal.SpanAttributes)
+		return
+	}
+	if s.attrs.IsShared() {
+		s.attrs = s.attrs.Clone()
+	}
 }
 
 // setMetaStructLocked sets structured metadata. This method assumes the span lock is already held.

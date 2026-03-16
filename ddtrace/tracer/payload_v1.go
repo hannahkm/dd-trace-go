@@ -572,7 +572,7 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		p.buf = msgp.AppendArrayHeader(p.buf, uint32(size)*3) // number of attributes
 		for k, v := range span.meta {
 			switch k {
-			case ext.Environment, ext.Version, ext.Component, ext.SpanKind, ext.Language:
+			case ext.Environment, ext.Version, ext.Component, ext.SpanKind:
 				continue // promoted fields: encoded as dedicated span fields (13-16) or not needed in attributes
 			}
 			p.buf = st.serialize(k, p.buf)
