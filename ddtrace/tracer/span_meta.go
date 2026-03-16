@@ -29,6 +29,12 @@ type spanMeta struct {
 	attrs *tinternal.SpanAttributes
 }
 
+// IsZero reports whether the spanMeta contains no entries (map or promoted).
+// The msgp generator emits z.meta.IsZero() for the omitempty check.
+func (sm spanMeta) IsZero() bool {
+	return len(sm.m) == 0 && sm.attrs.Count() == 0
+}
+
 // String returns a merged map representation (m + promoted attrs) for debug logging.
 func (sm spanMeta) String() string {
 	var b strings.Builder

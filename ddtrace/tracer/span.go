@@ -5,6 +5,7 @@
 
 //msgp:ignore inheritedData
 //go:generate go run github.com/tinylib/msgp -unexported -marshal=false -o=span_msgp.go -tests=false
+//go:generate go run ../../scripts/msgp_span_meta_omitempty.go -file span_msgp.go
 //go:generate go run ../../scripts/msgp_checklocks_ignore.go -type Span -file span_msgp.go
 
 package tracer
