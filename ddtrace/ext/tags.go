@@ -168,7 +168,4 @@ const (
 
 	// DSMTransactionCheckpoint is the span tag key for a Data Streams transaction checkpoint name.
 	DSMTransactionCheckpoint = "dsm.transaction.checkpoint"
-
-	// Language is the span tag key for runtime language.
-	Language = "language"
 )

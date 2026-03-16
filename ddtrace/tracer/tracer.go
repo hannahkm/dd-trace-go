@@ -178,8 +178,8 @@ type tracer struct {
 	// State related to the Dynamic Instrumentation product.
 	dynInstSubscriptions dynInstSubscriptions
 
-	// sharedAttrs holds the process-level promoted span attributes (env, version,
-	// language). All spans start by sharing this pointer; copy-on-write clones it
+	// sharedAttrs holds the process-level promoted span attributes (env, version).
+	// All spans start by sharing this pointer; copy-on-write clones it
 	// only when a span needs to set per-span fields (component, spanKind).
 	sharedAttrs tinternal.SpanAttributes
 }
@@ -490,7 +490,7 @@ func newUnstartedTracer(opts ...StartOption) (t *tracer, err error) {
 		logFile:     logFile,
 	}
 	// Build the shared SpanAttributes that every span will start from.
-	// Process-level values (env, version, language) are set once here;
+	// Process-level values (env, version) are set once here;
 	// spans share this pointer and only clone on per-span overrides.
 	if env := c.internalConfig.Env(); env != "" {
 		t.sharedAttrs.Set(tinternal.AttrEnv, env)

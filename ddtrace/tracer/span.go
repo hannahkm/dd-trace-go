@@ -133,9 +133,9 @@ type Span struct {
 	// +checklocks:mu
 	spanType string `msg:"type"` // protocol associated with the span (i.e. "web", "db", "cache")
 	// +checklocks:mu
-	// attrs holds the V1-protocol promoted fields (env, version, component, spanKind, language).
+	// attrs holds the V1-protocol promoted fields (env, version, component, spanKind).
 	// Pointer to allow copy-on-write sharing: the tracer creates one shared instance with
-	// process-level values (env, version, language). Spans that only inherit those values
+	// process-level values (env, version). Spans that only inherit those values
 	// share the pointer (8 bytes). Spans that set per-span fields (component, spanKind)
 	// clone on first write. Nil-safe read methods avoid nil checks at call sites.
 	attrs *tinternal.SpanAttributes `msg:"-"`
