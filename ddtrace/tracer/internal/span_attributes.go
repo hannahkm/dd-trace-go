@@ -16,7 +16,7 @@ const (
 	AttrVersion   AttrKey = 1
 	AttrComponent AttrKey = 2
 	AttrSpanKind  AttrKey = 3
-	numAttrs      AttrKey = 5
+	numAttrs      AttrKey = 4
 )
 
 // Compile-time guard: the numeric values of AttrKey constants are load-bearing —
@@ -33,7 +33,7 @@ var (
 // Zero value = all fields absent.
 // Set(key, "") is distinct from never-Set: the bit is set, the string is "".
 //
-// Layout: 1-byte setMask + 1-byte shared + 6B padding + [5]string (80B) = 88 bytes.
+// Layout: 1-byte setMask + 1-byte shared + 6B padding + [4]string (64B) = 72 bytes.
 //
 // When shared is true, the instance is owned by the tracer and must not be
 // mutated. Callers must Clone before writing (copy-on-write).
