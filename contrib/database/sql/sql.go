@@ -6,19 +6,30 @@
 // Package sql provides functions to trace the database/sql package (https://golang.org/pkg/database/sql).
 // It will automatically augment operations such as connections, statements and transactions with tracing.
 //
-// We start by telling the package which driver we will be using. For example, if we are using "github.com/lib/pq",
-// we would do as follows:
+// The recommended way to use this package is with the [Driver] function, which wraps a [database/sql/driver.Driver]
+// with tracing and returns it for use with [database/sql.Register] and [database/sql.Open]:
 //
-//	sqltrace.Register("pq", &pq.Driver{})
-//	db, err := sqltrace.Open("pq", "postgres://pqgotest:password@localhost...")
+//	tracedName, tracedDriver := sqltrace.Driver("postgres", &pq.Driver{})
+//	sql.Register(tracedName, tracedDriver)
+//	db, err := sql.Open(tracedName, "postgres://pqgotest:password@localhost...")
 //
-// The rest of our application would continue as usual, but with tracing enabled.
+// Unlike the deprecated [Register]/[Open] functions, [Driver] does not use the driver name as the default
+// service name. The service name defaults to the value of DD_SERVICE. To set a custom service name:
+//
+//	tracedName, tracedDriver := sqltrace.Driver("postgres", &pq.Driver{}, sqltrace.WithService("my-db"))
+//
+// For drivers that are configured programmatically via a [database/sql/driver.Connector] rather than a
+// DSN string, use [Connector] instead:
+//
+//	tracedConnector := sqltrace.Connector("mysql", myConnector)
+//	db := sql.OpenDB(tracedConnector)
 package sql
 
 import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"fmt"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -119,6 +130,12 @@ func (d *driverRegistry) unregister(name string) {
 // Register tells the sql integration package about the driver that we will be tracing. If used, it
 // must be called before Open. It uses the driverName suffixed with ".db" as the default service
 // name.
+//
+// Deprecated: Register uses the driverName as the default service name, which couples service
+// identity to the database driver. Use [Driver] instead, which does not derive the service name
+// from the driver. To preserve the old service name after migrating, call:
+//
+//	sqltrace.Driver(driverName, myDriver, sqltrace.WithService(driverName+".db"))
 func Register(driverName string, driver driver.Driver, opts ...Option) {
 	if driver == nil {
 		panic("sqltrace: Register driver is nil")
@@ -212,6 +229,13 @@ func (t dsnConnector) Driver() driver.Driver {
 // OpenDB returns connection to a DB using the traced version of the given driver. The driver may
 // first be registered using Register. If this did not occur, OpenDB will determine the driver name
 // based on its type.
+//
+// Deprecated: OpenDB derives the service name from the driver name or the driver's reflect type,
+// which couples service identity to implementation details. Use [Connector] to wrap a
+// [database/sql/driver.Connector] with tracing, then pass it to [database/sql.OpenDB]:
+//
+//	tracedConnector := sqltrace.Connector(driverName, myConnector)
+//	db := sql.OpenDB(tracedConnector)
 func OpenDB(c driver.Connector, opts ...Option) *sql.DB {
 	cfg := new(config)
 	var driverName string
@@ -245,6 +269,14 @@ func OpenDB(c driver.Connector, opts ...Option) *sql.DB {
 // first be registered using Register. If this did not occur, Open will determine the driver by
 // opening a DB connection and retrieving the driver using (*sql.DB).Driver, before closing it and
 // opening a new, traced connection.
+//
+// Deprecated: Open relies on [Register] and inherits its service-name behavior, using the
+// driverName as the default service name. Use [Driver] to obtain a traced driver, then call
+// [database/sql.Open] directly:
+//
+//	tracedName, tracedDriver := sqltrace.Driver(driverName, myDriver)
+//	sql.Register(tracedName, tracedDriver)
+//	db, err := sql.Open(tracedName, dsn)
 func Open(driverName, dataSourceName string, opts ...Option) (*sql.DB, error) {
 	var d driver.Driver
 	if registeredDrivers.isRegistered(driverName) {
@@ -279,4 +311,133 @@ func processOptions(cfg *config, driverName string, driver driver.Driver, dsn st
 	}
 	cfg.checkDBMPropagation(driverName, driver, dsn)
 	cfg.checkStatsdRequired()
+}
+
+// driverSeq is an atomically incremented counter used to generate unique driver names.
+var driverSeq atomic.Int64
+
+// Driver wraps the given driver with tracing and returns a unique name along with
+// the traced driver. The returned values can be used with [database/sql.Register]
+// and [database/sql.Open]:
+//
+//	tracedName, tracedDriver := sqltrace.Driver("postgres", &pq.Driver{})
+//	sql.Register(tracedName, tracedDriver)
+//	db, err := sql.Open(tracedName, dsn)
+//
+// The driverName is used for span metadata (span name, db.system tag, DSN parsing) but,
+// unlike [Register], it is NOT used as the default service name. The service name defaults
+// to the value of DD_SERVICE. To set a custom service name, use [WithService]:
+//
+//	sqltrace.Driver("postgres", &pq.Driver{}, sqltrace.WithService("my-db"))
+//
+// To restore the legacy behavior where the driver name was used as the service name:
+//
+//	sqltrace.Driver("postgres", &pq.Driver{}, sqltrace.WithService("postgres.db"))
+func Driver(driverName string, d driver.Driver, opts ...Option) (string, driver.Driver) {
+	if d == nil {
+		panic("sqltrace: Driver driver is nil")
+	}
+	cfg := new(config)
+	defaultsWithoutDriverService(cfg, driverName)
+	processOptions(cfg, driverName, d, "", opts...)
+	instr.Logger().Debug("contrib/database/sql: Wrapping driver: %s %#v", driverName, cfg)
+
+	seq := driverSeq.Add(1)
+	tracedName := fmt.Sprintf("%s-traced-%d", driverName, seq)
+
+	td := &tracedDriver{
+		driver:     d,
+		driverName: driverName,
+		cfg:        cfg,
+	}
+	return tracedName, td
+}
+
+// tracedDriver wraps a driver.Driver with tracing. It implements both driver.Driver and
+// driver.DriverContext so that database/sql always goes through the traced connector path.
+type tracedDriver struct {
+	driver     driver.Driver
+	driverName string
+	cfg        *config
+}
+
+var _ driver.Driver = (*tracedDriver)(nil)
+var _ driver.DriverContext = (*tracedDriver)(nil)
+
+// Open implements driver.Driver.
+func (td *tracedDriver) Open(dsn string) (driver.Conn, error) {
+	tp := &traceParams{
+		driverName: td.driverName,
+		cfg:        td.cfg,
+	}
+	if dsn != "" {
+		tp.meta, _ = sqlinternal.ParseDSN(td.driverName, dsn)
+	}
+	start := time.Now()
+	conn, err := td.driver.Open(dsn)
+	tp.tryTrace(context.Background(), QueryTypeConnect, "", start, err)
+	if err != nil {
+		return nil, err
+	}
+	return &TracedConn{conn, tp}, nil
+}
+
+// OpenConnector implements driver.DriverContext. It returns a traced connector
+// that wraps each connection with tracing.
+func (td *tracedDriver) OpenConnector(dsn string) (driver.Connector, error) {
+	var connector driver.Connector
+	if dc, ok := td.driver.(driver.DriverContext); ok {
+		var err error
+		connector, err = dc.OpenConnector(dsn)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		connector = &dsnConnector{dsn: dsn, driver: td.driver}
+	}
+	cfgCopy := *td.cfg
+	cfgCopy.dsn = dsn
+	return &tracedConnector{
+		connector:  connector,
+		driverName: td.driverName,
+		cfg:        &cfgCopy,
+		dbClose:    make(chan struct{}),
+	}, nil
+}
+
+// Connector wraps an existing [database/sql/driver.Connector] with tracing and returns it
+// for use with [database/sql.OpenDB]. This is the connector-based counterpart to [Driver],
+// intended for cases where the driver is configured programmatically via a connector rather
+// than a DSN string:
+//
+//	connector, err := mysql.NewConnector(cfg)
+//	tracedConnector := sqltrace.Connector("mysql", connector)
+//	db := sql.OpenDB(tracedConnector)
+//
+// The driverName is used for span metadata (span name, db.system tag, DSN parsing) but,
+// like [Driver], it is NOT used as the default service name. The service name defaults
+// to the value of DD_SERVICE. To set a custom service name, use [WithService]:
+//
+//	sqltrace.Connector("mysql", connector, sqltrace.WithService("my-db"))
+//
+// If the connector's DSN is needed for span tags (e.g. db.instance, peer.hostname),
+// use [WithDSN] to provide it:
+//
+//	sqltrace.Connector("mysql", connector, sqltrace.WithDSN("user:pass@tcp(host)/db"))
+func Connector(driverName string, c driver.Connector, opts ...Option) driver.Connector {
+	if c == nil {
+		panic("sqltrace: Connector connector is nil")
+	}
+	cfg := new(config)
+	defaultsWithoutDriverService(cfg, driverName)
+	processOptions(cfg, driverName, c.Driver(), cfg.dsn, opts...)
+	instr.Logger().Debug("contrib/database/sql: Wrapping connector: %s %#v", driverName, cfg)
+
+	tc := &tracedConnector{
+		connector:  c,
+		driverName: driverName,
+		cfg:        cfg,
+		dbClose:    make(chan struct{}),
+	}
+	return tc
 }

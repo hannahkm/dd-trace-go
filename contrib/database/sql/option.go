@@ -172,6 +172,23 @@ func defaults(cfg *config, driverName string, rc *registerConfig) {
 	}
 }
 
+// defaultsWithoutDriverService is like defaults but does NOT derive the service
+// name from the driver name. It is used by the Driver function so that the service
+// name comes from DD_SERVICE (or the tracer's global default) instead of the driver name.
+func defaultsWithoutDriverService(cfg *config, driverName string) {
+	cfg.analyticsRate = instr.AnalyticsRate(false)
+	mode := env.Get("DD_DBM_PROPAGATION_MODE")
+	if mode == "" {
+		mode = env.Get("DD_TRACE_SQL_COMMENT_INJECTION_MODE")
+	}
+	cfg.dbmPropagationMode = tracer.DBMPropagationMode(mode)
+	// Do not set a service name from the driver name. An empty service name causes
+	// the tracer to use the global default service (DD_SERVICE).
+	cfg.serviceName = ""
+	cfg.serviceSource = ""
+	cfg.spanName = getSpanName(driverName)
+}
+
 func defaultServiceNameAndSource(driverName string, rc *registerConfig) (string, string) {
 	registerService := ""
 	serviceSource := serviceSourceSQLDriver

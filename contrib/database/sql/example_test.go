@@ -7,6 +7,7 @@ package sql_test
 
 import (
 	"context"
+	"database/sql"
 	"log"
 
 	sqltrace "github.com/DataDog/dd-trace-go/contrib/database/sql/v2"
@@ -20,11 +21,13 @@ import (
 )
 
 func Example() {
-	// The first step is to register the driver that we will be using.
-	sqltrace.Register("postgres", &pq.Driver{})
+	// The first step is to obtain a traced driver using sqltrace.Driver.
+	// The service name defaults to DD_SERVICE and is NOT derived from the driver name.
+	tracedName, tracedDriver := sqltrace.Driver("postgres", &pq.Driver{})
+	sql.Register(tracedName, tracedDriver)
 
-	// Followed by a call to Open.
-	db, err := sqltrace.Open("postgres", "postgres://pqgotest:password@localhost/pqgotest?sslmode=disable")
+	// Followed by a call to sql.Open with the traced driver name.
+	db, err := sql.Open(tracedName, "postgres://pqgotest:password@localhost/pqgotest?sslmode=disable")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -37,15 +40,16 @@ func Example() {
 	defer rows.Close()
 }
 
-func Example_context() {
+func Example_withService() {
 	tracer.Start()
 	defer tracer.Stop()
 
-	// Register the driver that we will be using (in this case mysql) under a custom service name.
-	sqltrace.Register("mysql", &mysql.MySQLDriver{}, sqltrace.WithService("my-db"))
+	// Use WithService to set a custom service name for the traced driver.
+	tracedName, tracedDriver := sqltrace.Driver("mysql", &mysql.MySQLDriver{}, sqltrace.WithService("my-db"))
+	sql.Register(tracedName, tracedDriver)
 
-	// Open a connection to the DB using the driver we've just registered with tracing.
-	db, err := sqltrace.Open("mysql", "user:password@/dbname")
+	// Open a connection to the DB using the traced driver.
+	db, err := sql.Open(tracedName, "user:password@/dbname")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -66,12 +70,31 @@ func Example_context() {
 	span.Finish(tracer.WithError(err))
 }
 
-func Example_sqlite() {
-	// Register the driver that we will be using (in this case Sqlite) under a custom service name.
-	sqltrace.Register("sqlite", &sqlite.SQLiteDriver{}, sqltrace.WithService("sqlite-example"))
+func Example_legacyServiceName() {
+	// To restore the legacy behavior where the driver name becomes the service name
+	// (e.g. "postgres.db"), explicitly pass it via WithService.
+	tracedName, tracedDriver := sqltrace.Driver("postgres", &pq.Driver{}, sqltrace.WithService("postgres.db"))
+	sql.Register(tracedName, tracedDriver)
 
-	// Open a connection to the DB using the driver we've just registered with tracing.
-	db, err := sqltrace.Open("sqlite", "./test.db")
+	db, err := sql.Open(tracedName, "postgres://pqgotest:password@localhost/pqgotest?sslmode=disable")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	rows, err := db.Query("SELECT name FROM users WHERE age=?", 27)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+}
+
+func Example_sqlite() {
+	// Wrap the Sqlite driver with tracing and a custom service name.
+	tracedName, tracedDriver := sqltrace.Driver("sqlite", &sqlite.SQLiteDriver{}, sqltrace.WithService("sqlite-example"))
+	sql.Register(tracedName, tracedDriver)
+
+	// Open a connection to the DB using the traced driver.
+	db, err := sql.Open(tracedName, "./test.db")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -92,13 +115,36 @@ func Example_sqlite() {
 	span.Finish(tracer.WithError(err))
 }
 
-func Example_dbmPropagation() {
-	// The first step is to set the dbm propagation mode when registering the driver. Note that this can also
-	// be done on sqltrace.Open for more granular control over the feature.
-	sqltrace.Register("postgres", &pq.Driver{}, sqltrace.WithDBMPropagation(tracer.DBMPropagationModeFull))
+func Example_connector() {
+	// When a driver is configured programmatically via a Connector (instead of a DSN string),
+	// use sqltrace.Connector to wrap it with tracing.
+	mysqlCfg := mysql.NewConfig()
+	mysqlCfg.User = "root"
+	mysqlCfg.Net = "tcp"
+	mysqlCfg.Addr = "localhost:3306"
+	mysqlCfg.DBName = "mydb"
+	connector, err := mysql.NewConnector(mysqlCfg)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// Followed by a call to Open.
-	db, err := sqltrace.Open("postgres", "postgres://pqgotest:password@localhost/pqgotest?sslmode=disable")
+	tracedConnector := sqltrace.Connector("mysql", connector, sqltrace.WithService("my-db"))
+	db := sql.OpenDB(tracedConnector)
+
+	rows, err := db.Query("SELECT name FROM users WHERE age=?", 27)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+}
+
+func Example_dbmPropagation() {
+	// Enable DBM propagation when creating the traced driver.
+	tracedName, tracedDriver := sqltrace.Driver("postgres", &pq.Driver{}, sqltrace.WithDBMPropagation(tracer.DBMPropagationModeFull))
+	sql.Register(tracedName, tracedDriver)
+
+	// Followed by a call to sql.Open.
+	db, err := sql.Open(tracedName, "postgres://pqgotest:password@localhost/pqgotest?sslmode=disable")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -112,16 +158,17 @@ func Example_dbmPropagation() {
 }
 
 func Example_dbStats() {
-	// Register the driver with the WithDBStats option to enable DBStats metric polling
-	sqltrace.Register("postgres", &pq.Driver{}, sqltrace.WithDBStats())
-	// Followed by a call to Open.
-	db, err := sqltrace.Open("postgres", "postgres://pqgotest:password@localhost/pqgotest?sslmode=disable")
+	// Enable DBStats metric polling when creating the traced driver.
+	tracedName, tracedDriver := sqltrace.Driver("postgres", &pq.Driver{}, sqltrace.WithDBStats())
+	sql.Register(tracedName, tracedDriver)
 
+	// Followed by a call to sql.Open.
+	db, err := sql.Open(tracedName, "postgres://pqgotest:password@localhost/pqgotest?sslmode=disable")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Tracing and metric polling is now enabled. Metrics  will be submitted to Datadog with the prefix `datadog.tracer.sql`
+	// Tracing and metric polling is now enabled. Metrics will be submitted to Datadog with the prefix `datadog.tracer.sql`
 	rows, err := db.Query("SELECT name FROM users WHERE age=?", 27)
 	if err != nil {
 		log.Fatal(err)
