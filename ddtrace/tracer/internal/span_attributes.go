@@ -5,9 +5,14 @@
 
 package internal
 
+import "math/bits"
+
 // AttrKey is an integer index into a SpanAttributes value array.
 // Use the pre-declared constants; do not construct AttrKey from arbitrary integers.
 type AttrKey uint8
+
+// Count returns the number of promoted fields that have been set.
+func (a *SpanAttributes) Count() int { return bits.OnesCount8(a.setMask) }
 
 const (
 	AttrEnv       AttrKey = 0
