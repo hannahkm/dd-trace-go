@@ -92,22 +92,20 @@ func (sm *spanMeta) EncodeMsg(en *msgp.Writer) error {
 	return nil
 }
 
-// DecodeMsg reads a msgp map and routes promoted keys into attrs,
-// everything else into m.
+// DecodeMsg reads a msgp map into m. All keys — including promoted ones — go
+// into the flat map so that no SpanAttributes allocation is needed on the
+// decode path. attrs is only populated on the encode (span-creation) path.
 func (sm *spanMeta) DecodeMsg(dc *msgp.Reader) error {
 	header, err := dc.ReadMapHeader()
 	if err != nil {
 		return msgp.WrapError(err, "Meta")
 	}
-	// Reuse sm.m and sm.attrs if already allocated (pool/reuse pattern from generated
-	// msgp code); otherwise allocate fresh. This avoids one heap allocation per decoded
-	// span in environments where Span objects are recycled between decode calls.
+	// Reuse sm.m if already allocated; otherwise allocate fresh pre-sized.
 	if sm.m != nil {
 		clear(sm.m)
 	} else {
 		sm.m = make(map[string]string, header)
 	}
-	sm.attrs.Reset() // nil-safe: clears bits if set, no-op if nil
 	for range header {
 		key, err := dc.ReadString()
 		if err != nil {
@@ -117,14 +115,7 @@ func (sm *spanMeta) DecodeMsg(dc *msgp.Reader) error {
 		if err != nil {
 			return msgp.WrapError(err, "Meta", key)
 		}
-		if ak, ok := tinternal.AttrKeyForTag(key); ok {
-			if sm.attrs == nil {
-				sm.attrs = new(tinternal.SpanAttributes)
-			}
-			sm.attrs.Set(ak, val)
-		} else {
-			sm.m[key] = val
-		}
+		sm.m[key] = val
 	}
 	return nil
 }
