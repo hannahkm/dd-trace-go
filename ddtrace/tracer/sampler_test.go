@@ -230,11 +230,9 @@ func BenchmarkPrioritySamplerGetRate(b *testing.B) {
 	ps.rates[serviceEnvKey{service: "web", env: "prod"}] = 0.5
 
 	spnHit := newSpan("op", "web", "resource", 1, 1, 0)
-	spnHit.meta.attrs.Set(tinternal.AttrEnv, "prod")
 	spnHit.SetTag(ext.Environment, "prod")
 
 	spnMiss := newSpan("op", "other", "resource", 1, 1, 0)
-	spnMiss.meta.attrs.Set(tinternal.AttrEnv, "staging")
 	spnMiss.SetTag(ext.Environment, "staging")
 
 	b.ResetTimer()
