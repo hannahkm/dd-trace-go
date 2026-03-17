@@ -47,13 +47,17 @@ func (sm spanMeta) String() string {
 		first = false
 		fmt.Fprintf(&b, "%s:%s", k, v)
 	}
-	sm.attrs.ForEach(func(name, val string) {
-		if !first {
-			b.WriteByte(' ')
+	if sm.attrs != nil {
+		for _, d := range tinternal.Defs {
+			if v, ok := sm.attrs.Get(d.Key); ok {
+				if !first {
+					b.WriteByte(' ')
+				}
+				first = false
+				fmt.Fprintf(&b, "%s:%s", d.Name, v)
+			}
 		}
-		first = false
-		fmt.Fprintf(&b, "%s:%s", name, val)
-	})
+	}
 	b.WriteByte(']')
 	return b.String()
 }
@@ -73,20 +77,19 @@ func (sm *spanMeta) EncodeMsg(en *msgp.Writer) error {
 			return msgp.WrapError(err, "Meta", k)
 		}
 	}
-	var encErr error
-	sm.attrs.ForEach(func(name, val string) {
-		if encErr != nil {
-			return
+	if sm.attrs != nil {
+		for _, d := range tinternal.Defs {
+			if v, ok := sm.attrs.Get(d.Key); ok {
+				if err := en.WriteString(d.Name); err != nil {
+					return msgp.WrapError(err, "Meta")
+				}
+				if err := en.WriteString(v); err != nil {
+					return msgp.WrapError(err, "Meta", d.Name)
+				}
+			}
 		}
-		if err := en.WriteString(name); err != nil {
-			encErr = msgp.WrapError(err, "Meta")
-			return
-		}
-		if err := en.WriteString(val); err != nil {
-			encErr = msgp.WrapError(err, "Meta", name)
-		}
-	})
-	return encErr
+	}
+	return nil
 }
 
 // DecodeMsg reads a msgp map and routes promoted keys into attrs,
@@ -132,8 +135,12 @@ func (sm *spanMeta) Msgsize() int {
 	for k, v := range sm.m {
 		size += msgp.StringPrefixSize + len(k) + msgp.StringPrefixSize + len(v)
 	}
-	sm.attrs.ForEach(func(name, val string) {
-		size += msgp.StringPrefixSize + len(name) + msgp.StringPrefixSize + len(val)
-	})
+	if sm.attrs != nil {
+		for _, d := range tinternal.Defs {
+			if v, ok := sm.attrs.Get(d.Key); ok {
+				size += msgp.StringPrefixSize + len(d.Name) + msgp.StringPrefixSize + len(v)
+			}
+		}
+	}
 	return size
 }

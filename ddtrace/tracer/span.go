@@ -783,11 +783,19 @@ func (s *Span) setMetaInit(key, v string) {
 // setAttrCOW sets a promoted attribute with copy-on-write semantics.
 // If the value already matches what's in attrs (e.g. from the shared tracer
 // instance), the write is skipped entirely — no clone, no allocation.
+// The slow path is split out with //go:noinline to reduce code size at call sites.
 // +checklocksignore — Initialization time, span not yet shared.
 func (s *Span) setAttrCOW(key tinternal.AttrKey, v string) {
 	if s.meta.attrs != nil && s.meta.attrs.Val(key) == v {
 		return // already has the right value (shared or local)
 	}
+	s.setAttrCOWSlow(key, v)
+}
+
+// setAttrCOWSlow is the slow path for setAttrCOW that handles the clone + set.
+//
+//go:noinline
+func (s *Span) setAttrCOWSlow(key tinternal.AttrKey, v string) {
 	s.ensureAttrsLocal()
 	s.meta.attrs.Set(key, v)
 }
