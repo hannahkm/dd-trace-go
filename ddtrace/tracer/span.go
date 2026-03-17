@@ -786,7 +786,7 @@ func (s *Span) setMetaInit(key, v string) {
 // If the value already matches what's in attrs (e.g. from the shared tracer
 // instance), the write is skipped entirely — no clone, no allocation.
 // The slow path is split out with //go:noinline to reduce code size at call sites.
-// +checklocksignore — Initialization time, span not yet shared.
+// +checklocksignore — Called from setMetaInit (init, no lock) and setMetaLocked (lock held).
 func (s *Span) setAttrCOW(key tinternal.AttrKey, v string) {
 	if s.meta.attrs != nil && s.meta.attrs.Val(key) == v {
 		return // already has the right value (shared or local)
@@ -795,6 +795,7 @@ func (s *Span) setAttrCOW(key tinternal.AttrKey, v string) {
 }
 
 // setAttrCOWSlow is the slow path for setAttrCOW that handles the clone + set.
+// +checklocksignore — Called from setMetaInit (init, no lock) and setMetaLocked (lock held).
 //
 //go:noinline
 func (s *Span) setAttrCOWSlow(key tinternal.AttrKey, v string) {
@@ -803,7 +804,7 @@ func (s *Span) setAttrCOWSlow(key tinternal.AttrKey, v string) {
 }
 
 // ensureAttrsLocal guarantees s.meta.attrs is a mutable, span-local instance.
-// +checklocksignore — Initialization time, span not yet shared.
+// +checklocksignore — Called from setMetaInit (init, no lock) and setMetaLocked (lock held).
 func (s *Span) ensureAttrsLocal() {
 	if s.meta.attrs == nil {
 		s.meta.attrs = new(tinternal.SpanAttributes)
