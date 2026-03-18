@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/internal/tracerstats"
+	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	sharedinternal "github.com/DataDog/dd-trace-go/v2/internal"
 	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
 	"github.com/DataDog/dd-trace-go/v2/internal/locking"
@@ -906,7 +907,7 @@ The mapping is as follows:
   - s3:          <bucket>.s3.<region>.amazonaws.com (if Bucket param present)
     s3.<region>.amazonaws.com          (otherwise)
 */
-func deriveAWSPeerService(sm spanMeta) string {
+func deriveAWSPeerService(sm tinternal.SpanMeta) string {
 	service, ok := sm.Get(ext.AWSService)
 	if !ok {
 		return ""

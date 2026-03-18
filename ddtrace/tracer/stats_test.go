@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
+	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
 	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
@@ -326,10 +327,10 @@ func TestStatsIncludeHTTPMethodAndEndpoint(t *testing.T) {
 		start:    time.Now().UnixNano(),
 		duration: int64(time.Millisecond),
 		metrics:  map[string]float64{keyMeasured: 1},
-		meta: spanMeta{m: map[string]string{
+		meta: tinternal.NewSpanMetaFromMap(map[string]string{
 			ext.HTTPMethod:   uniqueMethod,
 			ext.HTTPEndpoint: uniqueEndpoint,
-		}},
+		}),
 	}
 	transport := newDummyTransport()
 	c := newConcentrator(newTestConfigWithTransport(t, transport), bucketSize, &statsd.NoOpClientDirect{})

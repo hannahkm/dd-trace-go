@@ -833,7 +833,7 @@ func spanStart(operationName string, sharedAttrs *tinternal.SpanAttributes, opti
 		traceID:       id,
 		start:         startTime,
 		integration:   "manual",
-		meta:          spanMeta{attrs: sharedAttrs}, // COW: shared until a per-span field is set
+		meta:          tinternal.NewSpanMeta(sharedAttrs), // COW: shared until a per-span field is set
 	}
 
 	span.spanLinks = append(span.spanLinks, opts.SpanLinks...)

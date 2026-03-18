@@ -6,6 +6,7 @@
 package internal
 
 import (
+	"maps"
 	"testing"
 )
 
@@ -98,10 +99,7 @@ func TestSpanAttributesForEach(t *testing.T) {
 	a.Set(AttrSpanKind, "server")
 	// AttrVersion and AttrComponent are NOT set
 
-	got := make(map[string]string)
-	a.ForEach(func(name, val string) {
-		got[name] = val
-	})
+	got := maps.Collect(a.All())
 	if len(got) != 2 {
 		t.Fatalf("expected 2 entries, got %d: %v", len(got), got)
 	}
@@ -116,7 +114,9 @@ func TestSpanAttributesForEach(t *testing.T) {
 func TestSpanAttributesForEachNil(t *testing.T) {
 	var a *SpanAttributes
 	called := false
-	a.ForEach(func(_, _ string) { called = true })
+	for range a.All() {
+		called = true
+	}
 	if called {
 		t.Error("ForEach should not call fn on nil receiver")
 	}

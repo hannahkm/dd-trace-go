@@ -5,7 +5,10 @@
 
 package internal
 
-import "math/bits"
+import (
+	"iter"
+	"math/bits"
+)
 
 // AttrKey is an integer index into a SpanAttributes value array.
 // Use the pre-declared constants; do not construct AttrKey from arbitrary integers.
@@ -122,14 +125,18 @@ var Defs = [numAttrs]AttrDef{
 	{AttrSpanKind, "span.kind"},
 }
 
-// ForEach calls fn for each attribute that has been set.
-func (a *SpanAttributes) ForEach(fn func(name, val string)) {
-	if a == nil {
-		return
-	}
-	for _, d := range Defs {
-		if a.setMask>>d.Key&1 != 0 {
-			fn(d.Name, a.vals[d.Key])
+// All returns an iterator over the set attributes (name, value) pairs.
+func (a *SpanAttributes) All() iter.Seq2[string, string] {
+	return func(yield func(string, string) bool) {
+		if a == nil {
+			return
+		}
+		for _, d := range Defs {
+			if a.setMask>>d.Key&1 != 0 {
+				if !yield(d.Name, a.vals[d.Key]) {
+					return
+				}
+			}
 		}
 	}
 }
