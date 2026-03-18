@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
+	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	"github.com/DataDog/dd-trace-go/v2/instrumentation/errortrace"
 	sharedinternal "github.com/DataDog/dd-trace-go/v2/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
@@ -38,7 +39,7 @@ func newSpan(name, service, resource string, spanID, traceID, parentID uint64) *
 		name:     name,
 		service:  service,
 		resource: resource,
-		meta:     spanMeta{m: map[string]string{}},
+		meta:     tinternal.NewSpanMetaFromMap(map[string]string{}),
 		metrics:  map[string]float64{},
 		spanID:   spanID,
 		traceID:  traceID,

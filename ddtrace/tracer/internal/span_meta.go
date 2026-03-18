@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025 Datadog, Inc.
 
-package tracer
+package internal
 
 import (
 	"fmt"
@@ -11,43 +11,51 @@ import (
 	"strings"
 
 	"github.com/tinylib/msgp/msgp"
-
-	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 )
 
 var (
-	_ msgp.Encodable = (*spanMeta)(nil)
-	_ msgp.Decodable = (*spanMeta)(nil)
-	_ msgp.Sizer     = (*spanMeta)(nil)
+	_ msgp.Encodable = (*SpanMeta)(nil)
+	_ msgp.Decodable = (*SpanMeta)(nil)
+	_ msgp.Sizer     = (*SpanMeta)(nil)
 )
 
-// spanMeta replaces a plain map[string]string for the Span.meta field.
+// SpanMeta replaces a plain map[string]string for the Span.meta field.
 // Promoted attributes (env, version, component, span.kind) live in attrs
 // and are excluded from the map m. The msgp codec merges both sources
 // transparently so the wire format is unchanged.
-type spanMeta struct {
+type SpanMeta struct {
 	m     map[string]string
-	attrs *tinternal.SpanAttributes
+	attrs *SpanAttributes
 }
 
-// IsZero reports whether the spanMeta contains no entries (map or promoted).
+// NewSpanMeta returns a SpanMeta initialized with shared attrs (used during span creation).
+func NewSpanMeta(attrs *SpanAttributes) SpanMeta {
+	return SpanMeta{attrs: attrs}
+}
+
+// NewSpanMetaFromMap returns a SpanMeta pre-loaded with a flat map. Intended for test helpers.
+func NewSpanMetaFromMap(m map[string]string) SpanMeta {
+	return SpanMeta{m: m}
+}
+
+// IsZero reports whether the SpanMeta contains no entries (map or promoted).
 // The msgp generator emits z.meta.IsZero() for the omitempty check.
-func (sm spanMeta) IsZero() bool {
+func (sm SpanMeta) IsZero() bool {
 	return len(sm.m) == 0 && sm.attrs.Count() == 0
 }
 
 // ReplaceSharedAttrs replaces the current attrs pointer with next if it
 // currently equals prev. Used by the tracer to upgrade a newly-created span
 // from the base shared attrs to the main-service shared attrs.
-func (sm *spanMeta) ReplaceSharedAttrs(prev, next *tinternal.SpanAttributes) {
+func (sm *SpanMeta) ReplaceSharedAttrs(prev, next *SpanAttributes) {
 	if sm.attrs == prev {
 		sm.attrs = next
 	}
 }
 
 // Normalize sets m and attrs to nil when they are empty so that a zero-length
-// spanMeta compares equal to a freshly-zeroed one. Intended for test helpers.
-func (sm *spanMeta) Normalize() {
+// SpanMeta compares equal to a freshly-zeroed one. Intended for test helpers.
+func (sm *SpanMeta) Normalize() {
 	if len(sm.m) == 0 {
 		sm.m = nil
 	}
@@ -57,8 +65,8 @@ func (sm *spanMeta) Normalize() {
 }
 
 // Get returns the value for key, checking attrs for promoted keys and the flat map for others.
-func (sm spanMeta) Get(key string) (string, bool) {
-	if ak, ok := tinternal.AttrKeyForTag(key); ok {
+func (sm SpanMeta) Get(key string) (string, bool) {
+	if ak, ok := AttrKeyForTag(key); ok {
 		return sm.attrs.Get(ak)
 	}
 	v, ok := sm.m[key]
@@ -66,8 +74,8 @@ func (sm spanMeta) Get(key string) (string, bool) {
 }
 
 // Has reports whether key is present. Promoted keys check attrs; others check the flat map.
-func (sm spanMeta) Has(key string) bool {
-	if ak, ok := tinternal.AttrKeyForTag(key); ok {
+func (sm SpanMeta) Has(key string) bool {
+	if ak, ok := AttrKeyForTag(key); ok {
 		_, ok := sm.attrs.Get(ak)
 		return ok
 	}
@@ -77,8 +85,8 @@ func (sm spanMeta) Has(key string) bool {
 
 // Set sets key→value, routing promoted keys to attrs (with copy-on-write) and others to the flat map.
 // +checklocksignore — called both at init time (no lock) and under lock.
-func (sm *spanMeta) Set(key, value string) {
-	if ak, ok := tinternal.AttrKeyForTag(key); ok {
+func (sm *SpanMeta) Set(key, value string) {
+	if ak, ok := AttrKeyForTag(key); ok {
 		// Check if whether setting key=v on attrs would be a no-op
 		// no-op (i.e. the current value is already v, shared or local).
 		if sm.attrs != nil && sm.attrs.Val(ak) == value {
@@ -95,9 +103,9 @@ func (sm *spanMeta) Set(key, value string) {
 
 // ensureAttrsLocal guarantees attrs is a mutable, span-local instance.
 // If attrs is nil a fresh one is allocated; if shared, it is cloned.
-func (sm *spanMeta) ensureAttrsLocal() {
+func (sm *SpanMeta) ensureAttrsLocal() {
 	if sm.attrs == nil {
-		sm.attrs = new(tinternal.SpanAttributes)
+		sm.attrs = new(SpanAttributes)
 		return
 	}
 	if sm.attrs.IsShared() {
@@ -109,7 +117,7 @@ func (sm *spanMeta) ensureAttrsLocal() {
 // Separated with //go:noinline to keep the hot path in Set small.
 //
 //go:noinline
-func (sm *spanMeta) setAttrCOWSlow(key tinternal.AttrKey, v string) {
+func (sm *SpanMeta) setAttrCOWSlow(key AttrKey, v string) {
 	sm.ensureAttrsLocal()
 	sm.attrs.Set(key, v)
 }
@@ -117,8 +125,8 @@ func (sm *spanMeta) setAttrCOWSlow(key tinternal.AttrKey, v string) {
 // Delete removes key. For promoted keys, clears the attribute (with copy-on-write); for others,
 // removes from the flat map. No-op if the key is absent.
 // +checklocksignore — called both at init time (no lock) and under lock.
-func (sm *spanMeta) Delete(key string) {
-	if ak, ok := tinternal.AttrKeyForTag(key); ok {
+func (sm *SpanMeta) Delete(key string) {
+	if ak, ok := AttrKeyForTag(key); ok {
 		if _, isSet := sm.attrs.Get(ak); !isSet {
 			return // already absent, skip unnecessary COW
 		}
@@ -130,14 +138,14 @@ func (sm *spanMeta) Delete(key string) {
 }
 
 // Count returns the total number of entries (flat map + promoted attrs).
-func (sm spanMeta) Count() int {
+func (sm SpanMeta) Count() int {
 	return len(sm.m) + sm.attrs.Count()
 }
 
 // All returns an iterator over all entries. Flat-map entries are yielded first
 // (in unspecified order), followed by promoted attributes in definition order
 // (env, version, component, span.kind). Returning false from yield stops iteration.
-func (sm spanMeta) All() iter.Seq2[string, string] {
+func (sm SpanMeta) All() iter.Seq2[string, string] {
 	return func(yield func(string, string) bool) {
 		for k, v := range sm.m {
 			if !yield(k, v) {
@@ -145,9 +153,9 @@ func (sm spanMeta) All() iter.Seq2[string, string] {
 			}
 		}
 		if sm.attrs != nil {
-			for _, d := range tinternal.Defs {
-				if v, ok := sm.attrs.Get(d.Key); ok {
-					if !yield(d.Name, v) {
+			for _, d := range Defs {
+				if sm.attrs.setMask>>d.Key&1 != 0 {
+					if !yield(d.Name, sm.attrs.vals[d.Key]) {
 						return
 					}
 				}
@@ -157,7 +165,7 @@ func (sm spanMeta) All() iter.Seq2[string, string] {
 }
 
 // String returns a merged map representation (m + promoted attrs) for debug logging.
-func (sm spanMeta) String() string {
+func (sm SpanMeta) String() string {
 	var b strings.Builder
 	b.WriteString("map[")
 	first := true
@@ -174,7 +182,7 @@ func (sm spanMeta) String() string {
 
 // EncodeMsg writes the combined map header (m entries + promoted attrs),
 // then emits all map entries followed by promoted attribute entries.
-func (sm *spanMeta) EncodeMsg(en *msgp.Writer) error {
+func (sm *SpanMeta) EncodeMsg(en *msgp.Writer) error {
 	total := uint32(len(sm.m) + sm.attrs.Count())
 	if err := en.WriteMapHeader(total); err != nil {
 		return msgp.WrapError(err, "Meta")
@@ -188,7 +196,7 @@ func (sm *spanMeta) EncodeMsg(en *msgp.Writer) error {
 		}
 	}
 	if sm.attrs != nil {
-		for _, d := range tinternal.Defs {
+		for _, d := range Defs {
 			if v, ok := sm.attrs.Get(d.Key); ok {
 				if err := en.WriteString(d.Name); err != nil {
 					return msgp.WrapError(err, "Meta")
@@ -205,7 +213,7 @@ func (sm *spanMeta) EncodeMsg(en *msgp.Writer) error {
 // DecodeMsg reads a msgp map into m. All keys — including promoted ones — go
 // into the flat map so that no SpanAttributes allocation is needed on the
 // decode path. attrs is only populated on the encode (span-creation) path.
-func (sm *spanMeta) DecodeMsg(dc *msgp.Reader) error {
+func (sm *SpanMeta) DecodeMsg(dc *msgp.Reader) error {
 	header, err := dc.ReadMapHeader()
 	if err != nil {
 		return msgp.WrapError(err, "Meta")
@@ -231,13 +239,13 @@ func (sm *spanMeta) DecodeMsg(dc *msgp.Reader) error {
 }
 
 // Msgsize returns an upper bound estimate of the serialized size.
-func (sm *spanMeta) Msgsize() int {
+func (sm *SpanMeta) Msgsize() int {
 	size := msgp.MapHeaderSize
 	for k, v := range sm.m {
 		size += msgp.StringPrefixSize + len(k) + msgp.StringPrefixSize + len(v)
 	}
 	if sm.attrs != nil {
-		for _, d := range tinternal.Defs {
+		for _, d := range Defs {
 			if v, ok := sm.attrs.Get(d.Key); ok {
 				size += msgp.StringPrefixSize + len(d.Name) + msgp.StringPrefixSize + len(v)
 			}

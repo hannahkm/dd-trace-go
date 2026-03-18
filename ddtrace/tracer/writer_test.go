@@ -22,6 +22,8 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
+	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
 	"github.com/DataDog/dd-trace-go/v2/internal/processtags"
@@ -186,10 +188,10 @@ func TestLogWriter(t *testing.T) {
 			name:     "basicName",
 			service:  "basicService",
 			resource: "basicResource",
-			meta: spanMeta{m: map[string]string{
-				"env":     "prod",
-				"version": "1.26.0",
-			}},
+			meta: tinternal.NewSpanMetaFromMap(map[string]string{
+				ext.Environment: "prod",
+				ext.Version:     "1.26.0",
+			}),
 			metaStruct: map[string]any{
 				"_dd.stack": map[string]string{
 					"0": "github.com/DataDog/dd-trace-go/v1/internal/tracer.TestLogWriter",

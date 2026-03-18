@@ -2192,7 +2192,7 @@ func TestPrioritySamplerRampCooldownNoReset(t *testing.T) {
 		mkSpan := func(svc, env string) *Span {
 			a := new(tinternal.SpanAttributes)
 			a.Set(tinternal.AttrEnv, env)
-			return &Span{service: svc, meta: spanMeta{attrs: a}}
+			return &Span{service: svc, meta: tinternal.NewSpanMeta(a)}
 		}
 
 		// Set initial low rate.
@@ -2238,7 +2238,7 @@ func TestPrioritySamplerRampUp(t *testing.T) {
 		mkSpan := func(svc, env string) *Span {
 			a := new(tinternal.SpanAttributes)
 			a.Set(tinternal.AttrEnv, env)
-			return &Span{service: svc, meta: spanMeta{attrs: a}}
+			return &Span{service: svc, meta: tinternal.NewSpanMeta(a)}
 		}
 
 		// Set initial low rate (decrease from default 1.0, applied immediately).
@@ -2281,7 +2281,7 @@ func TestPrioritySamplerRampDown(t *testing.T) {
 	mkSpan := func(svc, env string) *Span {
 		a := new(tinternal.SpanAttributes)
 		a.Set(tinternal.AttrEnv, env)
-		return &Span{service: svc, meta: spanMeta{attrs: a}}
+		return &Span{service: svc, meta: tinternal.NewSpanMeta(a)}
 	}
 
 	// Set initial rate (decrease from default 1.0).
@@ -2305,7 +2305,7 @@ func TestPrioritySamplerRampConverges(t *testing.T) {
 		mkSpan := func(svc, env string) *Span {
 			a := new(tinternal.SpanAttributes)
 			a.Set(tinternal.AttrEnv, env)
-			return &Span{service: svc, meta: spanMeta{attrs: a}}
+			return &Span{service: svc, meta: tinternal.NewSpanMeta(a)}
 		}
 
 		// Start at 0.1, target 0.5.
@@ -2332,7 +2332,7 @@ func TestPrioritySamplerRampDefaultRate(t *testing.T) {
 		mkSpan := func(svc, env string) *Span {
 			a := new(tinternal.SpanAttributes)
 			a.Set(tinternal.AttrEnv, env)
-			return &Span{service: svc, meta: spanMeta{attrs: a}}
+			return &Span{service: svc, meta: tinternal.NewSpanMeta(a)}
 		}
 
 		// Set default rate to 0.1 (decrease from initial 1.0, applied immediately).
