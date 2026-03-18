@@ -933,7 +933,7 @@ func TestSpanError(t *testing.T) {
 	span.SetTag(ext.Error, err)
 	assert.Equal(int32(0), span.error)
 
-	// '+3' is `_dd.p.dm` + `_dd.base_service`, `_dd.p.tid`
+	// '+3' is `_dd.p.dm` + `_dd.base_service` + `_dd.p.tid`
 	meta := span.getMetadata()
 	t.Logf("%q\n", meta)
 	assert.Equal(nMeta+3, len(meta))
@@ -1066,7 +1066,7 @@ func TestSpanErrorStackMetrics(t *testing.T) {
 			tracer.StartSpan("operation").Finish(WithError(errortrace.New("test")))
 		}
 
-		assert.Equal(0.0, telemetryClient.Count(telemetry.NamespaceTracers, "errorstack.source", []string{"source:takeStacktrace"}).Get())
+		assert.Equal(5.0, telemetryClient.Count(telemetry.NamespaceTracers, "errorstack.source", []string{"source:takeStacktrace"}).Get())
 
 		assert.Equal(5.0, telemetryClient.Count(telemetry.NamespaceTracers, "errorstack.source", []string{"source:TracerError"}).Get())
 		if !windows {
@@ -1742,9 +1742,11 @@ func TestStatsAfterFinish(t *testing.T) {
 
 		transport := newDummyTransport()
 		tracer.config.transport = transport
-		tracer.config.agent.Stats = true
-		tracer.config.agent.DropP0s = true
-		tracer.config.agent.peerTags = []string{"peer.service"}
+		af := tracer.config.agent.load()
+		af.Stats = true
+		af.DropP0s = true
+		af.peerTags = []string{"peer.service"}
+		tracer.config.agent.store(af)
 
 		c := newConcentrator(tracer.config, (10 * time.Second).Nanoseconds(), &statsd.NoOpClientDirect{})
 		assert.Len(t, transport.Stats(), 0)
@@ -1780,9 +1782,11 @@ func TestStatsAfterFinish(t *testing.T) {
 
 		transport := newDummyTransport()
 		tracer.config.transport = transport
-		tracer.config.agent.Stats = true
-		tracer.config.agent.DropP0s = true
-		tracer.config.agent.peerTags = []string{"peer.service"}
+		af2 := tracer.config.agent.load()
+		af2.Stats = true
+		af2.DropP0s = true
+		af2.peerTags = []string{"peer.service"}
+		tracer.config.agent.store(af2)
 
 		c := newConcentrator(tracer.config, (10 * time.Second).Nanoseconds(), &statsd.NoOpClientDirect{})
 		assert.Len(t, transport.Stats(), 0)
