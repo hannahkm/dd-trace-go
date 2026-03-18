@@ -69,11 +69,12 @@ func TestPrioritySampler(t *testing.T) {
 		assert := assert.New(t)
 		s := mkSpan("my-service", "my-env")
 		assert.Equal("my-service", s.service)
-		assert.Equal("my-env", s.meta.attrs.Val(tinternal.AttrEnv))
+		v, _ := s.meta.Get(ext.Environment)
+		assert.Equal("my-env", v)
 
 		s = mkSpan("my-service2", "")
 		assert.Equal("my-service2", s.service)
-		v, ok := s.meta.attrs.Get(tinternal.AttrEnv)
+		v, ok := s.meta.Get(ext.Environment)
 		assert.Equal("", v)
 		assert.True(ok) // set to empty string, not absent
 	})
@@ -378,7 +379,8 @@ func BenchmarkPrioritySamplerGetRate(b *testing.B) {
 	}
 	oldGetRate := func(ops *oldPrioritySampler, spn *Span) float64 {
 		// Allocation doesn't escape to the heap.
-		key := "service:" + spn.service + ",env:" + spn.meta.attrs.Val(tinternal.AttrEnv)
+		v, _ := spn.meta.Get(ext.Environment)
+		key := "service:" + spn.service + ",env:" + v
 		if rate, ok := ops.rates[key]; ok {
 			return rate
 		}
@@ -2121,8 +2123,9 @@ func TestSampleTagsRootOnly(t *testing.T) {
 		assert.Equal(0., root.metrics[keyRulesSamplerAppliedRate])
 		assert.NotContains(root.metrics, keyRulesSamplerLimiterRate)
 		// Knuth sampling rate tag should be set even when rate is 0
-		assert.Contains(root.meta.m, keyKnuthSamplingRate)
-		assert.Equal("0", root.meta.m[keyKnuthSamplingRate])
+		assert.True(root.meta.Has(keyKnuthSamplingRate))
+		v, _ := root.meta.Get(keyKnuthSamplingRate)
+		assert.Equal("0", v)
 
 		// neither"_dd.limit_psr", nor "_dd.rule_psr" should be present
 		// on the child span
@@ -2174,15 +2177,16 @@ func TestSampleTagsRootOnly(t *testing.T) {
 		assert.Contains(root.metrics, keyRulesSamplerAppliedRate)
 		assert.NotContains(root.metrics, keyRulesSamplerLimiterRate)
 		// Knuth sampling rate tag should be set even when rate is 0
-		assert.Contains(root.meta.m, keyKnuthSamplingRate)
-		assert.Equal("0", root.meta.m[keyKnuthSamplingRate])
+		assert.True(root.meta.Has(keyKnuthSamplingRate))
+		v, _ := root.meta.Get(keyKnuthSamplingRate)
+		assert.Equal("0", v)
 
 		// neither"_dd.limit_psr", nor "_dd.rule_psr" should be present
 		// on the child span
 		assert.NotContains(child.metrics, keyRulesSamplerAppliedRate)
 		assert.NotContains(child.metrics, keyRulesSamplerLimiterRate)
 		// child span should not have Knuth sampling rate tag
-		assert.NotContains(child.meta.m, keyKnuthSamplingRate)
+		assert.False(child.meta.Has(keyKnuthSamplingRate))
 
 		// context propagation locks the span, so no re-sampling should occur
 		tr.Inject(root.Context(), TextMapCarrier(map[string]string{}))

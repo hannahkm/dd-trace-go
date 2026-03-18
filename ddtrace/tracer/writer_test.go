@@ -42,7 +42,7 @@ func makeSpan(n int) *Span {
 	s := newSpan("encodeName", "encodeService", "encodeResource", randUint64(), randUint64(), randUint64())
 	for i := range n {
 		istr := fmt.Sprintf("%0.10d", i)
-		s.meta.m[istr] = istr
+		s.meta.Set(istr, istr)
 		s.metrics[istr] = float64(i)
 	}
 	return s
@@ -247,7 +247,7 @@ func TestLogWriter(t *testing.T) {
 		assert := assert.New(t)
 		s := newSpan("name\n", "srv\t", `"res"`, 2, 1, 3)
 		s.start = 12
-		s.meta.m["query\n"] = "Select * from \n Where\nvalue"
+		s.meta.Set("query\n", "Select * from \n Where\nvalue")
 		s.metrics["version\n"] = 3
 
 		var w logTraceWriter

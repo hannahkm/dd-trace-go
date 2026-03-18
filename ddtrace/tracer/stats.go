@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
-	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
@@ -168,20 +167,9 @@ func (c *concentrator) newTracerStatSpan(s *Span, obfuscator *obfuscate.Obfuscat
 		resource = obfuscatedResource(obfuscator, s.spanType, s.resource)
 	}
 
-	httpMethod := s.meta.m[ext.HTTPMethod]
-	httpEndpoint := s.meta.m[ext.HTTPEndpoint]
-
-	// The stats concentrator reads span.kind from the Meta map. Since promoted
-	// fields no longer live in meta.m, inject span.kind into a shallow copy.
-	meta := s.meta.m
-	if sk := s.meta.attrs.Val(tinternal.AttrSpanKind); sk != "" {
-		if meta == nil {
-			meta = map[string]string{ext.SpanKind: sk}
-		} else {
-			meta = maps.Clone(s.meta.m)
-			meta[ext.SpanKind] = sk
-		}
-	}
+	meta := maps.Collect(s.meta.All())
+	httpMethod, _ := meta[ext.HTTPMethod]
+	httpEndpoint, _ := meta[ext.HTTPEndpoint]
 
 	statSpan, ok := c.spanConcentrator.NewStatSpanWithConfig(stats.StatSpanConfig{
 		Service:      s.service,
@@ -201,7 +189,7 @@ func (c *concentrator) newTracerStatSpan(s *Span, obfuscator *obfuscate.Obfuscat
 	if !ok {
 		return nil, false
 	}
-	origin := s.meta.m[keyOrigin]
+	origin, _ := s.meta.Get(keyOrigin)
 	return &tracerStatSpan{
 		statSpan: statSpan,
 		origin:   origin,

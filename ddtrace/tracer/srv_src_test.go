@@ -82,7 +82,8 @@ func TestServiceSource(t *testing.T) {
 
 		child.mu.RLock()
 		defer child.mu.RUnlock()
-		assert.Equal(t, "m", child.meta.m[ext.KeyServiceSource])
+		v, _ := child.meta.Get(ext.KeyServiceSource)
+		assert.Equal(t, "m", v)
 	})
 
 	t.Run("NoExplicitServiceNoSrvSrc", func(t *testing.T) {
@@ -96,7 +97,7 @@ func TestServiceSource(t *testing.T) {
 
 		span.mu.RLock()
 		defer span.mu.RUnlock()
-		_, hasSrvSrc := span.meta.m[ext.KeyServiceSource]
+		_, hasSrvSrc := span.meta.Get(ext.KeyServiceSource)
 		assert.False(t, hasSrvSrc, "_dd.svc_src should not be set when no service is explicitly set")
 	})
 
@@ -113,7 +114,8 @@ func TestServiceSource(t *testing.T) {
 
 		child.mu.RLock()
 		defer child.mu.RUnlock()
-		assert.Equal(t, "m", child.meta.m[ext.KeyServiceSource])
+		v, _ := child.meta.Get(ext.KeyServiceSource)
+		assert.Equal(t, "m", v)
 	})
 
 	t.Run("ServiceMappingSetsSrvSrc", func(t *testing.T) {
@@ -128,7 +130,8 @@ func TestServiceSource(t *testing.T) {
 		span.mu.RLock()
 		defer span.mu.RUnlock()
 		assert.Equal(t, "remapped", span.service)
-		assert.Equal(t, ext.ServiceSourceMapping, span.meta.m[ext.KeyServiceSource])
+		v, _ := span.meta.Get(ext.KeyServiceSource)
+		assert.Equal(t, ext.ServiceSourceMapping, v)
 	})
 
 	t.Run("SetMetaInitServiceName", func(t *testing.T) {

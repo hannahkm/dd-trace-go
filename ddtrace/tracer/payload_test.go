@@ -513,7 +513,8 @@ func TestPayloadV1IncrementalChunkEncoding(t *testing.T) {
 		s := got.chunks[i].spans[0]
 		assert.Equal(t, c.service, s.service, "chunk %d: wrong service", i)
 		assert.Equal(t, c.name, s.name, "chunk %d: wrong name", i)
-		assert.Equal(t, c.tagVal, s.meta.m[c.tagKey], "chunk %d: wrong tag value", i)
+		v, _ := s.meta.Get(c.tagKey)
+		assert.Equal(t, c.tagVal, v, "chunk %d: wrong tag value", i)
 	}
 }
 
@@ -521,7 +522,7 @@ func assertProcessTags(t *testing.T, payload spanLists) {
 	assert := assert.New(t)
 	for i, spanList := range payload {
 		for j, span := range spanList {
-			processTags, ok := span.meta.m[keyProcessTags]
+			processTags, ok := span.meta.Get(keyProcessTags)
 			if i+j == 0 {
 				assert.True(ok, "process tags should be present on the first span of each chunk only")
 				assert.Contains(processTags, "entrypoint.name", "process tags should have entrypoint.name")
@@ -545,7 +546,7 @@ func benchmarkPayloadThroughput(count int) func(*testing.B) {
 	return func(b *testing.B) {
 		p := newPayloadV04()
 		s := newBasicSpan("X")
-		s.meta.m["key"] = strings.Repeat("X", 10*1024)
+		s.meta.Set("key", strings.Repeat("X", 10*1024))
 		trace := make(spanList, count)
 		for i := range count {
 			trace[i] = s
@@ -685,7 +686,7 @@ func BenchmarkPayloadPush(b *testing.B) {
 			spans := make(spanList, size.numSpans)
 			for i := 0; i < size.numSpans; i++ {
 				span := newBasicSpan("benchmark-span")
-				span.meta.m["data"] = strings.Repeat("x", size.spanSize*1024)
+				span.meta.Set("data", strings.Repeat("x", size.spanSize*1024))
 				spans[i] = span
 			}
 
@@ -776,7 +777,7 @@ func TestMsgsizeAnalysis(t *testing.T) {
 		spans := make(spanList, numSpans)
 		for i := range numSpans {
 			span := newBasicSpan("test")
-			span.meta.m["data"] = strings.Repeat("x", 1024)
+			span.meta.Set("data", strings.Repeat("x", 1024))
 			spans[i] = span
 		}
 

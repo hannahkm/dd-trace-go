@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
-	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	"github.com/DataDog/dd-trace-go/v2/instrumentation/errortrace"
 	sharedinternal "github.com/DataDog/dd-trace-go/v2/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
@@ -429,13 +428,15 @@ func TestSpanSetTag(t *testing.T) {
 	assert.Equal("web.request", span.name)
 
 	span.SetTag("component", "tracer")
-	assert.Equal("tracer", span.meta.attrs.Val(tinternal.AttrComponent))
+	v, _ := span.meta.Get(ext.Component)
+	assert.Equal("tracer", v)
 
 	span.SetTag("tagInt", 1234)
 	assert.Equal(float64(1234), span.metrics["tagInt"])
 
 	span.SetTag("tagStruct", struct{ A, B int }{1, 2})
-	assert.Equal("{1 2}", span.meta.m["tagStruct"])
+	v, _ = span.meta.Get("tagStruct")
+	assert.Equal("{1 2}", v)
 
 	span.SetTag(ext.Error, true)
 	assert.Equal(int32(1), span.error)
@@ -445,9 +446,12 @@ func TestSpanSetTag(t *testing.T) {
 
 	span.SetTag(ext.Error, errors.New("abc"))
 	assert.Equal(int32(1), span.error)
-	assert.Equal("abc", span.meta.m[ext.ErrorMsg])
-	assert.Equal("*errors.errorString", span.meta.m[ext.ErrorType])
-	assert.NotEmpty(span.meta.m[ext.ErrorHandlingStack])
+	v, _ = span.meta.Get(ext.ErrorMsg)
+	assert.Equal("abc", v)
+	v, _ = span.meta.Get(ext.ErrorType)
+	assert.Equal("*errors.errorString", v)
+	v, _ = span.meta.Get(ext.ErrorHandlingStack)
+	assert.NotEmpty(v)
 
 	span.SetTag(ext.Error, "something else")
 	assert.Equal(int32(1), span.error)
@@ -456,24 +460,32 @@ func TestSpanSetTag(t *testing.T) {
 	assert.Equal(int32(0), span.error)
 
 	span.SetTag("some.bool", true)
-	assert.Equal("true", span.meta.m["some.bool"])
+	v, _ = span.meta.Get("some.bool")
+	assert.Equal("true", v)
 
 	span.SetTag("some.other.bool", false)
-	assert.Equal("false", span.meta.m["some.other.bool"])
+	v, _ = span.meta.Get("some.other.bool")
+	assert.Equal("false", v)
 
 	span.SetTag("time", (*time.Time)(nil))
-	assert.Equal("<nil>", span.meta.m["time"])
+	v, _ = span.meta.Get("time")
+	assert.Equal("<nil>", v)
 
 	span.SetTag("nilStringer", (*nilStringer)(nil))
-	assert.Equal("<nil>", span.meta.m["nilStringer"])
+	v, _ = span.meta.Get("nilStringer")
+	assert.Equal("<nil>", v)
 
 	span.SetTag("somestrings", []string{"foo", "bar"})
-	assert.Equal("foo", span.meta.m["somestrings.0"])
-	assert.Equal("bar", span.meta.m["somestrings.1"])
+	v, _ = span.meta.Get("somestrings.0")
+	assert.Equal("foo", v)
+	v, _ = span.meta.Get("somestrings.1")
+	assert.Equal("bar", v)
 
 	span.SetTag("somebools", []bool{true, false})
-	assert.Equal("true", span.meta.m["somebools.0"])
-	assert.Equal("false", span.meta.m["somebools.1"])
+	v, _ = span.meta.Get("somebools.0")
+	assert.Equal("true", v)
+	v, _ = span.meta.Get("somebools.1")
+	assert.Equal("false", v)
 
 	span.SetTag("somenums", []int{-1, 5, 2})
 	assert.Equal(-1., span.metrics["somenums.0"])
@@ -481,10 +493,14 @@ func TestSpanSetTag(t *testing.T) {
 	assert.Equal(2., span.metrics["somenums.2"])
 
 	span.SetTag("someslices", [][]string{{"a, b, c"}, {"d"}, nil, {"e, f"}})
-	assert.Equal("[a, b, c]", span.meta.m["someslices.0"])
-	assert.Equal("[d]", span.meta.m["someslices.1"])
-	assert.Equal("[]", span.meta.m["someslices.2"])
-	assert.Equal("[e, f]", span.meta.m["someslices.3"])
+	v, _ = span.meta.Get("someslices.0")
+	assert.Equal("[a, b, c]", v)
+	v, _ = span.meta.Get("someslices.1")
+	assert.Equal("[d]", v)
+	v, _ = span.meta.Get("someslices.2")
+	assert.Equal("[]", v)
+	v, _ = span.meta.Get("someslices.3")
+	assert.Equal("[e, f]", v)
 
 	mapStrStr := map[string]string{"b": "c"}
 	span.SetTag("map", sharedinternal.MetaStructValue{Value: map[string]string{"b": "c"}})
@@ -514,10 +530,12 @@ func TestSpanSetTag(t *testing.T) {
 
 	s := "string"
 	span.SetTag("str_ptr", &s)
-	assert.Equal(s, span.meta.m["str_ptr"])
+	strPtr, _ := span.meta.Get("str_ptr")
+	assert.Equal(s, strPtr)
 
 	span.SetTag("nil_str_ptr", (*string)(nil))
-	assert.Equal("", span.meta.m["nil_str_ptr"])
+	nilStrPtr, _ := span.meta.Get("nil_str_ptr")
+	assert.Equal("", nilStrPtr)
 
 	assert.Panics(func() {
 		span.SetTag("panicStringer", &panicStringer{})
@@ -546,22 +564,25 @@ func TestPromotedFieldsStorage(t *testing.T) {
 	assert := assert.New(t)
 
 	for _, tc := range []struct {
-		tag   string
-		field func(*Span) string
+		tag string
 	}{
-		{ext.Environment, func(s *Span) string { return s.meta.attrs.Val(tinternal.AttrEnv) }},
-		{ext.Version, func(s *Span) string { return s.meta.attrs.Val(tinternal.AttrVersion) }},
-		{ext.Component, func(s *Span) string { return s.meta.attrs.Val(tinternal.AttrComponent) }},
-		{ext.SpanKind, func(s *Span) string { return s.meta.attrs.Val(tinternal.AttrSpanKind) }},
+		{ext.Environment},
+		{ext.Version},
+		{ext.Component},
+		{ext.SpanKind},
 	} {
 		t.Run(tc.tag, func(t *testing.T) {
 			span := newBasicSpan("op")
 			span.SetTag(tc.tag, "value")
-			assert.Equal("value", tc.field(span), "struct field must be set")
+			got, ok := span.meta.Get(tc.tag)
+			assert.True(ok)
+			assert.Equal("value", got, "field must be set")
 
 			// Overwrite: field should track the update.
 			span.SetTag(tc.tag, "updated")
-			assert.Equal("updated", tc.field(span))
+			got, ok = span.meta.Get(tc.tag)
+			assert.True(ok)
+			assert.Equal("updated", got, "field must be set")
 		})
 	}
 }
@@ -579,13 +600,15 @@ func TestSpanSetTagError(t *testing.T) {
 	t.Run("off", func(t *testing.T) {
 		span := newBasicSpan("web.request")
 		span.SetTag(ext.ErrorNoStackTrace, errors.New("error value with no trace"))
-		assert.Empty(t, span.meta.m[ext.ErrorHandlingStack])
+		v, _ := span.meta.Get(ext.ErrorHandlingStack)
+		assert.Empty(t, v)
 	})
 
 	t.Run("on", func(t *testing.T) {
 		span := newBasicSpan("web.request")
 		span.SetTag(ext.Error, errors.New("error value with trace"))
-		assert.NotEmpty(t, span.meta.m[ext.ErrorHandlingStack])
+		v, _ := span.meta.Get(ext.ErrorHandlingStack)
+		assert.NotEmpty(t, v)
 	})
 }
 
@@ -788,9 +811,11 @@ func TestSpanStartNilOption(t *testing.T) {
 		t.Run(tc.name, func(_ *testing.T) {
 			span := tracer.StartSpan("pylons.request", tc.options...)
 			if tc.wantTag {
-				assert.Equal(tc.wantTag, span.meta.m["tag"] == "value")
+				v, _ := span.meta.Get("tag")
+				assert.Equal(tc.wantTag, v == "value")
 			} else {
-				assert.Empty(span.meta.m["tag"])
+				v, _ := span.meta.Get("tag")
+				assert.Empty(v)
 			}
 		})
 	}
@@ -842,12 +867,14 @@ func TestSpanSetMetric(t *testing.T) {
 		"toobig": func(assert *assert.Assertions, span *Span) {
 			span.SetTag("bytes", intUpperLimit)
 			assert.Equal(0.0, span.metrics["bytes"])
-			assert.Equal(fmt.Sprint(intUpperLimit), span.meta.m["bytes"])
+			v, _ := span.meta.Get("bytes")
+			assert.Equal(fmt.Sprint(intUpperLimit), v)
 		},
 		"toosmall": func(assert *assert.Assertions, span *Span) {
 			span.SetTag("bytes", intLowerLimit)
 			assert.Equal(0.0, span.metrics["bytes"])
-			assert.Equal(fmt.Sprint(intLowerLimit), span.meta.m["bytes"])
+			v, _ := span.meta.Get("bytes")
+			assert.Equal(fmt.Sprint(intLowerLimit), v)
 		},
 		"finished": func(assert *assert.Assertions, span *Span) {
 			span.Finish()
@@ -910,10 +937,12 @@ func TestErrorStack(t *testing.T) {
 		err = createErrorTrace()
 		span.SetTag(ext.Error, err)
 		assert.Equal(int32(1), span.error)
-		assert.Equal("Something wrong", span.meta.m[ext.ErrorMsg])
-		assert.Equal("*errortrace.TracerError", span.meta.m[ext.ErrorType])
+		v, _ := span.meta.Get(ext.ErrorMsg)
+		assert.Equal("Something wrong", v)
+		v, _ = span.meta.Get(ext.ErrorType)
+		assert.Equal("*errortrace.TracerError", v)
 
-		stack := span.meta.m[ext.ErrorHandlingStack]
+		stack, _ := span.meta.Get(ext.ErrorHandlingStack)
 		assert.NotEqual("", stack)
 
 		span.Finish()
@@ -929,10 +958,12 @@ func TestErrorStack(t *testing.T) {
 		err = createTestError()
 		span.SetTag(ext.Error, err)
 		assert.Equal(int32(1), span.error)
-		assert.Equal("Something wrong", span.meta.m[ext.ErrorMsg])
-		assert.Equal("*errors.errorString", span.meta.m[ext.ErrorType])
+		v, _ := span.meta.Get(ext.ErrorMsg)
+		assert.Equal("Something wrong", v)
+		v, _ = span.meta.Get(ext.ErrorType)
+		assert.Equal("*errors.errorString", v)
 
-		stack := span.meta.m[ext.ErrorHandlingStack]
+		stack, _ := span.meta.Get(ext.ErrorHandlingStack)
 		assert.NotEqual("", stack)
 
 		span.Finish()
@@ -951,25 +982,23 @@ func TestSpanError(t *testing.T) {
 	err = errors.New("Something wrong")
 	span.SetTag(ext.Error, err)
 	assert.Equal(int32(1), span.error)
-	assert.Equal("Something wrong", span.meta.m[ext.ErrorMsg])
-	assert.Equal("*errors.errorString", span.meta.m[ext.ErrorType])
-	assert.NotEqual("", span.meta.m[ext.ErrorHandlingStack])
+	v, _ := span.meta.Get(ext.ErrorMsg)
+	assert.Equal("Something wrong", v)
+	v, _ = span.meta.Get(ext.ErrorType)
+	assert.Equal("*errors.errorString", v)
+	v, _ = span.meta.Get(ext.ErrorHandlingStack)
+	assert.NotEqual("", v)
 	span.Finish()
 
 	// operating on a finished span is a no-op
 	span = tracer.newRootSpan("flask.request", "flask", "/")
-	nMeta := len(span.meta.m)
 	span.Finish()
 	span.SetTag(ext.Error, err)
 	assert.Equal(int32(0), span.error)
 
-	// '+4' is `_dd.p.dm` + `_dd.base_service` + `_dd.p.tid` + `_dd.svc_src`
-	meta := span.getMetadata()
-	t.Logf("%q\n", meta)
-	assert.Equal(nMeta+3+span.meta.attrs.Count(), len(meta))
-	assert.Equal("", meta[ext.ErrorMsg])
-	assert.Equal("", meta[ext.ErrorType])
-	assert.Equal("", meta[ext.ErrorHandlingStack])
+	assert.False(span.meta.Has(ext.ErrorMsg))
+	assert.False(span.meta.Has(ext.ErrorType))
+	assert.False(span.meta.Has(ext.ErrorHandlingStack))
 }
 
 func TestSpanError_Typed(t *testing.T) {
@@ -983,9 +1012,12 @@ func TestSpanError_Typed(t *testing.T) {
 	err = &boomError{}
 	span.SetTag(ext.Error, err)
 	assert.Equal(int32(1), span.error)
-	assert.Equal("boom", span.meta.m[ext.ErrorMsg])
-	assert.Equal("*tracer.boomError", span.meta.m[ext.ErrorType])
-	assert.NotEqual("", span.meta.m[ext.ErrorHandlingStack])
+	v, _ := span.meta.Get(ext.ErrorMsg)
+	assert.Equal("boom", v)
+	v, _ = span.meta.Get(ext.ErrorType)
+	assert.Equal("*tracer.boomError", v)
+	v, _ = span.meta.Get(ext.ErrorHandlingStack)
+	assert.NotEqual("", v)
 }
 
 func TestSpanErrorNil(t *testing.T) {
@@ -997,10 +1029,10 @@ func TestSpanErrorNil(t *testing.T) {
 	span := tracer.newRootSpan("pylons.request", "pylons", "/")
 
 	// don't set the error if it's nil
-	nMeta := len(span.meta.m)
+	n := span.meta.Count()
 	span.SetTag(ext.Error, nil)
 	assert.Equal(int32(0), span.error)
-	assert.Equal(nMeta, len(span.meta.m))
+	assert.Equal(n, span.meta.Count())
 }
 
 func TestSpanErrorStackMetrics(t *testing.T) {
@@ -1135,14 +1167,15 @@ func TestUniqueTagKeys(t *testing.T) {
 	span.SetTag("foo.bar", "val")
 
 	assert.NotContains(span.metrics, "foo.bar")
-	assert.Equal("val", span.meta.m["foo.bar"])
+	v, _ := span.meta.Get("foo.bar")
+	assert.Equal("val", v)
 
 	// check to see if setMetric correctly wipes out a meta tag
 	span.SetTag("foo.bar", "val")
 	span.SetTag("foo.bar", 12)
 
 	assert.Equal(12.0, span.metrics["foo.bar"])
-	assert.NotContains(span.meta.m, "foo.bar")
+	assert.False(span.meta.Has("foo.bar"))
 }
 
 // Prior to a bug fix, this failed when running `go test -race`
@@ -1733,7 +1766,7 @@ func TestSpanLinksInMeta(t *testing.T) {
 		sp.Finish()
 
 		internalSpan := sp
-		_, ok := internalSpan.meta.m["_dd.span_links"]
+		_, ok := internalSpan.meta.Get("_dd.span_links")
 		assert.False(t, ok, "Expected no _dd.span_links in Meta.")
 	})
 
@@ -1749,7 +1782,7 @@ func TestSpanLinksInMeta(t *testing.T) {
 		sp.Finish()
 
 		internalSpan := sp
-		raw, ok := internalSpan.meta.m["_dd.span_links"]
+		raw, ok := internalSpan.meta.Get("_dd.span_links")
 		require.True(t, ok, "Expected _dd.span_links in Meta after adding links.")
 
 		var links []SpanLink

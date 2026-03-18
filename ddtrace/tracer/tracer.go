@@ -890,8 +890,8 @@ func (t *tracer) StartSpan(operationName string, options ...StartSpanOption) *Sp
 	// For non-universal version, promote main-service spans to the version-inclusive
 	// shared attrs before applying any tags. This makes the subsequent version write
 	// (from config or global tags) a COW no-op instead of triggering a Clone.
-	if !t.config.universalVersion && span.service == t.config.internalConfig.ServiceName() && span.meta.attrs == &t.sharedAttrs {
-		span.meta.attrs = &t.sharedAttrsForMainSvc
+	if !t.config.universalVersion && span.service == t.config.internalConfig.ServiceName() {
+		span.meta.ReplaceSharedAttrs(&t.sharedAttrs, &t.sharedAttrsForMainSvc)
 	}
 
 	cfg := t.config.internalConfig

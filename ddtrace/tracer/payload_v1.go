@@ -566,10 +566,13 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		// Promoted fields (env, version, component, spanKind) live in
 		// span.meta.attrs and are encoded as dedicated span fields 13-16.
 		// They are no longer in span.meta.m, so no skip logic is needed.
-		size := len(span.meta.m) + len(span.metrics) + len(span.metaStruct)
+		size := span.meta.Count() + len(span.metrics) + len(span.metaStruct)
 		p.buf = msgp.AppendUint32(p.buf, uint32(9))           // attributes fieldID
 		p.buf = msgp.AppendArrayHeader(p.buf, uint32(size)*3) // number of attributes
-		for k, v := range span.meta.m {
+		for k, v := range span.meta.All() {
+			if _, ok := tinternal.AttrKeyForTag(k); ok {
+				continue // promoted attrs encoded separately as fields 13-16
+			}
 			p.buf = st.serialize(k, p.buf)
 			p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))
 			p.buf = st.serialize(v, p.buf)
@@ -597,10 +600,16 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 
 		// val() is used: an absent key and an empty value are both encoded as an
 		// empty string, so the "was it set?" distinction is irrelevant for wire encoding.
-		p.buf = encodeField(p.buf, fullSetBitmap, 13, span.meta.attrs.Val(tinternal.AttrEnv), st)
-		p.buf = encodeField(p.buf, fullSetBitmap, 14, span.meta.attrs.Val(tinternal.AttrVersion), st)
-		p.buf = encodeField(p.buf, fullSetBitmap, 15, span.meta.attrs.Val(tinternal.AttrComponent), st)
-		p.buf = encodeField(p.buf, fullSetBitmap, 16, getSpanKindValue(span.meta.attrs.Val(tinternal.AttrSpanKind)), st)
+		var (
+			env, _       = span.meta.Get(ext.Environment)
+			version, _   = span.meta.Get(ext.Environment)
+			component, _ = span.meta.Get(ext.Component)
+			spanKind, _  = span.meta.Get(ext.SpanKind)
+		)
+		p.buf = encodeField(p.buf, fullSetBitmap, 13, env, st)
+		p.buf = encodeField(p.buf, fullSetBitmap, 14, version, st)
+		p.buf = encodeField(p.buf, fullSetBitmap, 15, component, st)
+		p.buf = encodeField(p.buf, fullSetBitmap, 16, getSpanKindValue(spanKind), st)
 	}
 	return true, nil
 }
