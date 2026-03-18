@@ -1669,7 +1669,7 @@ func TestEnvVars(t *testing.T) {
 
 				// NOTE: this will be set for phase 3
 				v, _ := root.meta.Get("_dd.parent_id")
-			assert.Empty(v, "extraction happened from DD headers, so _dd.parent_id mustn't be set")
+				assert.Empty(v, "extraction happened from DD headers, so _dd.parent_id mustn't be set")
 
 				ddTag := strings.SplitN(headers[tracestateHeader], ",", 2)[0]
 				// -3 as we don't count dd= as part of the "value" length limit

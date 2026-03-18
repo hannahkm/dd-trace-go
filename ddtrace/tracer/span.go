@@ -300,7 +300,6 @@ func (s *Span) debugInfo() (name string, spanID, traceID uint64, integration str
 	return
 }
 
-
 // matchTagsForSampling checks if span tags match the sampling rule tag patterns.
 // Used by rules_sampler.go for tag-based sampling rule matching.
 // Returns true if all tag patterns match, false otherwise.
