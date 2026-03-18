@@ -65,9 +65,10 @@ func (c *Client) finishAndClearActiveSpans() {
 	c.activeSpansMu.Unlock()
 }
 
-func (c *Client) Close() {
+// OnClientClosed is a kgo hook called when the client is closed.
+// It finishes any remaining active consume spans.
+func (c *Client) OnClientClosed(*kgo.Client) {
 	c.finishAndClearActiveSpans()
-	c.Client.Close()
 }
 
 // PollFetches is a wrapper around kgo.PollFetches that finishes and clears the
