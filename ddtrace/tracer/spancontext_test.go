@@ -317,7 +317,7 @@ func TestPartialFlush(t *testing.T) {
 		assert.Equal(t, "someValue", v0)
 		assert.Equal(t, 1.0, ts[0][0].metrics[keySamplingPriority])
 		v1, _ := ts[0][1].meta.Get("someTraceTag")
-		assert.Empty(t, v1)                                          // the tag should only be on the first span in the chunk
+		assert.Empty(t, v1)                                         // the tag should only be on the first span in the chunk
 		assert.Equal(t, 1.0, ts[0][1].metrics[keySamplingPriority]) // the tag should only be on the first span in the chunk
 		comparePayloadSpans(t, children[0], ts[0][0])
 		comparePayloadSpans(t, children[1], ts[0][1])
@@ -335,7 +335,7 @@ func TestPartialFlush(t *testing.T) {
 		assert.Equal(t, "someValue", v0)
 		assert.Equal(t, 1.0, ts[0][0].metrics[keySamplingPriority])
 		v1, _ = ts[0][1].meta.Get("someTraceTag")
-		assert.Empty(t, v1)                                          // the tag should only be on the first span in the chunk
+		assert.Empty(t, v1)                                         // the tag should only be on the first span in the chunk
 		assert.Equal(t, 1.0, ts[0][1].metrics[keySamplingPriority]) // the tag should only be on the first span in the chunk
 		comparePayloadSpans(t, root, tsRoot[0][0])
 		comparePayloadSpans(t, children[2], tsRoot[0][1])
