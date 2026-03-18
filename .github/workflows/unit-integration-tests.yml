@@ -42,7 +42,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           clean: false
-      - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: stable
           cache: false
@@ -260,10 +260,12 @@ jobs:
       - name: Upload Coverage to Datadog
         if: always()
         continue-on-error: true
-        shell: bash
-        run: ./datadog-ci coverage upload --format=go-coverprofile --flags contrib coverage.txt
-        env:
-          DD_API_KEY: ${{ secrets.DD_CI_API_KEY }}
+        uses: DataDog/coverage-upload-github-action@d2cf302a39c05e0ad22063360a2bf6ce0cc4906c
+        with:
+          api_key: ${{ secrets.DD_CI_API_KEY }}
+          files: coverage.txt
+          format: go-coverprofile
+          flags: contrib
 
       # Check for changes in the supported_configurations.json file
       - name: Supported Configurations Diff Check
@@ -431,10 +433,12 @@ jobs:
       - name: Upload Coverage to Datadog
         if: always()
         continue-on-error: true
-        shell: bash
-        run: ./datadog-ci coverage upload --format=go-coverprofile --flags core coverage.txt
-        env:
-          DD_API_KEY: ${{ secrets.DD_CI_API_KEY }}
+        uses: DataDog/coverage-upload-github-action@d2cf302a39c05e0ad22063360a2bf6ce0cc4906c
+        with:
+          api_key: ${{ secrets.DD_CI_API_KEY }}
+          files: coverage.txt
+          format: go-coverprofile
+          flags: core
 
       # Check for changes in the supported_configurations.json file
       - name: Supported Configurations Diff Check
