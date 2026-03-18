@@ -533,9 +533,6 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		// span attributes combine the meta (tags), metrics and meta_struct.
 		// To avoid increased allocations, we serialize attributes immediately without
 		// creating an intermediate map.
-		// Promoted fields (env, version, component, spanKind) live in
-		// span.meta.attrs and are encoded as dedicated span fields 13-16.
-		// They are no longer in span.meta.m, so no skip logic is needed.
 		size := span.meta.Count() + len(span.metrics) + len(span.metaStruct)
 		p.buf = msgp.AppendUint32(p.buf, uint32(9))           // attributes fieldID
 		p.buf = msgp.AppendArrayHeader(p.buf, uint32(size)*3) // number of attributes
@@ -571,7 +568,7 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		// empty string, so the "was it set?" distinction is irrelevant for wire encoding.
 		var (
 			env, _       = span.meta.Get(ext.Environment)
-			version, _   = span.meta.Get(ext.Environment)
+			version, _   = span.meta.Get(ext.Version)
 			component, _ = span.meta.Get(ext.Component)
 			spanKind, _  = span.meta.Get(ext.SpanKind)
 		)

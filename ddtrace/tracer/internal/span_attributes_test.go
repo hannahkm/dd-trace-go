@@ -118,7 +118,7 @@ func TestSpanAttributesForEachNil(t *testing.T) {
 		called = true
 	}
 	if called {
-		t.Error("ForEach should not call fn on nil receiver")
+		t.Error("All() should not call fn on nil receiver")
 	}
 }
 
