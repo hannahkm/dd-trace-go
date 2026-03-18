@@ -51,6 +51,15 @@ func (a *SpanAttributes) Set(key AttrKey, v string) {
 	a.setMask |= 1 << key
 }
 
+// Unset clears the attribute for key, making it absent (as if never set). nil-safe.
+func (a *SpanAttributes) Unset(key AttrKey) {
+	if a == nil {
+		return
+	}
+	a.vals[key] = ""
+	a.setMask &^= 1 << key
+}
+
 func (a *SpanAttributes) Val(key AttrKey) string {
 	if a == nil {
 		return ""
