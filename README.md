@@ -104,3 +104,5 @@ For example if you're running tests that need the `mysql` database container to 
 ```shell
 docker compose -f docker-compose.yaml -p dd-trace-go up -d mysql
 ```
+
+testing
