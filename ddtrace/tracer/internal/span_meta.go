@@ -8,7 +8,6 @@ package internal
 import (
 	"fmt"
 	"iter"
-	"maps"
 	"strings"
 
 	"github.com/tinylib/msgp/msgp"
@@ -232,21 +231,19 @@ func (sm SpanMeta) Count() int {
 	return len(sm.m) + sm.attrs.Count()
 }
 
-// Merge returns a map[string]string containing all entries (flat map + promoted attrs).
-// When no promoted attrs are set, the internal flat map is returned directly without
-// allocating — the caller must not mutate it. When promoted attrs are present, a new
-// merged map is allocated and returned.
+// Merge returns a read-only map containing the flat map entries plus only
+// the promoted attrs that the stats concentrator needs (span.kind).
+// When span.kind is not set in attrs the internal flat map is returned
+// directly without allocating. The caller must not mutate the returned map.
 func (sm SpanMeta) Merge() map[string]string {
-	if sm.attrs.Count() == 0 {
-		return sm.m // nil-safe: callers must handle a nil map
+	if !sm.attrs.Has(AttrSpanKind) {
+		return sm.m
 	}
-	m := make(map[string]string, len(sm.m)+sm.attrs.Count())
-	maps.Copy(m, sm.m)
-	for _, d := range Defs {
-		if sm.attrs.setMask>>d.Key&1 != 0 {
-			m[d.Name] = sm.attrs.vals[d.Key]
-		}
+	m := make(map[string]string, len(sm.m)+1)
+	for k, v := range sm.m {
+		m[k] = v
 	}
+	m[Defs[AttrSpanKind].Name] = sm.attrs.Val(AttrSpanKind)
 	return m
 }
 
@@ -262,7 +259,7 @@ func (sm SpanMeta) All() iter.Seq2[string, string] {
 		}
 		if sm.attrs != nil {
 			for _, d := range Defs {
-				if sm.attrs.setMask>>d.Key&1 != 0 {
+				if sm.attrs.Has(d.Key) {
 					if !yield(d.Name, sm.attrs.vals[d.Key]) {
 						return
 					}
