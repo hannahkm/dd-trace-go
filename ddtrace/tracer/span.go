@@ -439,7 +439,7 @@ func (s *Span) setTagLocked(key string, value any) {
 			s.pprofCtxActive = pprof.WithLabels(s.pprofCtxActive, pprof.Labels(traceprof.TraceEndpoint, v))
 			pprof.SetGoroutineLabels(s.pprofCtxActive)
 		}
-		s.setMetaLocked(key, v)
+		s.setMetaTagLocked(key, v)
 		return
 	}
 	if v, ok := sharedinternal.ToFloat64(value); ok {
@@ -447,12 +447,12 @@ func (s *Span) setTagLocked(key string, value any) {
 		return
 	}
 	if v, ok := value.(fmt.Stringer); ok {
-		s.setMetaLocked(key, safeStringerValue(v, value))
+		s.setMetaTagLocked(key, safeStringerValue(v, value))
 		return
 	}
 
 	if v, ok := value.([]byte); ok {
-		s.setMetaLocked(key, string(v))
+		s.setMetaTagLocked(key, string(v))
 		return
 	}
 
@@ -469,7 +469,7 @@ func (s *Span) setTagLocked(key string, value any) {
 				if num, ok := sharedinternal.ToFloat64(v.Interface()); ok {
 					s.setMetricLocked(key, num)
 				} else {
-					s.setMetaLocked(key, fmt.Sprintf("%v", v))
+					s.setMetaTagLocked(key, fmt.Sprintf("%v", v))
 				}
 			}
 			return
@@ -496,7 +496,7 @@ func (s *Span) setTagLocked(key string, value any) {
 	}
 
 	// not numeric, not a string, not a fmt.Stringer, not a bool, and not an error
-	s.setMetaLocked(key, fmt.Sprint(value))
+	s.setMetaTagLocked(key, fmt.Sprint(value))
 }
 
 // setSamplingPriority locks the span, then updates the sampling priority.
@@ -720,9 +720,28 @@ func (s *Span) setMeta(key, v string) {
 }
 
 // setMetaLocked sets a string tag. This method assumes the span lock is already held.
+// Promoted keys (env, version, component, span.kind) are written to the flat
+// map via setMetaInit/SetMap — callers that may receive promoted keys should
+// use setMetaTagLocked instead.
 // +checklocks:s.mu
 func (s *Span) setMetaLocked(key, v string) {
 	assert.RWMutexLocked(&s.mu)
+	s.setMetaInit(key, v)
+}
+
+// setMetaTagLocked is like setMetaLocked but routes promoted keys to COW attrs
+// via meta.Set, keeping them out of the flat map. Used by setTagLocked where
+// the key may be any user-supplied string.
+// +checklocks:s.mu
+func (s *Span) setMetaTagLocked(key, v string) {
+	assert.RWMutexLocked(&s.mu)
+	if tinternal.IsPromotedKeyLen(len(key)) {
+		if _, ok := tinternal.AttrKeyForTag(key); ok {
+			delete(s.metrics, key)
+			s.meta.Set(key, v)
+			return
+		}
+	}
 	s.setMetaInit(key, v)
 }
 
@@ -740,7 +759,7 @@ func (s *Span) setMetaInit(key, v string) {
 	case ext.SpanType:
 		s.spanType = v
 	default:
-		s.meta.Set(key, v)
+		s.meta.SetMap(key, v)
 	}
 }
 
@@ -789,7 +808,7 @@ func (s *Span) setMetricInit(key string, v float64) {
 	if s.metrics == nil {
 		s.metrics = make(map[string]float64, 1)
 	}
-	s.meta.Delete(key)
+	s.meta.DeleteMap(key)
 	// Note: We don't handle ManualKeep or _sampling_priority_v1shim during init
 	// because those require modifying trace-level state which needs locking
 	s.metrics[key] = v
@@ -809,7 +828,7 @@ func (s *Span) setMetricLocked(key string, v float64) {
 	if s.metrics == nil {
 		s.metrics = make(map[string]float64, 1)
 	}
-	s.meta.Delete(key)
+	s.meta.DeleteMap(key)
 	switch key {
 	case ext.ManualKeep:
 		if v == float64(samplernames.AppSec) {

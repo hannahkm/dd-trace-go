@@ -916,11 +916,13 @@ func (t *tracer) StartSpan(operationName string, options ...StartSpanOption) *Sp
 
 	if ver := cfg.Version(); ver != "" {
 		if t.config.universalVersion || (!t.config.universalVersion && span.service == t.config.serviceName) {
-			span.setMetaInit(ext.Version, ver)
+			delete(span.metrics, ext.Version)
+			span.meta.Set(ext.Version, ver)
 		}
 	}
 	if env := cfg.Env(); env != "" {
-		span.setMetaInit(ext.Environment, env)
+		delete(span.metrics, ext.Environment)
+		span.meta.Set(ext.Environment, env)
 	}
 	if _, ok := span.context.SamplingPriority(); !ok {
 		// if not already sampled or a brand new trace, sample it

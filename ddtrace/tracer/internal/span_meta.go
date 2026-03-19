@@ -24,6 +24,11 @@ var (
 // Promoted attributes (env, version, component, span.kind) live in attrs
 // and are excluded from the map m. The msgp codec merges both sources
 // transparently so the wire format is unchanged.
+//
+// Hot paths (setMetaInit, setMetricLocked) use SetMap/DeleteMap for direct
+// flat-map access without promoted-key overhead. Callers that may write
+// promoted keys use Set/Delete or setMetaTagLocked which route to attrs
+// via copy-on-write. This ensures promoted keys never appear in m.
 type SpanMeta struct {
 	m     map[string]string
 	attrs *SpanAttributes
@@ -65,40 +70,100 @@ func (sm *SpanMeta) Normalize() {
 	}
 }
 
-// Get returns the value for key, checking attrs for promoted keys and the flat map for others.
+// ---------------------------------------------------------------------------
+// Read methods
+// ---------------------------------------------------------------------------
+
+// Get returns the value for key, checking the flat map then attrs for promoted keys.
 func (sm SpanMeta) Get(key string) (string, bool) {
-	if ak, ok := AttrKeyForTag(key); ok {
-		return sm.attrs.Get(ak)
+	if v, ok := sm.m[key]; ok {
+		return v, ok
 	}
-	v, ok := sm.m[key]
-	return v, ok
+	if IsPromotedKeyLen(len(key)) {
+		if v, ok, handled := sm.getPromoted(key); handled {
+			return v, ok
+		}
+	}
+	return "", false
 }
 
-// Has reports whether key is present. Promoted keys check attrs; others check the flat map.
-func (sm SpanMeta) Has(key string) bool {
-	if ak, ok := AttrKeyForTag(key); ok {
-		_, ok := sm.attrs.Get(ak)
-		return ok
+// getPromoted is the slow path for Get when the key might be a promoted attribute.
+//
+//go:noinline
+func (sm SpanMeta) getPromoted(key string) (string, bool, bool) {
+	ak, ok := AttrKeyForTag(key)
+	if !ok {
+		return "", false, false
 	}
-	_, ok := sm.m[key]
+	v, found := sm.attrs.Get(ak)
+	return v, found, true
+}
+
+// Has reports whether key is present.
+func (sm SpanMeta) Has(key string) bool {
+	_, ok := sm.Get(key)
 	return ok
 }
 
-// Set sets key→value, routing promoted keys to attrs (with copy-on-write) and others to the flat map.
-// +checklocksignore — called both at init time (no lock) and under lock.
-func (sm *SpanMeta) Set(key, value string) {
-	if ak, ok := AttrKeyForTag(key); ok {
-		// Check if whether setting key=v on attrs would be a no-op
-		// no-op (i.e. the current value is already v, shared or local).
-		if sm.attrs != nil && sm.attrs.Val(ak) == value {
-			return
-		}
-		sm.setAttrCOWSlow(ak, value)
-		return
-	}
+// ---------------------------------------------------------------------------
+// Write methods — fast (map-only) and full (promoted-aware) variants.
+// ---------------------------------------------------------------------------
+
+// SetMap writes key=value directly to the flat map without checking for
+// promoted attributes. It is the caller's responsibility to ensure that
+// promoted-key routing is handled externally (or that the encoding's
+// dedup logic will cover the overlap). This method is designed to be
+// inlinable so that setMetaInit remains inlinable.
+func (sm *SpanMeta) SetMap(key, value string) {
 	if sm.m == nil {
 		sm.m = make(map[string]string, 1)
 	}
+	sm.m[key] = value
+}
+
+// DeleteMap removes key from the flat map only. Safe to call on a nil map.
+// Like SetMap, this bypasses promoted-key routing for performance.
+func (sm *SpanMeta) DeleteMap(key string) {
+	delete(sm.m, key)
+}
+
+// Set sets key→value, routing promoted keys to attrs (with copy-on-write)
+// and others to the flat map.
+// +checklocksignore — called both at init time (no lock) and under lock.
+func (sm *SpanMeta) Set(key, value string) {
+	if IsPromotedKeyLen(len(key)) && sm.setPromoted(key, value) {
+		return
+	}
+	if sm.m == nil {
+		sm.initMap(key, value)
+		return
+	}
+	sm.m[key] = value
+}
+
+// setPromoted is the slow path for Set when the key might be a promoted attribute.
+// Returns true if the key was handled (set or skipped as no-op).
+//
+//go:noinline
+func (sm *SpanMeta) setPromoted(key, value string) bool {
+	ak, ok := AttrKeyForTag(key)
+	if !ok {
+		return false
+	}
+	if sm.attrs != nil && sm.attrs.Val(ak) == value {
+		return true // no-op: value already matches
+	}
+	sm.ensureAttrsLocal()
+	sm.attrs.Set(ak, value)
+	return true
+}
+
+// initMap allocates the flat map and inserts the first entry.
+// Separated to keep Set's fast path (map already exists) small and inlinable.
+//
+//go:noinline
+func (sm *SpanMeta) initMap(key, value string) {
+	sm.m = make(map[string]string, 1)
 	sm.m[key] = value
 }
 
@@ -114,29 +179,49 @@ func (sm *SpanMeta) ensureAttrsLocal() {
 	}
 }
 
-// setAttrCOWSlow is the slow path for Set when the value is a promoted attr that needs writing.
-// Separated with //go:noinline to keep the hot path in Set small.
-//
-//go:noinline
-func (sm *SpanMeta) setAttrCOWSlow(key AttrKey, v string) {
-	sm.ensureAttrsLocal()
-	sm.attrs.Set(key, v)
-}
-
-// Delete removes key. For promoted keys, clears the attribute (with copy-on-write); for others,
-// removes from the flat map. No-op if the key is absent.
+// Delete removes key from both the flat map and (for promoted keys) attrs.
 // +checklocksignore — called both at init time (no lock) and under lock.
 func (sm *SpanMeta) Delete(key string) {
-	if ak, ok := AttrKeyForTag(key); ok {
-		if _, isSet := sm.attrs.Get(ak); !isSet {
-			return // already absent, skip unnecessary COW
-		}
-		sm.ensureAttrsLocal()
-		sm.attrs.Unset(ak)
+	delete(sm.m, key)
+	if IsPromotedKeyLen(len(key)) {
+		sm.deleteFromAttrs(key)
+	}
+}
+
+// deleteFromAttrs handles the promoted-key side of Delete.
+//
+//go:noinline
+func (sm *SpanMeta) deleteFromAttrs(key string) {
+	ak, ok := AttrKeyForTag(key)
+	if !ok {
 		return
 	}
-	delete(sm.m, key)
+	if _, isSet := sm.attrs.Get(ak); !isSet {
+		return
+	}
+	sm.ensureAttrsLocal()
+	sm.attrs.Unset(ak)
 }
+
+// IsPromotedKeyLen reports whether n matches the length of any promoted attribute name.
+// Promoted keys: "env"(3), "version"(7), "component"(9), "span.kind"(9).
+// This must stay in sync with the Defs table in span_attributes.go; the init
+// check below enforces this at program start.
+func IsPromotedKeyLen(n int) bool {
+	return n == 3 || n == 7 || n == 9
+}
+
+func init() {
+	for _, d := range Defs {
+		if !IsPromotedKeyLen(len(d.Name)) {
+			panic("IsPromotedKeyLen out of sync with Defs: missing length " + d.Name)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Counting / iteration — promoted keys are in attrs only, never in m.
+// ---------------------------------------------------------------------------
 
 // Count returns the total number of entries (flat map + promoted attrs).
 func (sm SpanMeta) Count() int {
@@ -198,6 +283,10 @@ func (sm SpanMeta) String() string {
 	b.WriteByte(']')
 	return b.String()
 }
+
+// ---------------------------------------------------------------------------
+// msgp codec
+// ---------------------------------------------------------------------------
 
 // EncodeMsg writes the combined map header (m entries + promoted attrs),
 // then emits all map entries followed by promoted attribute entries.

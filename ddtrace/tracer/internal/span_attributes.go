@@ -148,7 +148,7 @@ func (a *SpanAttributes) All() iter.Seq2[string, string] {
 // AttrKeyForTag returns the AttrKey for a promoted tag name, if any.
 // Returns (AttrUnknown, false) when the tag is not a promoted attribute.
 func AttrKeyForTag(tag string) (AttrKey, bool) {
-	if len(tag) != 3 && len(tag) != 7 && len(tag) != 9 {
+	if !IsPromotedKeyLen(len(tag)) {
 		return AttrUnknown, false
 	}
 	switch tag {
