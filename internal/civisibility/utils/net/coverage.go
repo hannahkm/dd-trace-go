@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils/telemetry"
+	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
 
 const (
@@ -41,6 +42,7 @@ func (c *client) SendCoveragePayloadWithFormat(ciTestCovPayload io.Reader, forma
 	}
 
 	if utils.IsPayloadFilesModeEnabled() {
+		log.Debug("civisibility.coverage: payload transport mode is file [format:%s]", format)
 		payloadBytes, err := io.ReadAll(ciTestCovPayload)
 		if err != nil {
 			return fmt.Errorf("failed to read coverage payload: %w", err)
@@ -63,6 +65,8 @@ func (c *client) SendCoveragePayloadWithFormat(ciTestCovPayload io.Reader, forma
 			return fmt.Errorf("unsupported format: %s", format)
 		}
 	}
+
+	log.Debug("civisibility.coverage: payload transport mode is http [format:%s url:%s]", format, c.getURLPath(coverageURLPath))
 
 	// Create a dummy event to send with the coverage payload.
 	dummyEvent := FormFile{

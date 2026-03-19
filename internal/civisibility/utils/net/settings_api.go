@@ -78,9 +78,12 @@ type (
 func (c *client) GetSettings() (*SettingsResponseData, error) {
 	if utils.IsManifestModeEnabled() {
 		if cacheFile, ok := utils.CacheHTTPFile("settings.json"); ok {
+			log.Debug("civisibility.settings: reading manifest cache file %s", cacheFile)
 			if raw, err := os.ReadFile(cacheFile); err == nil {
+				log.Debug("civisibility.settings: read manifest cache file %s (%d bytes)", cacheFile, len(raw))
 				var cachedResponse settingsResponse
 				if err := json.Unmarshal(raw, &cachedResponse); err == nil {
+					log.Debug("civisibility.settings: loaded settings from manifest cache file %s", cacheFile)
 					return &cachedResponse.Data.Attributes, nil
 				} else {
 					log.Debug("civisibility.settings: invalid settings cache file %s: %s", cacheFile, err.Error())
@@ -88,8 +91,11 @@ func (c *client) GetSettings() (*SettingsResponseData, error) {
 			} else {
 				log.Debug("civisibility.settings: cannot read settings cache file %s: %s", cacheFile, err.Error())
 			}
+		} else {
+			log.Debug("civisibility.settings: manifest mode enabled but settings cache path could not be resolved")
 		}
 		// Compatible with Bazel offline mode: if cache is missing or invalid, features are disabled.
+		log.Debug("civisibility.settings: returning empty settings because manifest cache is unavailable or invalid")
 		return &SettingsResponseData{}, nil
 	}
 

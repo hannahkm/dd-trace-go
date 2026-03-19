@@ -70,9 +70,12 @@ type (
 func (c *client) GetKnownTests() (*KnownTestsResponseData, error) {
 	if utils.IsManifestModeEnabled() {
 		if cacheFile, ok := utils.CacheHTTPFile("known_tests.json"); ok {
+			log.Debug("civisibility.known_tests: reading manifest cache file %s", cacheFile)
 			if raw, err := os.ReadFile(cacheFile); err == nil {
+				log.Debug("civisibility.known_tests: read manifest cache file %s (%d bytes)", cacheFile, len(raw))
 				var cachedResponse knownTestsResponse
 				if err := json.Unmarshal(raw, &cachedResponse); err == nil {
+					log.Debug("civisibility.known_tests: loaded known tests from manifest cache file %s", cacheFile)
 					return &cachedResponse.Data.Attributes, nil
 				} else {
 					log.Debug("civisibility.known_tests: invalid known tests cache file %s: %s", cacheFile, err.Error())
@@ -80,8 +83,11 @@ func (c *client) GetKnownTests() (*KnownTestsResponseData, error) {
 			} else {
 				log.Debug("civisibility.known_tests: cannot read known tests cache file %s: %s", cacheFile, err.Error())
 			}
+		} else {
+			log.Debug("civisibility.known_tests: manifest mode enabled but known tests cache path could not be resolved")
 		}
 		// Compatible with Bazel offline mode: missing or invalid cache means empty known tests response.
+		log.Debug("civisibility.known_tests: returning empty known tests because manifest cache is unavailable or invalid")
 		return &KnownTestsResponseData{Tests: KnownTestsResponseDataModules{}}, nil
 	}
 

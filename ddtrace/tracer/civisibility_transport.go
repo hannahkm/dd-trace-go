@@ -137,6 +137,7 @@ func (t *ciVisibilityTransport) send(p payload) (body io.ReadCloser, err error) 
 	}
 
 	if utils.IsPayloadFilesModeEnabled() {
+		log.Debug("civisibility: test event payload transport mode is file; converting msgpack payload to JSON before writing to disk")
 		jsonPayload, err := utils.MsgpackToJSON(buffer.Bytes())
 		if err != nil {
 			return nil, fmt.Errorf("cannot convert payload to json: %w", err)
@@ -146,6 +147,8 @@ func (t *ciVisibilityTransport) send(p payload) (body io.ReadCloser, err error) 
 		}
 		return io.NopCloser(bytes.NewReader(nil)), nil
 	}
+
+	log.Debug("civisibility: test event payload transport mode is http; sending payload to %s", urlsanitizer.SanitizeURL(t.testCycleURLPath))
 
 	if t.agentless {
 		// Compress payload

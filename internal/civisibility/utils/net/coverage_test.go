@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/tinylib/msgp/msgp"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	civisibilityutils "github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
+	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
 
 func TestCoverageApiRequest(t *testing.T) {
@@ -91,6 +93,12 @@ func TestCoverageApiRequestPayloadFilesModeWritesJSON(t *testing.T) {
 	os.Setenv(constants.CIVisibilityUndeclaredOutputsDir, outDir)
 	civisibilityutils.ResetTestOptimizationModeForTesting()
 
+	recordLogger := new(log.RecordLogger)
+	oldLevel := log.GetLevel()
+	defer log.UseLogger(recordLogger)()
+	log.SetLevel(log.LevelDebug)
+	defer log.SetLevel(oldLevel)
+
 	cInterface := NewClient()
 
 	msgpackPayload := msgp.AppendMapHeader(nil, 3)
@@ -117,6 +125,7 @@ func TestCoverageApiRequestPayloadFilesModeWritesJSON(t *testing.T) {
 	assert.Contains(t, payloadMap, "version")
 	assert.Contains(t, payloadMap, "metadata")
 	assert.Contains(t, payloadMap, "coverages")
+	assert.True(t, containsCoverageLogLine(recordLogger.Logs(), "payload transport mode is file"))
 }
 
 func TestCoverageApiRequestPayloadFilesModeWritesJSONFormatPayload(t *testing.T) {
@@ -237,4 +246,13 @@ func testCoverageMsgpackPayload() []byte {
 	payload = msgp.AppendString(payload, "coverages")
 	payload = msgp.AppendArrayHeader(payload, 0)
 	return payload
+}
+
+func containsCoverageLogLine(lines []string, want string) bool {
+	for _, line := range lines {
+		if strings.Contains(line, want) {
+			return true
+		}
+	}
+	return false
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	civisibilityutils "github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
 	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
+	"github.com/DataDog/dd-trace-go/v2/internal/log"
 	"github.com/DataDog/dd-trace-go/v2/internal/urlsanitizer"
 )
 
@@ -183,6 +184,12 @@ func TestCiVisibilityTransportPayloadFilesModeWritesJSON(t *testing.T) {
 	cfg.httpClient = internal.DefaultHTTPClient(defaultHTTPTimeout, false)
 	cfg.agentURL = parsedURL
 
+	recordLogger := new(log.RecordLogger)
+	oldLevel := log.GetLevel()
+	defer log.UseLogger(recordLogger)()
+	log.SetLevel(log.LevelDebug)
+	defer log.SetLevel(oldLevel)
+
 	transport := newCiVisibilityTransport(cfg)
 	p := newCiVisibilityPayload()
 	for _, trace := range getTestTrace(1, 1) {
@@ -208,6 +215,7 @@ func TestCiVisibilityTransportPayloadFilesModeWritesJSON(t *testing.T) {
 	assert.Contains(t, payloadMap, "version")
 	assert.Contains(t, payloadMap, "metadata")
 	assert.Contains(t, payloadMap, "events")
+	assert.True(t, containsTransportLogLine(recordLogger.Logs(), "test event payload transport mode is file"))
 }
 
 func TestCiVisibilityTransportPayloadFilesModeMissingOutputDir(t *testing.T) {
@@ -249,4 +257,13 @@ func TestCiVisibilityTransportPayloadFilesModeMissingOutputDir(t *testing.T) {
 	matches, globErr := filepath.Glob(filepath.Join(tempDir, "payloads", "tests", "tests-*.json"))
 	assert.NoError(t, globErr)
 	assert.Empty(t, matches)
+}
+
+func containsTransportLogLine(lines []string, want string) bool {
+	for _, line := range lines {
+		if strings.Contains(line, want) {
+			return true
+		}
+	}
+	return false
 }

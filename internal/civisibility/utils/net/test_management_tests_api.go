@@ -74,9 +74,12 @@ type (
 func (c *client) GetTestManagementTests() (*TestManagementTestsResponseDataModules, error) {
 	if utils.IsManifestModeEnabled() {
 		if cacheFile, ok := utils.CacheHTTPFile("test_management.json"); ok {
+			log.Debug("civisibility.test_management: reading manifest cache file %s", cacheFile)
 			if raw, err := os.ReadFile(cacheFile); err == nil {
+				log.Debug("civisibility.test_management: read manifest cache file %s (%d bytes)", cacheFile, len(raw))
 				var cachedResponse testManagementTestsResponse
 				if err := json.Unmarshal(raw, &cachedResponse); err == nil {
+					log.Debug("civisibility.test_management: loaded test management response from manifest cache file %s", cacheFile)
 					return &cachedResponse.Data.Attributes, nil
 				} else {
 					log.Debug("civisibility.test_management: invalid test management cache file %s: %s", cacheFile, err.Error())
@@ -84,8 +87,11 @@ func (c *client) GetTestManagementTests() (*TestManagementTestsResponseDataModul
 			} else {
 				log.Debug("civisibility.test_management: cannot read test management cache file %s: %s", cacheFile, err.Error())
 			}
+		} else {
+			log.Debug("civisibility.test_management: manifest mode enabled but test management cache path could not be resolved")
 		}
 		// Compatible with Bazel offline mode: missing or invalid cache means empty test management response.
+		log.Debug("civisibility.test_management: returning empty test management response because manifest cache is unavailable or invalid")
 		return &TestManagementTestsResponseDataModules{
 			Modules: map[string]TestManagementTestsResponseDataSuites{},
 		}, nil

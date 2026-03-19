@@ -197,11 +197,19 @@ func TestTestManagementTestsApiRequestFromManifestCache(t *testing.T) {
 	setCiVisibilityEnv(path, server.URL)
 	os.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
 
+	recordLogger := new(log.RecordLogger)
+	oldLevel := log.GetLevel()
+	defer log.UseLogger(recordLogger)()
+	log.SetLevel(log.LevelDebug)
+	defer log.SetLevel(oldLevel)
+
 	cInterface := NewClient()
 	responseData, err := cInterface.GetTestManagementTests()
 	assert.NoError(t, err)
 	assert.Equal(t, expectedResponse.Data.Attributes, *responseData)
 	assert.Equal(t, 0, hits)
+	assert.True(t, containsTestManagementLogLine(recordLogger.Logs(), "reading manifest cache file"))
+	assert.True(t, containsTestManagementLogLine(recordLogger.Logs(), "loaded test management response from manifest cache file"))
 }
 
 func TestTestManagementTestsApiRequestFromManifestCacheMissingFile(t *testing.T) {
@@ -282,6 +290,7 @@ func TestTestManagementTestsApiRequestFromManifestCacheMalformedFile(t *testing.
 	}, *responseData)
 	assert.Equal(t, 0, hits)
 	assert.True(t, containsTestManagementLogLine(recordLogger.Logs(), "invalid test management cache file"))
+	assert.True(t, containsTestManagementLogLine(recordLogger.Logs(), "returning empty test management response because manifest cache is unavailable or invalid"))
 }
 
 func containsTestManagementLogLine(lines []string, want string) bool {

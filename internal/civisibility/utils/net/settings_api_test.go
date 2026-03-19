@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	civisibilityutils "github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
+	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
 
 func TestSettingsApiRequest(t *testing.T) {
@@ -156,11 +157,19 @@ func TestSettingsApiRequestFromManifestCache(t *testing.T) {
 	setCiVisibilityEnv(path, server.URL)
 	os.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
 
+	recordLogger := new(log.RecordLogger)
+	oldLevel := log.GetLevel()
+	defer log.UseLogger(recordLogger)()
+	log.SetLevel(log.LevelDebug)
+	defer log.SetLevel(oldLevel)
+
 	cInterface := NewClient()
 	settings, err := cInterface.GetSettings()
 	assert.NoError(t, err)
 	assert.Equal(t, expectedResponse.Data.Attributes, *settings)
 	assert.Equal(t, 0, hits)
+	assert.True(t, containsLogLine(recordLogger.Logs(), "reading manifest cache file"))
+	assert.True(t, containsLogLine(recordLogger.Logs(), "loaded settings from manifest cache file"))
 }
 
 func TestSettingsApiRequestFromManifestCacheMissingFile(t *testing.T) {
@@ -225,9 +234,17 @@ func TestSettingsApiRequestFromManifestCacheMalformedFile(t *testing.T) {
 	setCiVisibilityEnv(path, server.URL)
 	os.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
 
+	recordLogger := new(log.RecordLogger)
+	oldLevel := log.GetLevel()
+	defer log.UseLogger(recordLogger)()
+	log.SetLevel(log.LevelDebug)
+	defer log.SetLevel(oldLevel)
+
 	cInterface := NewClient()
 	settings, err := cInterface.GetSettings()
 	assert.NoError(t, err)
 	assert.Equal(t, SettingsResponseData{}, *settings)
 	assert.Equal(t, 0, hits)
+	assert.True(t, containsLogLine(recordLogger.Logs(), "invalid settings cache file"))
+	assert.True(t, containsLogLine(recordLogger.Logs(), "returning empty settings because manifest cache is unavailable or invalid"))
 }

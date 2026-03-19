@@ -84,8 +84,11 @@ func ensureSettingsInitialization(serviceName string) {
 			return
 		}
 
+		testOptimizationMode := utils.CurrentTestOptimizationMode()
 		var uploadChannel = make(chan struct{})
-		uploadEnabled := !utils.IsManifestModeEnabled() && !utils.IsPayloadFilesModeEnabled()
+		uploadEnabled := !testOptimizationMode.ManifestEnabled && !testOptimizationMode.PayloadFilesEnabled
+		log.Debug("civisibility: settings initialization mode [manifest_enabled:%t payload_files_enabled:%t manifest:%s payload_root:%s repository_upload_enabled:%t]",
+			testOptimizationMode.ManifestEnabled, testOptimizationMode.PayloadFilesEnabled, testOptimizationMode.ManifestPath, testOptimizationMode.PayloadsRoot, uploadEnabled)
 		if uploadEnabled {
 			// upload the repository changes
 			go func() {
@@ -177,7 +180,7 @@ func ensureSettingsInitialization(serviceName string) {
 			ciSettings.TestManagement.AttemptToFixRetries = testManagementAttemptToFixRetriesEnv
 		}
 
-		if utils.IsManifestModeEnabled() {
+		if testOptimizationMode.ManifestEnabled {
 			if ciSettings.TestsSkipping {
 				log.Debug("civisibility: test skipping disabled in manifest mode")
 			}
@@ -185,7 +188,8 @@ func ensureSettingsInitialization(serviceName string) {
 		}
 
 		// payload-file mode must avoid impacted-tests git workflows.
-		if utils.IsPayloadFilesModeEnabled() {
+		if testOptimizationMode.PayloadFilesEnabled {
+			log.Debug("civisibility: impacted tests disabled in payload-file mode")
 			ciSettings.ImpactedTestsEnabled = false
 		}
 

@@ -14,6 +14,7 @@ import (
 	"github.com/tinylib/msgp/msgp"
 
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
+	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
 
 func TestCurrentTestOptimizationMode_DirectManifestPath(t *testing.T) {
@@ -192,6 +193,68 @@ func TestCurrentTestOptimizationMode_PayloadFiles(t *testing.T) {
 	}
 }
 
+func TestCurrentTestOptimizationMode_LogsManifestResolutionAndPayloadFileWrite(t *testing.T) {
+	ResetTestOptimizationModeForTesting()
+	t.Cleanup(ResetTestOptimizationModeForTesting)
+
+	recordLogger := new(log.RecordLogger)
+	oldLevel := log.GetLevel()
+	defer log.UseLogger(recordLogger)()
+	log.SetLevel(log.LevelDebug)
+	defer log.SetLevel(oldLevel)
+
+	tmpDir := t.TempDir()
+	outDir := t.TempDir()
+	manifestPath := filepath.Join(tmpDir, "manifest.txt")
+	if err := os.WriteFile(manifestPath, []byte("1\n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
+	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, outDir)
+
+	mode := CurrentTestOptimizationMode()
+	if !mode.ManifestEnabled {
+		t.Fatal("expected manifest mode enabled")
+	}
+	if !mode.PayloadFilesEnabled {
+		t.Fatal("expected payload-file mode enabled")
+	}
+
+	if err := WritePayloadFile("tests", []byte(`{"ok":true}`)); err != nil {
+		t.Fatalf("write payload file: %v", err)
+	}
+
+	matches, err := filepath.Glob(filepath.Join(outDir, "payloads", "tests", "tests-*.json"))
+	if err != nil {
+		t.Fatalf("glob payload files: %v", err)
+	}
+	if len(matches) != 1 {
+		t.Fatalf("expected one tests payload file, got %d", len(matches))
+	}
+
+	logs := recordLogger.Logs()
+	if !containsTestOptimizationLogLine(logs, "resolving manifest path from") {
+		t.Fatalf("expected manifest resolution log, got %v", logs)
+	}
+	if !containsTestOptimizationLogLine(logs, "resolved manifest path directly") {
+		t.Fatalf("expected direct manifest resolution log, got %v", logs)
+	}
+	if !containsTestOptimizationLogLine(logs, "reading manifest file") {
+		t.Fatalf("expected manifest read log, got %v", logs)
+	}
+	if !containsTestOptimizationLogLine(logs, "declared version \"1\" [supported:true]") {
+		t.Fatalf("expected manifest version log, got %v", logs)
+	}
+	if !containsTestOptimizationLogLine(logs, "payload-file mode enabled") {
+		t.Fatalf("expected payload-file mode log, got %v", logs)
+	}
+	if !containsTestOptimizationLogLine(logs, matches[0]) {
+		t.Fatalf("expected absolute payload file path log %q, got %v", matches[0], logs)
+	}
+}
+
 func TestWritePayloadFileDisabledMode(t *testing.T) {
 	ResetTestOptimizationModeForTesting()
 	t.Cleanup(ResetTestOptimizationModeForTesting)
@@ -248,4 +311,13 @@ func TestMsgpackToJSON(t *testing.T) {
 	if !strings.Contains(string(jsonPayload), "\"k\"") || !strings.Contains(string(jsonPayload), "\"v\"") {
 		t.Fatalf("unexpected json payload: %s", string(jsonPayload))
 	}
+}
+
+func containsTestOptimizationLogLine(lines []string, want string) bool {
+	for _, line := range lines {
+		if strings.Contains(line, want) {
+			return true
+		}
+	}
+	return false
 }

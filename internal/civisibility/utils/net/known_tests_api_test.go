@@ -200,11 +200,19 @@ func TestKnownTestsApiRequestFromManifestCache(t *testing.T) {
 	setCiVisibilityEnv(path, server.URL)
 	os.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
 
+	recordLogger := new(log.RecordLogger)
+	oldLevel := log.GetLevel()
+	defer log.UseLogger(recordLogger)()
+	log.SetLevel(log.LevelDebug)
+	defer log.SetLevel(oldLevel)
+
 	cInterface := NewClient()
 	responseData, err := cInterface.GetKnownTests()
 	assert.NoError(t, err)
 	assert.Equal(t, expectedResponse.Data.Attributes, *responseData)
 	assert.Equal(t, 0, hits)
+	assert.True(t, containsLogLine(recordLogger.Logs(), "reading manifest cache file"))
+	assert.True(t, containsLogLine(recordLogger.Logs(), "loaded known tests from manifest cache file"))
 }
 
 func TestKnownTestsApiRequestFromManifestCacheMissingFile(t *testing.T) {
@@ -281,6 +289,7 @@ func TestKnownTestsApiRequestFromManifestCacheMalformedFile(t *testing.T) {
 	assert.Equal(t, KnownTestsResponseData{Tests: KnownTestsResponseDataModules{}}, *responseData)
 	assert.Equal(t, 0, hits)
 	assert.True(t, containsLogLine(recordLogger.Logs(), "invalid known tests cache file"))
+	assert.True(t, containsLogLine(recordLogger.Logs(), "returning empty known tests because manifest cache is unavailable or invalid"))
 }
 
 func containsLogLine(lines []string, want string) bool {
