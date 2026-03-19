@@ -20,6 +20,10 @@ const (
 	AttrComponent AttrKey = 2
 	AttrSpanKind  AttrKey = 3
 	numAttrs      AttrKey = 4
+
+	// AttrUnknown is returned by AttrKeyForTag when no promoted tag matches.
+	// Its value is intentionally out of range for vals[] so misuse panics immediately.
+	AttrUnknown AttrKey = 0xFF
 )
 
 // Compile-time guard: the numeric values of AttrKey constants are load-bearing —
@@ -142,7 +146,11 @@ func (a *SpanAttributes) All() iter.Seq2[string, string] {
 }
 
 // AttrKeyForTag returns the AttrKey for a promoted tag name, if any.
+// Returns (AttrUnknown, false) when the tag is not a promoted attribute.
 func AttrKeyForTag(tag string) (AttrKey, bool) {
+	if len(tag) != 3 && len(tag) != 7 && len(tag) != 9 {
+		return AttrUnknown, false
+	}
 	switch tag {
 	case "env":
 		return AttrEnv, true
@@ -153,5 +161,5 @@ func AttrKeyForTag(tag string) (AttrKey, bool) {
 	case "span.kind":
 		return AttrSpanKind, true
 	}
-	return 0, false
+	return AttrUnknown, false
 }

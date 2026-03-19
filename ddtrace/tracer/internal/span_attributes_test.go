@@ -132,8 +132,8 @@ func TestAttrKeyForTag(t *testing.T) {
 		{"version", AttrVersion, true},
 		{"component", AttrComponent, true},
 		{"span.kind", AttrSpanKind, true},
-		{"unknown", 0, false},
-		{"", 0, false},
+		{"unknown", AttrUnknown, false},
+		{"", AttrUnknown, false},
 	}
 	for _, tt := range tests {
 		key, ok := AttrKeyForTag(tt.tag)

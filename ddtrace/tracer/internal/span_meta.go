@@ -142,6 +142,26 @@ func (sm SpanMeta) Count() int {
 	return len(sm.m) + sm.attrs.Count()
 }
 
+// Merge returns a map[string]string containing all entries (flat map + promoted attrs).
+// When no promoted attrs are set, the internal flat map is returned directly without
+// allocating — the caller must not mutate it. When promoted attrs are present, a new
+// merged map is allocated and returned.
+func (sm SpanMeta) Merge() map[string]string {
+	if sm.attrs.Count() == 0 {
+		return sm.m // nil-safe: callers must handle a nil map
+	}
+	m := make(map[string]string, len(sm.m)+sm.attrs.Count())
+	for k, v := range sm.m {
+		m[k] = v
+	}
+	for _, d := range Defs {
+		if sm.attrs.setMask>>d.Key&1 != 0 {
+			m[d.Name] = sm.attrs.vals[d.Key]
+		}
+	}
+	return m
+}
+
 // All returns an iterator over all entries. Flat-map entries are yielded first
 // (in unspecified order), followed by promoted attributes in definition order
 // (env, version, component, span.kind). Returning false from yield stops iteration.
