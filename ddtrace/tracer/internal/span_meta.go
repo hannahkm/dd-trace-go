@@ -14,6 +14,12 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
+// metaMapHint is the initial capacity for the flat map m.
+// A typical span carries "language" plus a handful of internal tags
+// (_dd.base_service, runtime-id, etc.). 5 accommodates these without
+// a rehash and matches the pre-refactor initMeta allocation profile.
+const metaMapHint = 5
+
 var (
 	_ msgp.Encodable = (*SpanMeta)(nil)
 	_ msgp.Decodable = (*SpanMeta)(nil)
@@ -110,13 +116,11 @@ func (sm SpanMeta) Has(key string) bool {
 // ---------------------------------------------------------------------------
 
 // SetMap writes key=value directly to the flat map without checking for
-// promoted attributes. It is the caller's responsibility to ensure that
-// promoted-key routing is handled externally (or that the encoding's
-// dedup logic will cover the overlap). This method is designed to be
-// inlinable so that setMetaInit remains inlinable.
+// promoted attributes. This method is designed to be inlinable so that
+// setMetaInit remains inlinable.
 func (sm *SpanMeta) SetMap(key, value string) {
 	if sm.m == nil {
-		sm.m = make(map[string]string, 1)
+		sm.m = make(map[string]string, metaMapHint)
 	}
 	sm.m[key] = value
 }
@@ -163,7 +167,7 @@ func (sm *SpanMeta) setPromoted(key, value string) bool {
 //
 //go:noinline
 func (sm *SpanMeta) initMap(key, value string) {
-	sm.m = make(map[string]string, 1)
+	sm.m = make(map[string]string, metaMapHint)
 	sm.m[key] = value
 }
 
