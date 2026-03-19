@@ -163,6 +163,40 @@ func TestCurrentTestOptimizationMode_ManifestVersionUsesFirstNonEmptyLine(t *tes
 	}
 }
 
+func TestCurrentTestOptimizationMode_ManifestVersionAssignmentIsSupported(t *testing.T) {
+	ResetTestOptimizationModeForTesting()
+	t.Cleanup(ResetTestOptimizationModeForTesting)
+
+	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
+	if err := os.WriteFile(manifestPath, []byte("version=1\n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+
+	mode := CurrentTestOptimizationMode()
+	if !mode.ManifestEnabled {
+		t.Fatalf("expected manifest mode enabled when version line is version=1")
+	}
+}
+
+func TestCurrentTestOptimizationMode_ManifestVersionAssignmentWithSpacesIsSupported(t *testing.T) {
+	ResetTestOptimizationModeForTesting()
+	t.Cleanup(ResetTestOptimizationModeForTesting)
+
+	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
+	if err := os.WriteFile(manifestPath, []byte("version = 1\n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+
+	mode := CurrentTestOptimizationMode()
+	if !mode.ManifestEnabled {
+		t.Fatalf("expected manifest mode enabled when version line is version = 1")
+	}
+}
+
 func TestCurrentTestOptimizationMode_PayloadFiles(t *testing.T) {
 	ResetTestOptimizationModeForTesting()
 	t.Cleanup(ResetTestOptimizationModeForTesting)
@@ -244,7 +278,7 @@ func TestCurrentTestOptimizationMode_LogsManifestResolutionAndPayloadFileWrite(t
 	if !containsTestOptimizationLogLine(logs, "reading manifest file") {
 		t.Fatalf("expected manifest read log, got %v", logs)
 	}
-	if !containsTestOptimizationLogLine(logs, "declared version \"1\" [supported:true]") {
+	if !containsTestOptimizationLogLine(logs, "declared version line \"1\" [parsed_version:\"1\" supported:true]") {
 		t.Fatalf("expected manifest version log, got %v", logs)
 	}
 	if !containsTestOptimizationLogLine(logs, "payload-file mode enabled") {
@@ -252,6 +286,34 @@ func TestCurrentTestOptimizationMode_LogsManifestResolutionAndPayloadFileWrite(t
 	}
 	if !containsTestOptimizationLogLine(logs, matches[0]) {
 		t.Fatalf("expected absolute payload file path log %q, got %v", matches[0], logs)
+	}
+}
+
+func TestCurrentTestOptimizationMode_LogsManifestVersionAssignmentParsing(t *testing.T) {
+	ResetTestOptimizationModeForTesting()
+	t.Cleanup(ResetTestOptimizationModeForTesting)
+
+	recordLogger := new(log.RecordLogger)
+	oldLevel := log.GetLevel()
+	defer log.UseLogger(recordLogger)()
+	log.SetLevel(log.LevelDebug)
+	defer log.SetLevel(oldLevel)
+
+	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
+	if err := os.WriteFile(manifestPath, []byte("version=1\n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+
+	mode := CurrentTestOptimizationMode()
+	if !mode.ManifestEnabled {
+		t.Fatal("expected manifest mode enabled")
+	}
+
+	logs := recordLogger.Logs()
+	if !containsTestOptimizationLogLine(logs, "declared version line \"version=1\" [parsed_version:\"1\" supported:true]") {
+		t.Fatalf("expected manifest version assignment log, got %v", logs)
 	}
 }
 

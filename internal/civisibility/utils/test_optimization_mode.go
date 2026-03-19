@@ -264,12 +264,14 @@ func isManifestVersionSupported(manifestPath string) bool {
 
 	scanner := bufio.NewScanner(bytes.NewReader(content))
 	for scanner.Scan() {
-		version := strings.TrimSpace(scanner.Text())
-		if version == "" {
+		rawVersionLine := strings.TrimSpace(scanner.Text())
+		if rawVersionLine == "" {
 			continue
 		}
+		version := parseManifestVersion(rawVersionLine)
 		supported := version == "1"
-		logger.Debug("civisibility: manifest file %s declared version %q [supported:%t]", absolutePathForLog(manifestPath), version, supported)
+		logger.Debug("civisibility: manifest file %s declared version line %q [parsed_version:%q supported:%t]",
+			absolutePathForLog(manifestPath), rawVersionLine, version, supported)
 		return supported
 	}
 	if err := scanner.Err(); err != nil {
@@ -278,6 +280,22 @@ func isManifestVersionSupported(manifestPath string) bool {
 	}
 	logger.Debug("civisibility: manifest file %s did not contain a version line", absolutePathForLog(manifestPath))
 	return false
+}
+
+func parseManifestVersion(rawLine string) string {
+	line := strings.TrimSpace(rawLine)
+	if line == "" {
+		return ""
+	}
+
+	name, value, ok := strings.Cut(line, "=")
+	if !ok {
+		return line
+	}
+	if strings.TrimSpace(name) != "version" {
+		return line
+	}
+	return strings.TrimSpace(value)
 }
 
 func absolutePathForLog(path string) string {
