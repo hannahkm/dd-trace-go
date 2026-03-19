@@ -110,7 +110,7 @@ func WritePayloadFile(kind string, jsonPayload []byte) error {
 	absoluteOutDir := absolutePathForLog(outDir)
 	logger.Debug("civisibility: ensuring %s payload output directory exists at %s", kind, absoluteOutDir)
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		logger.Debug("civisibility: failed to create %s payload output directory %s: %v", kind, absoluteOutDir, err)
+		logger.Debug("civisibility: failed to create %s payload output directory %s: %v", kind, absoluteOutDir, err.Error())
 		return fmt.Errorf("creating payload output dir: %w", err)
 	}
 
@@ -121,7 +121,7 @@ func WritePayloadFile(kind string, jsonPayload []byte) error {
 	logger.Debug("civisibility: writing %s payload file to %s", kind, absoluteFilePath)
 
 	if err := os.WriteFile(filePath, jsonPayload, 0o644); err != nil {
-		logger.Debug("civisibility: failed writing %s payload file to %s: %v", kind, absoluteFilePath, err)
+		logger.Debug("civisibility: failed writing %s payload file to %s: %v", kind, absoluteFilePath, err.Error())
 		return fmt.Errorf("writing payload file: %w", err)
 	}
 	logger.Debug("civisibility: wrote %s payload file to %s", kind, absoluteFilePath)
@@ -228,7 +228,7 @@ func resolveRunfilesManifestEntry(manifestFilePath string, rlocation string) (st
 	logger.Debug("civisibility: reading runfiles manifest %s for rlocation %s", absolutePathForLog(manifestFilePath), rlocation)
 	file, err := os.Open(manifestFilePath)
 	if err != nil {
-		logger.Debug("civisibility: failed to open runfiles manifest %s: %v", absolutePathForLog(manifestFilePath), err)
+		logger.Debug("civisibility: failed to open runfiles manifest %s: %v", absolutePathForLog(manifestFilePath), err.Error())
 		return "", false
 	}
 	defer file.Close()
@@ -247,7 +247,7 @@ func resolveRunfilesManifestEntry(manifestFilePath string, rlocation string) (st
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		logger.Debug("civisibility: failed while scanning runfiles manifest %s: %v", absolutePathForLog(manifestFilePath), err)
+		logger.Debug("civisibility: failed while scanning runfiles manifest %s: %v", absolutePathForLog(manifestFilePath), err.Error())
 		return "", false
 	}
 	logger.Debug("civisibility: runfiles manifest %s did not contain rlocation %s", absolutePathForLog(manifestFilePath), rlocation)
@@ -258,7 +258,7 @@ func isManifestVersionSupported(manifestPath string) bool {
 	logger.Debug("civisibility: reading manifest file %s", absolutePathForLog(manifestPath))
 	content, err := os.ReadFile(manifestPath)
 	if err != nil {
-		logger.Debug("civisibility: failed to read manifest file %s: %v", absolutePathForLog(manifestPath), err)
+		logger.Debug("civisibility: failed to read manifest file %s: %v", absolutePathForLog(manifestPath), err.Error())
 		return false
 	}
 
@@ -273,7 +273,7 @@ func isManifestVersionSupported(manifestPath string) bool {
 		return supported
 	}
 	if err := scanner.Err(); err != nil {
-		logger.Debug("civisibility: failed while scanning manifest file %s: %v", absolutePathForLog(manifestPath), err)
+		logger.Debug("civisibility: failed while scanning manifest file %s: %v", absolutePathForLog(manifestPath), err.Error())
 		return false
 	}
 	logger.Debug("civisibility: manifest file %s did not contain a version line", absolutePathForLog(manifestPath))
