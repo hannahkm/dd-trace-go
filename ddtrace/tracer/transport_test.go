@@ -767,6 +767,6 @@ func TestSendStatsNetworkErrorRetry(t *testing.T) {
 
 	assert.Contains(rt.reqs[0].URL.Path, "/info")
 	assert.Contains(rt.reqs[1].URL.Path, "/stats")
-	assert.Equal(handlerHits, 3) // we expect more hits than requests due to idempotency retries
-	assert.Equal(transportDials, 2)
+	assert.Equal(3, handlerHits) // we expect more hits than requests due to idempotency retries
+	assert.Equal(2, transportDials)
 }

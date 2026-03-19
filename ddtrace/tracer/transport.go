@@ -108,10 +108,14 @@ func (t *httpTransport) sendStats(p *pb.ClientStatsPayload, tracerObfuscationVer
 		return err
 	}
 
-	// by providing GetBody and a zero length slice for the Idempotency-Key
-	// http header, we get free retries in the face of network errors, such as
-	// when datadog-agent is much more aggressive about closing idle connections
-	// than we are
+	// Setting GetBody makes the request idempotent from net/http's perspective,
+	// enabling automatic retry on transient network errors (e.g. io.EOF). This
+	// can happen when the agent (~5s idle timeout) closes a persistent
+	// connection while the tracer (~90s) is mid-send. In theory, if the agent
+	// already processed a stats payload and then closes the connection before
+	// the response arrives, the retry will double-count that window's stats.
+	// This is an acceptable trade-off: a small over-count is far preferable to
+	// silently dropping stats on every idle-connection race.
 	req.GetBody = func() (io.ReadCloser, error) {
 		return io.NopCloser(bytes.NewReader(body)), nil
 	}
