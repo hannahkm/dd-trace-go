@@ -8,6 +8,7 @@ package internal
 import (
 	"fmt"
 	"iter"
+	"maps"
 	"strings"
 
 	"github.com/tinylib/msgp/msgp"
@@ -151,9 +152,7 @@ func (sm SpanMeta) Merge() map[string]string {
 		return sm.m // nil-safe: callers must handle a nil map
 	}
 	m := make(map[string]string, len(sm.m)+sm.attrs.Count())
-	for k, v := range sm.m {
-		m[k] = v
-	}
+	maps.Copy(m, sm.m)
 	for _, d := range Defs {
 		if sm.attrs.setMask>>d.Key&1 != 0 {
 			m[d.Name] = sm.attrs.vals[d.Key]
