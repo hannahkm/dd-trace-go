@@ -74,11 +74,12 @@ func (a *SpanAttributes) Val(key AttrKey) string {
 	return a.vals[key]
 }
 
+func (a *SpanAttributes) Has(key AttrKey) bool {
+	return a != nil && a.setMask>>key&1 != 0
+}
+
 func (a *SpanAttributes) Get(key AttrKey) (string, bool) {
-	if a == nil {
-		return "", false
-	}
-	return a.vals[key], a.setMask>>key&1 != 0
+	return a.Val(key), a.Has(key)
 }
 
 // Count returns the number of promoted fields that have been set.
@@ -136,7 +137,7 @@ func (a *SpanAttributes) All() iter.Seq2[string, string] {
 			return
 		}
 		for _, d := range Defs {
-			if a.setMask>>d.Key&1 != 0 {
+			if a.Has(d.Key) {
 				if !yield(d.Name, a.vals[d.Key]) {
 					return
 				}
