@@ -459,17 +459,17 @@ func minInts(a, b int) int {
 }
 
 func TestTraceProtocol(t *testing.T) {
-	assert := assert.New(t)
-
 	t.Run("v1.0, no endpoint", func(t *testing.T) {
+		assert := assert.New(t)
 		t.Setenv("DD_TRACE_AGENT_PROTOCOL_VERSION", "1.0")
-		cfg, err := newTestConfig()
+		cfg, err := newTestConfig(withNoopInfoHTTPClient())
 		require.NoError(t, err)
 		h := newAgentTraceWriter(cfg, nil, nil)
 		assert.Equal(traceProtocolV04, h.payload.protocol())
 	})
 
 	t.Run("v1.0, with endpoint", func(t *testing.T) {
+		assert := assert.New(t)
 		t.Setenv("DD_TRACE_AGENT_PROTOCOL_VERSION", "1.0")
 
 		// Create a mock agent endpoint to mimic having a v1 trace endpoint
@@ -489,21 +489,24 @@ func TestTraceProtocol(t *testing.T) {
 	})
 
 	t.Run("v0.4", func(t *testing.T) {
+		assert := assert.New(t)
 		t.Setenv("DD_TRACE_AGENT_PROTOCOL_VERSION", "0.4")
-		cfg, err := newTestConfig()
+		cfg, err := newTestConfig(withNoopInfoHTTPClient())
 		require.NoError(t, err)
 		h := newAgentTraceWriter(cfg, nil, nil)
 		assert.Equal(traceProtocolV04, h.payload.protocol())
 	})
 
 	t.Run("default, no endpoint", func(t *testing.T) {
-		cfg, err := newTestConfig()
+		assert := assert.New(t)
+		cfg, err := newTestConfig(withNoopInfoHTTPClient())
 		require.NoError(t, err)
 		h := newAgentTraceWriter(cfg, nil, nil)
 		assert.Equal(traceProtocolV04, h.payload.protocol())
 	})
 
 	t.Run("default, with endpoint", func(t *testing.T) {
+		assert := assert.New(t)
 		// Create a mock agent endpoint to mimic having a v1 trace endpoint
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
@@ -521,14 +524,16 @@ func TestTraceProtocol(t *testing.T) {
 	})
 
 	t.Run("invalid, no endpoint", func(t *testing.T) {
+		assert := assert.New(t)
 		t.Setenv("DD_TRACE_AGENT_PROTOCOL_VERSION", "random")
-		cfg, err := newTestConfig()
+		cfg, err := newTestConfig(withNoopInfoHTTPClient())
 		require.NoError(t, err)
 		h := newAgentTraceWriter(cfg, nil, nil)
 		assert.Equal(traceProtocolV04, h.payload.protocol())
 	})
 
 	t.Run("invalid, with endpoint", func(t *testing.T) {
+		assert := assert.New(t)
 		// Create a mock agent endpoint to mimic having a v1 trace endpoint
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
