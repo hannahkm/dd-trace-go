@@ -182,7 +182,7 @@ func TestCiVisibilityTransportPayloadFilesModeWritesJSON(t *testing.T) {
 	assert.NoError(t, err)
 	cfg.internalConfig.SetCIVisibilityEnabled(true, internalconfig.OriginCode)
 	cfg.httpClient = internal.DefaultHTTPClient(defaultHTTPTimeout, false)
-	cfg.agentURL = parsedURL
+	cfg.internalConfig.SetAgentURL(parsedURL, internalconfig.OriginCode)
 
 	recordLogger := new(log.RecordLogger)
 	oldLevel := log.GetLevel()
@@ -238,7 +238,7 @@ func TestCiVisibilityTransportPayloadFilesModeMissingOutputDir(t *testing.T) {
 	assert.NoError(t, err)
 	cfg.internalConfig.SetCIVisibilityEnabled(true, internalconfig.OriginCode)
 	cfg.httpClient = internal.DefaultHTTPClient(defaultHTTPTimeout, false)
-	cfg.agentURL = parsedURL
+	cfg.internalConfig.SetAgentURL(parsedURL, internalconfig.OriginCode)
 
 	transport := newCiVisibilityTransport(cfg)
 	p := newCiVisibilityPayload()
