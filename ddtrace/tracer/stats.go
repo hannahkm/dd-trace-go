@@ -6,7 +6,6 @@
 package tracer
 
 import (
-	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -167,9 +166,8 @@ func (c *concentrator) newTracerStatSpan(s *Span, obfuscator *obfuscate.Obfuscat
 		resource = obfuscatedResource(obfuscator, s.spanType, s.resource)
 	}
 
-	meta := maps.Collect(s.meta.All())
-	httpMethod, _ := meta[ext.HTTPMethod]
-	httpEndpoint, _ := meta[ext.HTTPEndpoint]
+	httpMethod, _ := s.meta.Get(ext.HTTPMethod)
+	httpEndpoint, _ := s.meta.Get(ext.HTTPEndpoint)
 
 	statSpan, ok := c.spanConcentrator.NewStatSpanWithConfig(stats.StatSpanConfig{
 		Service:      s.service,
@@ -180,7 +178,7 @@ func (c *concentrator) newTracerStatSpan(s *Span, obfuscator *obfuscate.Obfuscat
 		Start:        s.start,
 		Duration:     s.duration,
 		Error:        s.error,
-		Meta:         meta,
+		Meta:         s.meta.Merge(),
 		Metrics:      s.metrics,
 		PeerTags:     c.cfg.agent.load().peerTags,
 		HTTPMethod:   httpMethod,
