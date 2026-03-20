@@ -5,7 +5,7 @@
 
 package provider
 
-import "github.com/DataDog/dd-trace-go/v2/internal/telemetry"
+import "github.com/DataDog/dd-trace-go/v2/internal/telemetry/telemetryapi"
 
 // declarativeConfig represents a configuration loaded from a YAML source file.
 type declarativeConfig struct {
@@ -24,6 +24,6 @@ func (d *declarativeConfig) getID() string {
 func emptyDeclarativeConfig() *declarativeConfig {
 	return &declarativeConfig{
 		Config: make(map[string]string),
-		ID:     telemetry.EmptyID,
+		ID:     telemetryapi.EmptyID,
 	}
 }

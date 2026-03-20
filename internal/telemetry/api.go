@@ -30,43 +30,44 @@ import (
 	"io"
 
 	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/internal/transport"
+	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/telemetryapi"
 )
 
 // Namespace describes a product to distinguish telemetry coming from
 // different products used by the same application
-type Namespace = transport.Namespace
-type Origin = transport.Origin
+type Namespace = telemetryapi.Namespace
+type Origin = telemetryapi.Origin
 type LogLevel = transport.LogLevel
 
 //goland:noinspection GoVarAndConstTypeMayBeOmitted  Goland is having a hard time with the following const block, it keeps deleting the type
 const (
-	NamespaceGeneral      Namespace = transport.NamespaceGeneral
-	NamespaceTracers      Namespace = transport.NamespaceTracers
-	NamespaceProfilers    Namespace = transport.NamespaceProfilers
-	NamespaceAppSec       Namespace = transport.NamespaceAppSec
-	NamespaceIAST         Namespace = transport.NamespaceIAST
-	NamespaceCIVisibility Namespace = transport.NamespaceCIVisibility
-	NamespaceMLObs        Namespace = transport.NamespaceMLObs
-	NamespaceRUM          Namespace = transport.NamespaceRUM
+	NamespaceGeneral      Namespace = telemetryapi.NamespaceGeneral
+	NamespaceTracers      Namespace = telemetryapi.NamespaceTracers
+	NamespaceProfilers    Namespace = telemetryapi.NamespaceProfilers
+	NamespaceAppSec       Namespace = telemetryapi.NamespaceAppSec
+	NamespaceIAST         Namespace = telemetryapi.NamespaceIAST
+	NamespaceCIVisibility Namespace = telemetryapi.NamespaceCIVisibility
+	NamespaceMLObs        Namespace = telemetryapi.NamespaceMLObs
+	NamespaceRUM          Namespace = telemetryapi.NamespaceRUM
 )
 
 // Origin describes the source of a configuration change
 
 //goland:noinspection GoVarAndConstTypeMayBeOmitted Goland is having a hard time with the following const block, it keeps deleting the type
 const (
-	OriginDefault             Origin = transport.OriginDefault
-	OriginCode                Origin = transport.OriginCode
-	OriginDDConfig            Origin = transport.OriginDDConfig
-	OriginEnvVar              Origin = transport.OriginEnvVar
-	OriginRemoteConfig        Origin = transport.OriginRemoteConfig
-	OriginLocalStableConfig   Origin = transport.OriginLocalStableConfig
-	OriginManagedStableConfig Origin = transport.OriginManagedStableConfig
-	OriginCalculated          Origin = transport.OriginCalculated
+	OriginDefault             Origin = telemetryapi.OriginDefault
+	OriginCode                Origin = telemetryapi.OriginCode
+	OriginDDConfig            Origin = telemetryapi.OriginDDConfig
+	OriginEnvVar              Origin = telemetryapi.OriginEnvVar
+	OriginRemoteConfig        Origin = telemetryapi.OriginRemoteConfig
+	OriginLocalStableConfig   Origin = telemetryapi.OriginLocalStableConfig
+	OriginManagedStableConfig Origin = telemetryapi.OriginManagedStableConfig
+	OriginCalculated          Origin = telemetryapi.OriginCalculated
 )
 
 // EmptyID represents the absence of a configuration ID.
 // It can be assigned to the ID field of a Configuration when no ID is available or required.
-const EmptyID = ""
+const EmptyID = telemetryapi.EmptyID
 
 // LogLevel describes the level of a log message
 
@@ -101,18 +102,7 @@ type Integration struct {
 }
 
 // Configuration is a key-value pair that is used to configure the application.
-type Configuration struct {
-	// Key is the key of the configuration.
-	Name string
-	// Value is the value of the configuration. Need to be json serializable.
-	Value any
-	// Origin is the source of the configuration change.
-	Origin Origin
-	// ID is the config ID of the configuration change.
-	ID string
-	// SeqID is the sequence ID of the configuration change.
-	SeqID uint64
-}
+type Configuration = telemetryapi.Configuration
 
 type AppEndpointAuthentication = transport.AppEndpointAuthentication
 

@@ -15,7 +15,7 @@ package configtelemetry
 import (
 	"sync/atomic"
 
-	"github.com/DataDog/dd-trace-go/v2/internal/telemetry"
+	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/telemetryapi"
 )
 
 // defaultSeqID is the sequence ID used for all default configuration values.
@@ -35,20 +35,20 @@ func nextSeqID() uint64 {
 }
 
 // Report reports a configuration value from a non-default configuration source.
-func Report(name string, value any, origin telemetry.Origin) {
-	telemetry.RegisterAppConfigs(telemetry.Configuration{
+func Report(name string, value any, origin telemetryapi.Origin) {
+	telemetryapi.SubmitAppConfigs(telemetryapi.Configuration{
 		Name:   name,
 		Value:  value,
 		Origin: origin,
-		ID:     telemetry.EmptyID,
+		ID:     telemetryapi.EmptyID,
 		SeqID:  nextSeqID(),
 	})
 }
 
 // ReportWithID reports a non-default configuration value, including the config source's ID.
 // Use this for sources that carry a config_id (e.g. declarative config).
-func ReportWithID(name string, value any, origin telemetry.Origin, id string) {
-	telemetry.RegisterAppConfigs(telemetry.Configuration{
+func ReportWithID(name string, value any, origin telemetryapi.Origin, id string) {
+	telemetryapi.SubmitAppConfigs(telemetryapi.Configuration{
 		Name:   name,
 		Value:  value,
 		Origin: origin,
@@ -59,11 +59,11 @@ func ReportWithID(name string, value any, origin telemetry.Origin, id string) {
 
 // ReportDefault reports the value for a configuration key from the 'default' configuration source.
 func ReportDefault(name string, value any) {
-	telemetry.RegisterAppConfigs(telemetry.Configuration{
+	telemetryapi.SubmitAppConfigs(telemetryapi.Configuration{
 		Name:   name,
 		Value:  value,
-		Origin: telemetry.OriginDefault,
-		ID:     telemetry.EmptyID,
+		Origin: telemetryapi.OriginDefault,
+		ID:     telemetryapi.EmptyID,
 		SeqID:  defaultSeqID,
 	})
 }

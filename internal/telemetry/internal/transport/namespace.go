@@ -5,16 +5,18 @@
 
 package transport
 
-type Namespace string
+import "github.com/DataDog/dd-trace-go/v2/internal/telemetry/telemetryapi"
+
+type Namespace = telemetryapi.Namespace
 
 const (
-	NamespaceGeneral      Namespace = "general"
-	NamespaceTracers      Namespace = "tracers"
-	NamespaceProfilers    Namespace = "profilers"
-	NamespaceAppSec       Namespace = "appsec"
-	NamespaceIAST         Namespace = "iast"
-	NamespaceTelemetry    Namespace = "telemetry"
-	NamespaceCIVisibility Namespace = "civisibility"
-	NamespaceMLObs        Namespace = "mlobs"
-	NamespaceRUM          Namespace = "rum"
+	NamespaceGeneral      Namespace = telemetryapi.NamespaceGeneral
+	NamespaceTracers      Namespace = telemetryapi.NamespaceTracers
+	NamespaceProfilers    Namespace = telemetryapi.NamespaceProfilers
+	NamespaceAppSec       Namespace = telemetryapi.NamespaceAppSec
+	NamespaceIAST         Namespace = telemetryapi.NamespaceIAST
+	NamespaceTelemetry    Namespace = telemetryapi.NamespaceTelemetry
+	NamespaceCIVisibility Namespace = telemetryapi.NamespaceCIVisibility
+	NamespaceMLObs        Namespace = telemetryapi.NamespaceMLObs
+	NamespaceRUM          Namespace = telemetryapi.NamespaceRUM
 )

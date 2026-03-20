@@ -7,7 +7,7 @@ package provider
 
 import (
 	"github.com/DataDog/dd-trace-go/v2/internal/env"
-	"github.com/DataDog/dd-trace-go/v2/internal/telemetry"
+	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/telemetryapi"
 )
 
 type envConfigSource struct{}
@@ -16,6 +16,6 @@ func (e *envConfigSource) get(key string) string {
 	return env.Get(normalizeKey(key))
 }
 
-func (e *envConfigSource) origin() telemetry.Origin {
-	return telemetry.OriginEnvVar
+func (e *envConfigSource) origin() telemetryapi.Origin {
+	return telemetryapi.OriginEnvVar
 }

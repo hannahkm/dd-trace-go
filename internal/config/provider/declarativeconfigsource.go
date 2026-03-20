@@ -11,7 +11,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
-	"github.com/DataDog/dd-trace-go/v2/internal/telemetry"
+	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/telemetryapi"
 )
 
 const (
@@ -25,7 +25,7 @@ const (
 
 type declarativeConfigSource struct {
 	filePath    string
-	originValue telemetry.Origin
+	originValue telemetryapi.Origin
 	config      *declarativeConfig
 }
 
@@ -37,11 +37,11 @@ func (d *declarativeConfigSource) getID() string {
 	return d.config.getID()
 }
 
-func (d *declarativeConfigSource) origin() telemetry.Origin {
+func (d *declarativeConfigSource) origin() telemetryapi.Origin {
 	return d.originValue
 }
 
-func newDeclarativeConfigSource(filePath string, origin telemetry.Origin) *declarativeConfigSource {
+func newDeclarativeConfigSource(filePath string, origin telemetryapi.Origin) *declarativeConfigSource {
 	return &declarativeConfigSource{
 		filePath:    filePath,
 		originValue: origin,

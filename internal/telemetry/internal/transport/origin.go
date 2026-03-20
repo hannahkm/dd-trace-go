@@ -5,16 +5,18 @@
 
 package transport
 
+import "github.com/DataDog/dd-trace-go/v2/internal/telemetry/telemetryapi"
+
 // Origin describes the source of a configuration change
-type Origin string
+type Origin = telemetryapi.Origin
 
 const (
-	OriginDefault             Origin = "default"
-	OriginCode                Origin = "code"
-	OriginDDConfig            Origin = "dd_config"
-	OriginEnvVar              Origin = "env_var"
-	OriginRemoteConfig        Origin = "remote_config"
-	OriginLocalStableConfig   Origin = "local_stable_config"
-	OriginManagedStableConfig Origin = "fleet_stable_config"
-	OriginCalculated          Origin = "calculated"
+	OriginDefault             Origin = telemetryapi.OriginDefault
+	OriginCode                Origin = telemetryapi.OriginCode
+	OriginDDConfig            Origin = telemetryapi.OriginDDConfig
+	OriginEnvVar              Origin = telemetryapi.OriginEnvVar
+	OriginRemoteConfig        Origin = telemetryapi.OriginRemoteConfig
+	OriginLocalStableConfig   Origin = telemetryapi.OriginLocalStableConfig
+	OriginManagedStableConfig Origin = telemetryapi.OriginManagedStableConfig
+	OriginCalculated          Origin = telemetryapi.OriginCalculated
 )

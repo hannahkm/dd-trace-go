@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/internal/config/provider"
 	"github.com/DataDog/dd-trace-go/v2/internal/env"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
-	"github.com/DataDog/dd-trace-go/v2/internal/telemetry"
+	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/telemetryapi"
 	"github.com/DataDog/dd-trace-go/v2/internal/traceprof"
 )
 
@@ -33,13 +33,13 @@ var (
 )
 
 // Origin represents where a configuration value came from.
-// Re-exported so callers don't need to import internal/telemetry.
-type Origin = telemetry.Origin
+// Re-exported so callers don't need to import internal/telemetry/types.
+type Origin = telemetryapi.Origin
 
 // Re-exported origin constants for common configuration sources
 const (
-	OriginCode       = telemetry.OriginCode
-	OriginCalculated = telemetry.OriginCalculated
+	OriginCode       = telemetryapi.OriginCode
+	OriginCalculated = telemetryapi.OriginCalculated
 )
 
 // Config represents global configuration properties.
@@ -253,7 +253,7 @@ func (c *Config) RawAgentURL() *url.URL {
 	return &u
 }
 
-func (c *Config) SetAgentURL(u *url.URL, origin telemetry.Origin) {
+func (c *Config) SetAgentURL(u *url.URL, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.agentURL = u
@@ -279,7 +279,7 @@ func (c *Config) Debug() bool {
 	return c.debug
 }
 
-func (c *Config) SetDebug(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetDebug(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.debug = enabled
@@ -292,7 +292,7 @@ func (c *Config) ProfilerEndpoints() bool {
 	return c.profilerEndpoints
 }
 
-func (c *Config) SetProfilerEndpoints(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetProfilerEndpoints(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.profilerEndpoints = enabled
@@ -305,7 +305,7 @@ func (c *Config) ProfilerHotspotsEnabled() bool {
 	return c.profilerHotspots
 }
 
-func (c *Config) SetProfilerHotspotsEnabled(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetProfilerHotspotsEnabled(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.profilerHotspots = enabled
@@ -317,7 +317,7 @@ func (c *Config) RuntimeMetricsEnabled() bool {
 	return c.runtimeMetrics
 }
 
-func (c *Config) SetRuntimeMetricsEnabled(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetRuntimeMetricsEnabled(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.runtimeMetrics = enabled
@@ -330,7 +330,7 @@ func (c *Config) RuntimeMetricsV2Enabled() bool {
 	return c.runtimeMetricsV2
 }
 
-func (c *Config) SetRuntimeMetricsV2Enabled(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetRuntimeMetricsV2Enabled(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.runtimeMetricsV2 = enabled
@@ -343,7 +343,7 @@ func (c *Config) DataStreamsMonitoringEnabled() bool {
 	return c.dataStreamsMonitoringEnabled
 }
 
-func (c *Config) SetDataStreamsMonitoringEnabled(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetDataStreamsMonitoringEnabled(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.dataStreamsMonitoringEnabled = enabled
@@ -356,7 +356,7 @@ func (c *Config) LogStartup() bool {
 	return c.logStartup
 }
 
-func (c *Config) SetLogStartup(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetLogStartup(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.logStartup = enabled
@@ -369,7 +369,7 @@ func (c *Config) LogToStdout() bool {
 	return c.logToStdout
 }
 
-func (c *Config) SetLogToStdout(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetLogToStdout(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.logToStdout = enabled
@@ -382,7 +382,7 @@ func (c *Config) IsLambdaFunction() bool {
 	return c.isLambdaFunction
 }
 
-func (c *Config) SetIsLambdaFunction(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetIsLambdaFunction(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.isLambdaFunction = enabled
@@ -395,7 +395,7 @@ func (c *Config) GlobalSampleRate() float64 {
 	return c.globalSampleRate
 }
 
-func (c *Config) SetGlobalSampleRate(rate float64, origin telemetry.Origin) {
+func (c *Config) SetGlobalSampleRate(rate float64, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.globalSampleRate = rate
@@ -408,7 +408,7 @@ func (c *Config) TraceRateLimitPerSecond() float64 {
 	return c.traceRateLimitPerSecond
 }
 
-func (c *Config) SetTraceRateLimitPerSecond(rate float64, origin telemetry.Origin) {
+func (c *Config) SetTraceRateLimitPerSecond(rate float64, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.traceRateLimitPerSecond = rate
@@ -424,14 +424,14 @@ func (c *Config) PartialFlushEnabled() (enabled bool, minSpans int) {
 	return enabled, minSpans
 }
 
-func (c *Config) SetPartialFlushEnabled(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetPartialFlushEnabled(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.partialFlushEnabled = enabled
 	configtelemetry.Report("DD_TRACE_PARTIAL_FLUSH_ENABLED", enabled, origin)
 }
 
-func (c *Config) SetPartialFlushMinSpans(minSpans int, origin telemetry.Origin) {
+func (c *Config) SetPartialFlushMinSpans(minSpans int, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.partialFlushMinSpans = minSpans
@@ -444,7 +444,7 @@ func (c *Config) DebugAbandonedSpans() bool {
 	return c.debugAbandonedSpans
 }
 
-func (c *Config) SetDebugAbandonedSpans(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetDebugAbandonedSpans(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.debugAbandonedSpans = enabled
@@ -457,7 +457,7 @@ func (c *Config) SpanTimeout() time.Duration {
 	return c.spanTimeout
 }
 
-func (c *Config) SetSpanTimeout(timeout time.Duration, origin telemetry.Origin) {
+func (c *Config) SetSpanTimeout(timeout time.Duration, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.spanTimeout = timeout
@@ -470,7 +470,7 @@ func (c *Config) DebugStack() bool {
 	return c.debugStack
 }
 
-func (c *Config) SetDebugStack(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetDebugStack(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.debugStack = enabled
@@ -483,7 +483,7 @@ func (c *Config) StatsComputationEnabled() bool {
 	return c.statsComputationEnabled
 }
 
-func (c *Config) SetStatsComputationEnabled(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetStatsComputationEnabled(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.statsComputationEnabled = enabled
@@ -496,7 +496,7 @@ func (c *Config) LogDirectory() string {
 	return c.logDirectory
 }
 
-func (c *Config) SetLogDirectory(directory string, origin telemetry.Origin) {
+func (c *Config) SetLogDirectory(directory string, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.logDirectory = directory
@@ -515,7 +515,7 @@ func (c *Config) Hostname() string {
 	return c.hostname
 }
 
-func (c *Config) SetHostname(hostname string, origin telemetry.Origin) {
+func (c *Config) SetHostname(hostname string, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.hostname = hostname
@@ -535,7 +535,7 @@ func (c *Config) Version() string {
 	return c.version
 }
 
-func (c *Config) SetVersion(version string, origin telemetry.Origin) {
+func (c *Config) SetVersion(version string, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.version = version
@@ -548,14 +548,14 @@ func (c *Config) Env() string {
 	return c.env
 }
 
-func (c *Config) SetEnv(env string, origin telemetry.Origin) {
+func (c *Config) SetEnv(env string, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.env = env
 	configtelemetry.Report("DD_ENV", env, origin)
 }
 
-func (c *Config) SetFeatureFlags(features []string, origin telemetry.Origin) {
+func (c *Config) SetFeatureFlags(features []string, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	if c.featureFlags == nil {
 		c.featureFlags = make(map[string]struct{})
@@ -622,7 +622,7 @@ func (c *Config) ServiceMapping(from string) (to string, ok bool) {
 	return to, ok
 }
 
-func (c *Config) SetServiceMapping(from, to string, origin telemetry.Origin) {
+func (c *Config) SetServiceMapping(from, to string, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	if c.serviceMappings == nil {
 		c.serviceMappings = make(map[string]string)
@@ -643,7 +643,7 @@ func (c *Config) RetryInterval() time.Duration {
 	return c.retryInterval
 }
 
-func (c *Config) SetRetryInterval(interval time.Duration, origin telemetry.Origin) {
+func (c *Config) SetRetryInterval(interval time.Duration, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.retryInterval = interval
@@ -656,7 +656,7 @@ func (c *Config) ServiceName() string {
 	return c.serviceName
 }
 
-func (c *Config) SetServiceName(name string, origin telemetry.Origin) {
+func (c *Config) SetServiceName(name string, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.serviceName = name
@@ -669,7 +669,7 @@ func (c *Config) CIVisibilityEnabled() bool {
 	return c.ciVisibilityEnabled
 }
 
-func (c *Config) SetCIVisibilityEnabled(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetCIVisibilityEnabled(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.ciVisibilityEnabled = enabled
@@ -682,7 +682,7 @@ func (c *Config) LogsOTelEnabled() bool {
 	return c.logsOTelEnabled
 }
 
-func (c *Config) SetLogsOTelEnabled(enabled bool, origin telemetry.Origin) {
+func (c *Config) SetLogsOTelEnabled(enabled bool, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.logsOTelEnabled = enabled
@@ -695,7 +695,7 @@ func (c *Config) TraceProtocol() float64 {
 	return c.traceProtocol
 }
 
-func (c *Config) SetTraceProtocol(v float64, origin telemetry.Origin) {
+func (c *Config) SetTraceProtocol(v float64, origin telemetryapi.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.traceProtocol = v

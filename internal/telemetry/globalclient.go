@@ -16,7 +16,26 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/internal/knownmetrics"
 	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/internal/transport"
+	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/telemetryapi"
 )
+
+// registerAppConfigsFunc and countMetricFunc are package-level references to the
+// actual implementations. They are passed to telemetryapi.SetCallbacks so that
+// internal/config can call into telemetry without importing it directly.
+// Declaring them as typed variables ensures a compile-time check that the
+// signatures stay in sync with the real functions.
+var (
+	registerAppConfigsFunc = RegisterAppConfigs
+	countMetricFunc        = countMetricAdapter
+)
+
+func countMetricAdapter(namespace telemetryapi.Namespace, name string, tags []string) telemetryapi.MetricHandle {
+	return Count(namespace, name, tags)
+}
+
+func init() {
+	telemetryapi.SetCallbacks(registerAppConfigsFunc, countMetricFunc)
+}
 
 var (
 	globalClient atomic.Pointer[Client]

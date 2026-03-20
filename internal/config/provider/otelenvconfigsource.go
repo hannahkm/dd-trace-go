@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/env"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
-	"github.com/DataDog/dd-trace-go/v2/internal/telemetry"
+	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/telemetryapi"
 )
 
 const (
@@ -35,20 +35,20 @@ func (o *otelEnvConfigSource) get(key string) string {
 	if ddVal := env.Get(ddKey); ddVal != "" {
 		log.Warn("Both %q and %q are set, using %s=%s", entry.ot, ddKey, entry.ot, ddVal)
 		telemetryTags := []string{ddPrefix + strings.ToLower(ddKey), otelPrefix + strings.ToLower(entry.ot)}
-		telemetry.Count(telemetry.NamespaceTracers, "otel.env.hiding", telemetryTags).Submit(1)
+		telemetryapi.SubmitCount(telemetryapi.NamespaceTracers, "otel.env.hiding", telemetryTags, 1)
 	}
 	val, err := entry.remapper(otVal)
 	if err != nil {
 		log.Warn("%s", err.Error())
 		telemetryTags := []string{ddPrefix + strings.ToLower(ddKey), otelPrefix + strings.ToLower(entry.ot)}
-		telemetry.Count(telemetry.NamespaceTracers, "otel.env.invalid", telemetryTags).Submit(1)
+		telemetryapi.SubmitCount(telemetryapi.NamespaceTracers, "otel.env.invalid", telemetryTags, 1)
 		return ""
 	}
 	return val
 }
 
-func (o *otelEnvConfigSource) origin() telemetry.Origin {
-	return telemetry.OriginEnvVar
+func (o *otelEnvConfigSource) origin() telemetryapi.Origin {
+	return telemetryapi.OriginEnvVar
 }
 
 type otelDDEnv struct {

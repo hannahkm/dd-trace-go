@@ -14,13 +14,13 @@ import (
 
 	"github.com/DataDog/dd-trace-go/v2/internal"
 	configtelemetry "github.com/DataDog/dd-trace-go/v2/internal/config/configtelemetry"
-	"github.com/DataDog/dd-trace-go/v2/internal/telemetry"
+	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/telemetryapi"
 )
 
 // configSource is a single origin of configuration key-value pairs.
 type configSource interface {
 	get(key string) string
-	origin() telemetry.Origin
+	origin() telemetryapi.Origin
 }
 
 // idAwareConfigSource is a configSource that also carries a config_id, used by
@@ -40,10 +40,10 @@ type Provider struct {
 func New() *Provider {
 	return &Provider{
 		sources: []configSource{
-			newDeclarativeConfigSource(managedFilePath, telemetry.OriginManagedStableConfig),
+			newDeclarativeConfigSource(managedFilePath, telemetryapi.OriginManagedStableConfig),
 			new(envConfigSource),
 			new(otelEnvConfigSource),
-			newDeclarativeConfigSource(localFilePath, telemetry.OriginLocalStableConfig),
+			newDeclarativeConfigSource(localFilePath, telemetryapi.OriginLocalStableConfig),
 		},
 	}
 }
