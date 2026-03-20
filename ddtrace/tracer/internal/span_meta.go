@@ -238,15 +238,15 @@ func (sm SpanMeta) AttrCount() int {
 }
 
 // Merge returns a freshly-allocated map containing all flat map entries plus
-// all promoted attrs. It always allocates so that the caller owns the map
-// exclusively — safe to pool or pass to code that retains the map after
-// return. To iterate without allocating, use All().
+// all promoted attrs. When no promoted attrs are set, the internal flat map
+// is returned directly without allocating. The caller must not mutate
+// the returned map. To iterate without allocating, use All().
 func (sm SpanMeta) Merge() map[string]string {
+	if sm.attrs.Count() == 0 {
+		return sm.m
+	}
 	m := make(map[string]string, len(sm.m)+sm.attrs.Count())
 	maps.Copy(m, sm.m)
-	if sm.attrs.Count() == 0 {
-		return m
-	}
 	for _, d := range Defs {
 		if sm.attrs.Has(d.Key) {
 			m[d.Name] = sm.attrs.vals[d.Key]

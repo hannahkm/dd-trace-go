@@ -8,7 +8,6 @@
 package tracer
 
 import (
-	"maps"
 	"strconv"
 
 	"github.com/tinylib/msgp/msgp"
@@ -165,7 +164,7 @@ type ciVisibilityEvent struct {
 // +checklocksignore — CI visibility event: reads span fields after SetTag releases lock.
 func (e *ciVisibilityEvent) SetTag(key string, value any) {
 	e.span.SetTag(key, value)
-	e.Content.Meta = maps.Collect(e.span.meta.All())
+	e.Content.Meta = e.span.meta.Merge()
 	e.Content.Metrics = e.span.metrics
 }
 
@@ -412,7 +411,7 @@ func createTslvSpan(span *Span) tslvSpan {
 		Duration: span.duration,
 		ParentID: span.parentID,
 		Error:    span.error,
-		Meta:     maps.Collect(span.meta.All()),
+		Meta:     span.meta.Merge(),
 		Metrics:  span.metrics,
 	}
 }
