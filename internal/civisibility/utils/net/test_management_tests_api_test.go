@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	civisibilityutils "github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
@@ -92,7 +93,7 @@ func TestTestManagementTestsApiRequest(t *testing.T) {
 
 	// Let's call the function we want to test.
 	responseData, err := cInterface.GetTestManagementTests()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Let's compare the part of the response we are interested in.
 	assert.Equal(t, expectedResponse.Data.Attributes, *responseData)

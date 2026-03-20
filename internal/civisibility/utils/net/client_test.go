@@ -24,6 +24,7 @@ func restoreEnv(env []string) {
 		kv := strings.SplitN(e, "=", 2)
 		os.Setenv(kv[0], kv[1])
 	}
+	civisibilityutils.ResetCITags()
 	civisibilityutils.ResetTestOptimizationModeForTesting()
 }
 
@@ -231,4 +232,9 @@ func setCiVisibilityEnv(path string, url string) {
 	os.Setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
 	os.Setenv("DD_API_KEY", "test_api_key")
 	os.Setenv("DD_CIVISIBILITY_AGENTLESS_URL", url)
+	os.Setenv("DD_GIT_REPOSITORY_URL", "https://github.com/DataDog/dd-trace-go.git")
+	os.Setenv("DD_GIT_COMMIT_SHA", "1234567890abcdef1234567890abcdef12345678")
+	os.Setenv("DD_GIT_BRANCH", "refs/heads/main")
+	civisibilityutils.ResetCITags()
+	civisibilityutils.ResetTestOptimizationModeForTesting()
 }
