@@ -50,6 +50,27 @@ func withTickChan(ch <-chan time.Time) StartOption {
 	}
 }
 
+// withAgentRemoteConfig creates a mock agent server that reports remote config support.
+// Use in tests that need RC to start but don't have a real agent running.
+// The server is automatically closed when the test ends.
+func withAgentRemoteConfig(t testing.TB) StartOption {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/info":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"endpoints":["/v0.7/config"]}`)
+		default:
+			// RC polling: return empty object (handled gracefully by updateState)
+			_, _ = w.Write([]byte(`{}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	u, _ := url.Parse(srv.URL)
+	return func(c *config) {
+		c.internalConfig.SetAgentURL(u, internalconfig.OriginCode)
+	}
+}
+
 // testStatsd asserts that the given statsd.Client can successfully send metrics
 // to a UDP listener located at addr.
 func testStatsd(t *testing.T, cfg *config, addr string) {
@@ -385,7 +406,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 		assert.NoError(err)
 		assert.Equal(float64(1), c.sampler.Rate())
 		assert.Regexp(`tracer\.test(\.exe)?`, c.serviceName)
-		assert.Equal(&url.URL{Scheme: "http", Host: "localhost:8126"}, c.agentURL)
+		assert.Equal(&url.URL{Scheme: "http", Host: "localhost:8126"}, c.internalConfig.RawAgentURL())
 		assert.Equal("localhost:8125", c.dogstatsdAddr)
 		assert.Nil(nil, c.httpClient)
 		x := *c.httpClient
@@ -643,7 +664,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 		assert.NoError(t, err)
 		defer tracer.Stop()
 		c := tracer.config
-		assert.Equal(t, &url.URL{Scheme: "http", Host: "localhost:8126"}, c.agentURL)
+		assert.Equal(t, &url.URL{Scheme: "http", Host: "localhost:8126"}, c.internalConfig.RawAgentURL())
 	})
 
 	t.Run("env-agentURL", func(t *testing.T) {
@@ -653,7 +674,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			defer tracer.Stop()
 			assert.NoError(t, err)
 			c := tracer.config
-			assert.Equal(t, &url.URL{Scheme: "https", Host: "127.0.0.1:1234"}, c.agentURL)
+			assert.Equal(t, &url.URL{Scheme: "https", Host: "127.0.0.1:1234"}, c.internalConfig.RawAgentURL())
 		})
 
 		t.Run("override-env", func(t *testing.T) {
@@ -664,7 +685,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			defer tracer.Stop()
 			assert.NoError(t, err)
 			c := tracer.config
-			assert.Equal(t, &url.URL{Scheme: "https", Host: "127.0.0.1:1234"}, c.agentURL)
+			assert.Equal(t, &url.URL{Scheme: "https", Host: "127.0.0.1:1234"}, c.internalConfig.RawAgentURL())
 		})
 
 		t.Run("code-override", func(t *testing.T) {
@@ -673,7 +694,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			defer tracer.Stop()
 			assert.NoError(t, err)
 			c := tracer.config
-			assert.Equal(t, &url.URL{Scheme: "http", Host: "localhost:3333"}, c.agentURL)
+			assert.Equal(t, &url.URL{Scheme: "http", Host: "localhost:3333"}, c.internalConfig.RawAgentURL())
 		})
 
 		t.Run("code-override-full-URL", func(t *testing.T) {
@@ -682,7 +703,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			assert.Nil(t, err)
 			defer tracer.Stop()
 			c := tracer.config
-			assert.Equal(t, &url.URL{Scheme: "http", Host: "localhost:3333"}, c.agentURL)
+			assert.Equal(t, &url.URL{Scheme: "http", Host: "localhost:3333"}, c.internalConfig.RawAgentURL())
 		})
 
 		t.Run("code-full-UDS", func(t *testing.T) {
@@ -690,7 +711,11 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			assert.Nil(t, err)
 			defer tracer.Stop()
 			c := tracer.config
-			assert.Equal(t, &url.URL{Scheme: "http", Host: "UDS__var_run_datadog_apm.socket"}, c.agentURL)
+			// Source URL is unix, effective URL is rewritten for HTTP transport
+			rawAgentURL := c.internalConfig.RawAgentURL()
+			effectiveAgentURL := c.internalConfig.AgentURL()
+			assert.Equal(t, &url.URL{Scheme: "unix", Path: "/var/run/datadog/apm.socket"}, rawAgentURL)
+			assert.Equal(t, &url.URL{Scheme: "http", Host: "UDS__var_run_datadog_apm.socket"}, effectiveAgentURL)
 		})
 
 		t.Run("code-override-full-URL-error", func(t *testing.T) {
@@ -702,7 +727,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			assert.Nil(t, err)
 			defer tracer.Stop()
 			c := tracer.config
-			assert.Equal(t, &url.URL{Scheme: "https", Host: "localhost:1234"}, c.agentURL)
+			assert.Equal(t, &url.URL{Scheme: "https", Host: "localhost:1234"}, c.internalConfig.RawAgentURL())
 			cond := func() bool {
 				return strings.Contains(strings.Join(tp.Logs(), ""), "Unsupported protocol")
 			}
@@ -755,7 +780,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 		assert.NoError(err)
 		c := tracer.config
 		assert.Equal(float64(0.5), c.sampler.Rate())
-		assert.Equal(&url.URL{Scheme: "http", Host: "127.0.0.1:58126"}, c.agentURL)
+		assert.Equal(&url.URL{Scheme: "http", Host: "127.0.0.1:58126"}, c.internalConfig.RawAgentURL())
 		assert.NotNil(c.globalTags.get())
 		assert.Equal("v", c.globalTags.get()["k"])
 		assert.Equal("testEnv", c.internalConfig.Env())

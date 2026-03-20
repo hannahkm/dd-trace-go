@@ -25,6 +25,7 @@ import (
 
 	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal"
+	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
 	"github.com/DataDog/dd-trace-go/v2/internal/statsdtest"
 
 	"github.com/stretchr/testify/assert"
@@ -100,7 +101,6 @@ func TestTracesAgentIntegration(t *testing.T) {
 }
 
 func TestResolveAgentAddr(t *testing.T) {
-	c := new(config)
 	for _, tt := range []struct {
 		inOpt            StartOption
 		envHost, envPort string
@@ -122,11 +122,14 @@ func TestResolveAgentAddr(t *testing.T) {
 			if tt.envPort != "" {
 				t.Setenv("DD_TRACE_AGENT_PORT", tt.envPort)
 			}
-			c.agentURL = internal.AgentURLFromEnv()
+			// Use CreateNew directly to test URL resolution without triggering
+			// loadAgentFeatures, which would make real HTTP calls to the configured URL.
+			c := new(config)
+			c.internalConfig = internalconfig.CreateNew()
 			if tt.inOpt != nil {
 				tt.inOpt(c)
 			}
-			assert.Equal(t, tt.out, c.agentURL)
+			assert.Equal(t, tt.out, c.internalConfig.RawAgentURL())
 		})
 	}
 
@@ -136,8 +139,9 @@ func TestResolveAgentAddr(t *testing.T) {
 		require.NoError(t, err)
 		internal.DefaultTraceAgentUDSPath = d // Choose a file we know will exist
 		defer func() { internal.DefaultTraceAgentUDSPath = old }()
-		c.agentURL = internal.AgentURLFromEnv()
-		assert.Equal(t, &url.URL{Scheme: "unix", Path: d}, c.agentURL)
+		c := new(config)
+		c.internalConfig = internalconfig.CreateNew()
+		assert.Equal(t, &url.URL{Scheme: "unix", Path: d}, c.internalConfig.RawAgentURL())
 	})
 }
 
