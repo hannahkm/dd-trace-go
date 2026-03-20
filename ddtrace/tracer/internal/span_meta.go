@@ -232,6 +232,11 @@ func (sm SpanMeta) Count() int {
 	return len(sm.m) + sm.attrs.Count()
 }
 
+// AttrCount returns the number of promoted attrs currently set.
+func (sm SpanMeta) AttrCount() int {
+	return sm.attrs.Count()
+}
+
 // Merge returns a freshly-allocated map containing all flat map entries plus
 // all promoted attrs. It always allocates so that the caller owns the map
 // exclusively — safe to pool or pass to code that retains the map after
