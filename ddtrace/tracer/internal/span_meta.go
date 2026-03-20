@@ -80,15 +80,17 @@ func (sm *SpanMeta) Normalize() {
 // Read methods
 // ---------------------------------------------------------------------------
 
-// Get returns the value for key, checking the flat map then attrs for promoted keys.
+// Get returns the value for key. Promoted keys are checked in attrs first
+// (fast array+bitmask path), then the flat map. Non-promoted keys go directly
+// to the flat map.
 func (sm SpanMeta) Get(key string) (string, bool) {
-	if v, ok := sm.m[key]; ok {
-		return v, ok
-	}
 	if IsPromotedKeyLen(len(key)) {
 		if v, ok, handled := sm.getPromoted(key); handled {
 			return v, ok
 		}
+	}
+	if v, ok := sm.m[key]; ok {
+		return v, ok
 	}
 	return "", false
 }
@@ -224,12 +226,50 @@ func init() {
 }
 
 // ---------------------------------------------------------------------------
-// Counting / iteration — promoted keys are in attrs only, never in m.
+// Counting / iteration
 // ---------------------------------------------------------------------------
 
-// Count returns the total number of entries (flat map + promoted attrs).
+// attrsNotInM counts promoted attrs that are set in attrs but not yet in m.
+// Returns 0 after Inline() has been called, since Inline() copies all set
+// attrs into m. Cost: up to 4 map lookups on a small map.
+func (sm SpanMeta) attrsNotInM() int {
+	if sm.attrs == nil {
+		return 0
+	}
+	count := 0
+	for _, d := range Defs {
+		if sm.attrs.Has(d.Key) {
+			if _, inM := sm.m[d.Name]; !inM {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+// Inline copies all promoted attr values into m so that Merge() can return
+// sm.m directly without allocating. Call once at span finish, after all
+// mutations and before tracer.submit(). Does not clear attrs — attrs remains
+// the authoritative fast source for promoted-key reads via Get().
+func (sm *SpanMeta) Inline() {
+	if sm.attrs == nil || sm.attrs.Count() == 0 {
+		return
+	}
+	if sm.m == nil {
+		sm.m = make(map[string]string, sm.attrs.Count())
+	}
+	for _, d := range Defs {
+		if sm.attrs.Has(d.Key) {
+			sm.m[d.Name] = sm.attrs.vals[d.Key]
+		}
+	}
+}
+
+// Count returns the total number of distinct entries (flat map + promoted attrs
+// not yet inlined). After Inline(), all promoted attrs are in m, so this equals
+// len(m).
 func (sm SpanMeta) Count() int {
-	return len(sm.m) + sm.attrs.Count()
+	return len(sm.m) + sm.attrsNotInM()
 }
 
 // AttrCount returns the number of promoted attrs currently set.
@@ -237,15 +277,16 @@ func (sm SpanMeta) AttrCount() int {
 	return sm.attrs.Count()
 }
 
-// Merge returns a freshly-allocated map containing all flat map entries plus
-// all promoted attrs. When no promoted attrs are set, the internal flat map
-// is returned directly without allocating. The caller must not mutate
+// Merge returns a map containing all flat map entries plus all promoted attrs.
+// After Inline() has been called (at span finish), all attrs are already in m
+// so sm.m is returned directly — zero allocation. The caller must not mutate
 // the returned map. To iterate without allocating, use All().
 func (sm SpanMeta) Merge() map[string]string {
-	if sm.attrs.Count() == 0 {
+	n := sm.attrsNotInM()
+	if n == 0 {
 		return sm.m
 	}
-	m := make(map[string]string, len(sm.m)+sm.attrs.Count())
+	m := make(map[string]string, len(sm.m)+n)
 	maps.Copy(m, sm.m)
 	for _, d := range Defs {
 		if sm.attrs.Has(d.Key) {
@@ -268,6 +309,9 @@ func (sm SpanMeta) All() iter.Seq2[string, string] {
 		if sm.attrs != nil {
 			for _, d := range Defs {
 				if sm.attrs.Has(d.Key) {
+					if _, inM := sm.m[d.Name]; inM {
+						continue // already yielded from m
+					}
 					if !yield(d.Name, sm.attrs.vals[d.Key]) {
 						return
 					}
@@ -297,11 +341,12 @@ func (sm SpanMeta) String() string {
 // msgp codec
 // ---------------------------------------------------------------------------
 
-// EncodeMsg writes the combined map header (m entries + promoted attrs),
-// then emits all map entries followed by promoted attribute entries.
+// EncodeMsg writes the combined map header (m entries + promoted attrs not
+// already in m), then emits all map entries followed by any not-yet-inlined
+// promoted attribute entries. After Inline(), the attrs loop is skipped.
 func (sm *SpanMeta) EncodeMsg(en *msgp.Writer) error {
-	total := uint32(len(sm.m) + sm.attrs.Count())
-	if err := en.WriteMapHeader(total); err != nil {
+	n := sm.attrsNotInM()
+	if err := en.WriteMapHeader(uint32(len(sm.m) + n)); err != nil {
 		return msgp.WrapError(err, "Meta")
 	}
 	for k, v := range sm.m {
@@ -312,9 +357,12 @@ func (sm *SpanMeta) EncodeMsg(en *msgp.Writer) error {
 			return msgp.WrapError(err, "Meta", k)
 		}
 	}
-	if sm.attrs != nil {
+	if sm.attrs != nil && n > 0 {
 		for _, d := range Defs {
 			if v, ok := sm.attrs.Get(d.Key); ok {
+				if _, inM := sm.m[d.Name]; inM {
+					continue // already encoded from m
+				}
 				if err := en.WriteString(d.Name); err != nil {
 					return msgp.WrapError(err, "Meta")
 				}
@@ -361,9 +409,12 @@ func (sm *SpanMeta) Msgsize() int {
 	for k, v := range sm.m {
 		size += msgp.StringPrefixSize + len(k) + msgp.StringPrefixSize + len(v)
 	}
-	if sm.attrs != nil {
+	if sm.attrs != nil && sm.attrsNotInM() > 0 {
 		for _, d := range Defs {
 			if v, ok := sm.attrs.Get(d.Key); ok {
+				if _, inM := sm.m[d.Name]; inM {
+					continue // already sized from m
+				}
 				size += msgp.StringPrefixSize + len(d.Name) + msgp.StringPrefixSize + len(v)
 			}
 		}

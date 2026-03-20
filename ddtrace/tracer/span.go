@@ -1045,6 +1045,10 @@ func (s *Span) finish(finishTime int64) {
 	// Lock ordering is span.mu -> trace.mu.
 	s.context.finish()
 
+	// Inline promoted attrs into m so that Merge() can return sm.m directly
+	// (zero allocation) once this span is submitted for encoding.
+	s.meta.Inline()
+
 	// compute stats after finishing the span. This ensures any normalization or tag propagation has been applied
 	if hasTracer {
 		tracer.submit(s)
