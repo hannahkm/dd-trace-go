@@ -27,6 +27,12 @@ import (
 // In the future this can be pulled directly from our obfuscation import.
 var tracerObfuscationVersion = 1
 
+var statSpanConfigPool = sync.Pool{
+	New: func() any {
+		return &stats.StatSpanConfig{}
+	},
+}
+
 // defaultStatsBucketSize specifies the default span of time that will be
 // covered in one stats bucket.
 var defaultStatsBucketSize = (10 * time.Second).Nanoseconds()
@@ -165,25 +171,42 @@ func (c *concentrator) newTracerStatSpan(s *Span, obfuscator *obfuscate.Obfuscat
 	if c.shouldObfuscate() {
 		resource = obfuscatedResource(obfuscator, s.spanType, s.resource)
 	}
-
 	httpMethod, _ := s.meta.Get(ext.HTTPMethod)
 	httpEndpoint, _ := s.meta.Get(ext.HTTPEndpoint)
 
-	statSpan, ok := c.spanConcentrator.NewStatSpanWithConfig(stats.StatSpanConfig{
-		Service:      s.service,
-		Resource:     resource,
-		Name:         s.name,
-		Type:         s.spanType,
-		ParentID:     s.parentID,
-		Start:        s.start,
-		Duration:     s.duration,
-		Error:        s.error,
-		Meta:         s.meta.Merge(),
-		Metrics:      s.metrics,
-		PeerTags:     c.cfg.agent.load().peerTags,
-		HTTPMethod:   httpMethod,
-		HTTPEndpoint: httpEndpoint,
-	})
+	cfg := statSpanConfigPool.Get().(*stats.StatSpanConfig)
+	if cfg.Meta == nil {
+		cfg.Meta = s.meta.Merge()
+	} else {
+		clear(cfg.Meta)
+		for k, v := range s.meta.All() {
+			cfg.Meta[k] = v
+		}
+	}
+
+	cfg.Service = s.service
+	cfg.Resource = resource
+	cfg.Name = s.name
+	cfg.Type = s.spanType
+	cfg.ParentID = s.parentID
+	cfg.Start = s.start
+	cfg.Duration = s.duration
+	cfg.Error = s.error
+	cfg.Metrics = s.metrics
+	cfg.PeerTags = c.cfg.agent.load().peerTags
+	cfg.HTTPMethod = httpMethod
+	cfg.HTTPEndpoint = httpEndpoint
+
+	statSpan, ok := c.spanConcentrator.NewStatSpanWithConfig(*cfg)
+
+	// Return to pool — NewStatSpanWithConfig consumed cfg by value.
+	// Keep the Meta map, zero everything else to release string refs.
+	m := cfg.Meta
+	clear(m)
+	*cfg = stats.StatSpanConfig{} // This should compile to memclr
+	cfg.Meta = m
+	statSpanConfigPool.Put(cfg)
+
 	if !ok {
 		return nil, false
 	}
