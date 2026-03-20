@@ -34,7 +34,9 @@ var (
 // Hot paths (setMetaInit, setMetricLocked) use SetMap/DeleteMap for direct
 // flat-map access without promoted-key overhead. Callers that may write
 // promoted keys use Set/Delete or setMetaTagLocked which route to attrs
-// via copy-on-write. This ensures promoted keys never appear in m.
+// via copy-on-write. This ensures promoted keys never appear in m until
+// Inline() is called at span finish, after which m contains all entries
+// and Merge() returns sm.m directly without allocating.
 type SpanMeta struct {
 	m     map[string]string
 	attrs *SpanAttributes
@@ -156,8 +158,8 @@ func (sm *SpanMeta) setPromoted(key, value string) bool {
 	if !ok {
 		return false
 	}
-	if sm.attrs != nil && sm.attrs.Val(ak) == value {
-		return true // no-op: value already matches
+	if sm.attrs != nil && sm.attrs.Has(ak) && sm.attrs.Val(ak) == value {
+		return true // no-op: key is present and value already matches
 	}
 	sm.ensureAttrsLocal()
 	sm.attrs.Set(ak, value)
@@ -357,10 +359,7 @@ func (sm *SpanMeta) EncodeMsg(en *msgp.Writer) error {
 			return msgp.WrapError(err, "Meta", k)
 		}
 	}
-	if sm.attrs == nil {
-		return nil
-	}
-	if n == 0 {
+	if sm.attrs == nil || n == 0 {
 		return nil
 	}
 	var (
@@ -418,7 +417,7 @@ func (sm *SpanMeta) Msgsize() int {
 	for k, v := range sm.m {
 		size += msgp.StringPrefixSize + len(k) + msgp.StringPrefixSize + len(v)
 	}
-	if sm.attrs != nil && sm.attrsNotInM() > 0 {
+	if n := sm.attrsNotInM(); sm.attrs != nil && n > 0 {
 		for _, d := range Defs {
 			if v, ok := sm.attrs.Get(d.Key); ok {
 				if _, inM := sm.m[d.Name]; inM {
