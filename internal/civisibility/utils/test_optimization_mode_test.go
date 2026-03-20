@@ -272,13 +272,13 @@ func TestCurrentTestOptimizationMode_LogsManifestResolutionAndPayloadFileWrite(t
 	if !containsTestOptimizationLogLine(logs, "resolving manifest path from") {
 		t.Fatalf("expected manifest resolution log, got %v", logs)
 	}
-	if !containsTestOptimizationLogLine(logs, "resolved manifest path directly") {
+	if !containsTestOptimizationLogLine(logs, "resolved manifest directly") {
 		t.Fatalf("expected direct manifest resolution log, got %v", logs)
 	}
-	if !containsTestOptimizationLogLine(logs, "reading manifest file") {
+	if !containsTestOptimizationLogLine(logs, "reading ") {
 		t.Fatalf("expected manifest read log, got %v", logs)
 	}
-	if !containsTestOptimizationLogLine(logs, "declared version line \"1\" [parsed_version:\"1\" supported:true]") {
+	if !containsTestOptimizationLogLine(logs, "manifest version line \"1\" [parsed:\"1\" supported:true") {
 		t.Fatalf("expected manifest version log, got %v", logs)
 	}
 	if !containsTestOptimizationLogLine(logs, "payload-file mode enabled") {
@@ -312,7 +312,7 @@ func TestCurrentTestOptimizationMode_LogsManifestVersionAssignmentParsing(t *tes
 	}
 
 	logs := recordLogger.Logs()
-	if !containsTestOptimizationLogLine(logs, "declared version line \"version=1\" [parsed_version:\"1\" supported:true]") {
+	if !containsTestOptimizationLogLine(logs, "manifest version line \"version=1\" [parsed:\"1\" supported:true") {
 		t.Fatalf("expected manifest version assignment log, got %v", logs)
 	}
 }

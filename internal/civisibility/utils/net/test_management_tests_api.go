@@ -74,18 +74,20 @@ type (
 func (c *client) GetTestManagementTests() (*TestManagementTestsResponseDataModules, error) {
 	if utils.IsManifestModeEnabled() {
 		if cacheFile, ok := utils.CacheHTTPFile("test_management.json"); ok {
-			log.Debug("civisibility.test_management: reading manifest cache file %s", cacheFile)
+			cacheFileForLog := utils.TestOptimizationPathForLog(cacheFile)
+			log.Debug("civisibility.test_management: reading %s", cacheFileForLog)
 			if raw, err := os.ReadFile(cacheFile); err == nil {
-				log.Debug("civisibility.test_management: read manifest cache file %s (%d bytes)", cacheFile, len(raw))
+				log.Debug("civisibility.test_management: read %s (%d bytes)", cacheFileForLog, len(raw))
 				var cachedResponse testManagementTestsResponse
 				if err := json.Unmarshal(raw, &cachedResponse); err == nil {
-					log.Debug("civisibility.test_management: loaded test management response from manifest cache file %s", cacheFile)
+					modules, suites, tests := testManagementCounts(cachedResponse.Data.Attributes.Modules)
+					log.Debug("civisibility.test_management: loaded test management tests from %s [modules:%d suites:%d tests:%d]", cacheFileForLog, modules, suites, tests)
 					return &cachedResponse.Data.Attributes, nil
 				} else {
-					log.Debug("civisibility.test_management: invalid test management cache file %s: %s", cacheFile, err.Error())
+					log.Debug("civisibility.test_management: invalid test management file %s: %s", cacheFileForLog, err.Error())
 				}
 			} else {
-				log.Debug("civisibility.test_management: cannot read test management cache file %s: %s", cacheFile, err.Error())
+				log.Debug("civisibility.test_management: cannot read test management file %s: %s", cacheFileForLog, err.Error())
 			}
 		} else {
 			log.Debug("civisibility.test_management: manifest mode enabled but test management cache path could not be resolved")
@@ -173,4 +175,21 @@ func (c *client) GetTestManagementTests() (*TestManagementTestsResponseDataModul
 	}
 	telemetry.TestManagementTestsResponseTests(float64(testCount))
 	return &responseObject.Data.Attributes, nil
+}
+
+func testManagementCounts(modules map[string]TestManagementTestsResponseDataSuites) (moduleCount int, suiteCount int, testCount int) {
+	for _, module := range modules {
+		moduleCount++
+		if module.Suites == nil {
+			continue
+		}
+		for _, suite := range module.Suites {
+			suiteCount++
+			if suite.Tests == nil {
+				continue
+			}
+			testCount += len(suite.Tests)
+		}
+	}
+	return moduleCount, suiteCount, testCount
 }

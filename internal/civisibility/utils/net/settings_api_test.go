@@ -168,8 +168,9 @@ func TestSettingsApiRequestFromManifestCache(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedResponse.Data.Attributes, *settings)
 	assert.Equal(t, 0, hits)
-	assert.True(t, containsLogLine(recordLogger.Logs(), "reading manifest cache file"))
-	assert.True(t, containsLogLine(recordLogger.Logs(), "loaded settings from manifest cache file"))
+	assert.True(t, containsLogLine(recordLogger.Logs(), "reading .testoptimization/cache/http/settings.json"))
+	assert.True(t, containsLogLine(recordLogger.Logs(), "loaded settings from .testoptimization/cache/http/settings.json"))
+	assert.True(t, containsLogLine(recordLogger.Logs(), "enabled features [code_coverage:true itr:true tests_skipping:true known_tests:true impacted_tests:true early_flake_detection:false flaky_test_retries:true test_management:true require_git:false attempt_to_fix_retries:0]"))
 }
 
 func TestSettingsApiRequestFromManifestCacheMissingFile(t *testing.T) {
@@ -245,6 +246,6 @@ func TestSettingsApiRequestFromManifestCacheMalformedFile(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, SettingsResponseData{}, *settings)
 	assert.Equal(t, 0, hits)
-	assert.True(t, containsLogLine(recordLogger.Logs(), "invalid settings cache file"))
+	assert.True(t, containsLogLine(recordLogger.Logs(), "invalid settings file"))
 	assert.True(t, containsLogLine(recordLogger.Logs(), "returning empty settings because manifest cache is unavailable or invalid"))
 }

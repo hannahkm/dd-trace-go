@@ -87,8 +87,8 @@ func ensureSettingsInitialization(serviceName string) {
 		testOptimizationMode := utils.CurrentTestOptimizationMode()
 		var uploadChannel = make(chan struct{})
 		uploadEnabled := !testOptimizationMode.ManifestEnabled && !testOptimizationMode.PayloadFilesEnabled
-		log.Debug("civisibility: settings initialization mode [manifest_enabled:%t payload_files_enabled:%t manifest:%s payload_root:%s repository_upload_enabled:%t]",
-			testOptimizationMode.ManifestEnabled, testOptimizationMode.PayloadFilesEnabled, testOptimizationMode.ManifestPath, testOptimizationMode.PayloadsRoot, uploadEnabled)
+		log.Debug("civisibility: settings initialization mode [manifest:%t payload_files:%t manifest_file:%s payload_root:%s repository_upload_enabled:%t]",
+			testOptimizationMode.ManifestEnabled, testOptimizationMode.PayloadFilesEnabled, utils.TestOptimizationPathForLog(testOptimizationMode.ManifestPath), testOptimizationMode.PayloadsRoot, uploadEnabled)
 		if uploadEnabled {
 			// upload the repository changes
 			go func() {

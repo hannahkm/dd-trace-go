@@ -209,8 +209,8 @@ func TestTestManagementTestsApiRequestFromManifestCache(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedResponse.Data.Attributes, *responseData)
 	assert.Equal(t, 0, hits)
-	assert.True(t, containsTestManagementLogLine(recordLogger.Logs(), "reading manifest cache file"))
-	assert.True(t, containsTestManagementLogLine(recordLogger.Logs(), "loaded test management response from manifest cache file"))
+	assert.True(t, containsTestManagementLogLine(recordLogger.Logs(), "reading .testoptimization/cache/http/test_management.json"))
+	assert.True(t, containsTestManagementLogLine(recordLogger.Logs(), "loaded test management tests from .testoptimization/cache/http/test_management.json [modules:1 suites:1 tests:1]"))
 }
 
 func TestTestManagementTestsApiRequestFromManifestCacheMissingFile(t *testing.T) {
@@ -290,7 +290,7 @@ func TestTestManagementTestsApiRequestFromManifestCacheMalformedFile(t *testing.
 		Modules: map[string]TestManagementTestsResponseDataSuites{},
 	}, *responseData)
 	assert.Equal(t, 0, hits)
-	assert.True(t, containsTestManagementLogLine(recordLogger.Logs(), "invalid test management cache file"))
+	assert.True(t, containsTestManagementLogLine(recordLogger.Logs(), "invalid test management file"))
 	assert.True(t, containsTestManagementLogLine(recordLogger.Logs(), "returning empty test management response because manifest cache is unavailable or invalid"))
 }
 

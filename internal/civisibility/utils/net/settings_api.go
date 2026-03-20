@@ -78,18 +78,20 @@ type (
 func (c *client) GetSettings() (*SettingsResponseData, error) {
 	if utils.IsManifestModeEnabled() {
 		if cacheFile, ok := utils.CacheHTTPFile("settings.json"); ok {
-			log.Debug("civisibility.settings: reading manifest cache file %s", cacheFile)
+			cacheFileForLog := utils.TestOptimizationPathForLog(cacheFile)
+			log.Debug("civisibility.settings: reading %s", cacheFileForLog)
 			if raw, err := os.ReadFile(cacheFile); err == nil {
-				log.Debug("civisibility.settings: read manifest cache file %s (%d bytes)", cacheFile, len(raw))
+				log.Debug("civisibility.settings: read %s (%d bytes)", cacheFileForLog, len(raw))
 				var cachedResponse settingsResponse
 				if err := json.Unmarshal(raw, &cachedResponse); err == nil {
-					log.Debug("civisibility.settings: loaded settings from manifest cache file %s", cacheFile)
+					log.Debug("civisibility.settings: loaded settings from %s", cacheFileForLog)
+					logSettingsFeatures(&cachedResponse.Data.Attributes)
 					return &cachedResponse.Data.Attributes, nil
 				} else {
-					log.Debug("civisibility.settings: invalid settings cache file %s: %s", cacheFile, err.Error())
+					log.Debug("civisibility.settings: invalid settings file %s: %s", cacheFileForLog, err.Error())
 				}
 			} else {
-				log.Debug("civisibility.settings: cannot read settings cache file %s: %s", cacheFile, err.Error())
+				log.Debug("civisibility.settings: cannot read settings file %s: %s", cacheFileForLog, err.Error())
 			}
 		} else {
 			log.Debug("civisibility.settings: manifest mode enabled but settings cache path could not be resolved")
@@ -146,6 +148,7 @@ func (c *client) GetSettings() (*SettingsResponseData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unmarshalling settings response: %s", err)
 	}
+	logSettingsFeatures(&responseObject.Data.Attributes)
 
 	var settingsResponseType telemetry.SettingsResponseType
 	if responseObject.Data.Attributes.CodeCoverage {
@@ -165,4 +168,22 @@ func (c *client) GetSettings() (*SettingsResponseData, error) {
 	}
 	telemetry.GitRequestsSettingsResponse(settingsResponseType)
 	return &responseObject.Data.Attributes, nil
+}
+
+func logSettingsFeatures(settings *SettingsResponseData) {
+	if settings == nil {
+		return
+	}
+	log.Debug("civisibility.settings: enabled features [code_coverage:%t itr:%t tests_skipping:%t known_tests:%t impacted_tests:%t early_flake_detection:%t flaky_test_retries:%t test_management:%t require_git:%t attempt_to_fix_retries:%d]",
+		settings.CodeCoverage,
+		settings.ItrEnabled,
+		settings.TestsSkipping,
+		settings.KnownTestsEnabled,
+		settings.ImpactedTestsEnabled,
+		settings.EarlyFlakeDetection.Enabled,
+		settings.FlakyTestRetriesEnabled,
+		settings.TestManagement.Enabled,
+		settings.RequireGit,
+		settings.TestManagement.AttemptToFixRetries,
+	)
 }

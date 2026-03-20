@@ -70,18 +70,20 @@ type (
 func (c *client) GetKnownTests() (*KnownTestsResponseData, error) {
 	if utils.IsManifestModeEnabled() {
 		if cacheFile, ok := utils.CacheHTTPFile("known_tests.json"); ok {
-			log.Debug("civisibility.known_tests: reading manifest cache file %s", cacheFile)
+			cacheFileForLog := utils.TestOptimizationPathForLog(cacheFile)
+			log.Debug("civisibility.known_tests: reading %s", cacheFileForLog)
 			if raw, err := os.ReadFile(cacheFile); err == nil {
-				log.Debug("civisibility.known_tests: read manifest cache file %s (%d bytes)", cacheFile, len(raw))
+				log.Debug("civisibility.known_tests: read %s (%d bytes)", cacheFileForLog, len(raw))
 				var cachedResponse knownTestsResponse
 				if err := json.Unmarshal(raw, &cachedResponse); err == nil {
-					log.Debug("civisibility.known_tests: loaded known tests from manifest cache file %s", cacheFile)
+					modules, suites, tests := knownTestsCounts(cachedResponse.Data.Attributes.Tests)
+					log.Debug("civisibility.known_tests: loaded known tests from %s [modules:%d suites:%d tests:%d]", cacheFileForLog, modules, suites, tests)
 					return &cachedResponse.Data.Attributes, nil
 				} else {
-					log.Debug("civisibility.known_tests: invalid known tests cache file %s: %s", cacheFile, err.Error())
+					log.Debug("civisibility.known_tests: invalid known tests file %s: %s", cacheFileForLog, err.Error())
 				}
 			} else {
-				log.Debug("civisibility.known_tests: cannot read known tests cache file %s: %s", cacheFile, err.Error())
+				log.Debug("civisibility.known_tests: cannot read known tests file %s: %s", cacheFileForLog, err.Error())
 			}
 		} else {
 			log.Debug("civisibility.known_tests: manifest mode enabled but known tests cache path could not be resolved")
@@ -176,4 +178,18 @@ func (c *client) GetKnownTests() (*KnownTestsResponseData, error) {
 	}
 	telemetry.KnownTestsResponseTests(float64(testCount))
 	return &accumulated, nil
+}
+
+func knownTestsCounts(modules KnownTestsResponseDataModules) (moduleCount int, suiteCount int, testCount int) {
+	for _, suites := range modules {
+		moduleCount++
+		if suites == nil {
+			continue
+		}
+		for _, tests := range suites {
+			suiteCount++
+			testCount += len(tests)
+		}
+	}
+	return moduleCount, suiteCount, testCount
 }

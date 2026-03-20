@@ -211,8 +211,8 @@ func TestKnownTestsApiRequestFromManifestCache(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedResponse.Data.Attributes, *responseData)
 	assert.Equal(t, 0, hits)
-	assert.True(t, containsLogLine(recordLogger.Logs(), "reading manifest cache file"))
-	assert.True(t, containsLogLine(recordLogger.Logs(), "loaded known tests from manifest cache file"))
+	assert.True(t, containsLogLine(recordLogger.Logs(), "reading .testoptimization/cache/http/known_tests.json"))
+	assert.True(t, containsLogLine(recordLogger.Logs(), "loaded known tests from .testoptimization/cache/http/known_tests.json [modules:1 suites:1 tests:2]"))
 }
 
 func TestKnownTestsApiRequestFromManifestCacheMissingFile(t *testing.T) {
@@ -288,7 +288,7 @@ func TestKnownTestsApiRequestFromManifestCacheMalformedFile(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, KnownTestsResponseData{Tests: KnownTestsResponseDataModules{}}, *responseData)
 	assert.Equal(t, 0, hits)
-	assert.True(t, containsLogLine(recordLogger.Logs(), "invalid known tests cache file"))
+	assert.True(t, containsLogLine(recordLogger.Logs(), "invalid known tests file"))
 	assert.True(t, containsLogLine(recordLogger.Logs(), "returning empty known tests because manifest cache is unavailable or invalid"))
 }
 

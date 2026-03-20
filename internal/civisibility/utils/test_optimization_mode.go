@@ -72,7 +72,7 @@ func CacheHTTPFile(name string) (string, bool) {
 		return "", false
 	}
 	cacheFile := filepath.Join(mode.ManifestDir, "cache", "http", name)
-	logger.Debug("civisibility: manifest mode cache file resolved [name:%s path:%s]", name, absolutePathForLog(cacheFile))
+	logger.Debug("civisibility: cache file resolved [name:%s path:%s]", name, TestOptimizationPathForLog(cacheFile))
 	return cacheFile, true
 }
 
@@ -143,7 +143,7 @@ func resolveTestOptimizationMode() TestOptimizationMode {
 			mode.ManifestPath = manifestPath
 			mode.ManifestDir = filepath.Dir(manifestPath)
 			mode.ManifestEnabled = isManifestVersionSupported(manifestPath)
-			logger.Debug("civisibility: resolved manifest path [path:%s manifest_enabled:%t]", absolutePathForLog(manifestPath), mode.ManifestEnabled)
+			logger.Debug("civisibility: resolved manifest [path:%s enabled:%t]", TestOptimizationPathForLog(manifestPath), mode.ManifestEnabled)
 		} else {
 			logger.Debug("civisibility: could not resolve manifest path from %q", manifestRloc)
 		}
@@ -153,7 +153,7 @@ func resolveTestOptimizationMode() TestOptimizationMode {
 	if mode.PayloadFilesEnabled {
 		if undeclaredOutputsDir != "" {
 			mode.PayloadsRoot = filepath.Join(undeclaredOutputsDir, "payloads")
-			logger.Debug("civisibility: payload-file mode enabled [payload_root:%s]", absolutePathForLog(mode.PayloadsRoot))
+			logger.Debug("civisibility: payload-file mode enabled [root:%s]", absolutePathForLog(mode.PayloadsRoot))
 		} else {
 			logger.Debug("civisibility: payload-file mode enabled but %s is empty", constants.CIVisibilityUndeclaredOutputsDir)
 		}
@@ -161,8 +161,8 @@ func resolveTestOptimizationMode() TestOptimizationMode {
 		logger.Debug("civisibility: payload-file mode disabled after parsing value %q", payloadFilesEnv)
 	}
 
-	logger.Debug("civisibility: test optimization mode resolved [manifest_enabled:%t payload_files_enabled:%t manifest:%s payload_root:%s]",
-		mode.ManifestEnabled, mode.PayloadFilesEnabled, absolutePathForLog(mode.ManifestPath), absolutePathForLog(mode.PayloadsRoot))
+	logger.Debug("civisibility: test optimization mode [manifest:%t payload_files:%t manifest_file:%s payload_root:%s]",
+		mode.ManifestEnabled, mode.PayloadFilesEnabled, TestOptimizationPathForLog(mode.ManifestPath), absolutePathForLog(mode.PayloadsRoot))
 	return mode
 }
 
@@ -173,7 +173,7 @@ func parseBoolEnv(raw string) bool {
 
 func resolveManifestPath(p string) (string, bool) {
 	if normalized, ok := existingFilePath(p); ok {
-		logger.Debug("civisibility: resolved manifest path directly from %q to %s", p, absolutePathForLog(normalized))
+		logger.Debug("civisibility: resolved manifest directly from %q to %s", p, TestOptimizationPathForLog(normalized))
 		return normalized, true
 	}
 
@@ -181,7 +181,7 @@ func resolveManifestPath(p string) (string, bool) {
 		candidate := filepath.Join(runfilesDir, p)
 		logger.Debug("civisibility: attempting manifest resolution via RUNFILES_DIR [dir:%s candidate:%s]", absolutePathForLog(runfilesDir), absolutePathForLog(candidate))
 		if normalized, ok := existingFilePath(candidate); ok {
-			logger.Debug("civisibility: resolved manifest path via RUNFILES_DIR to %s", absolutePathForLog(normalized))
+			logger.Debug("civisibility: resolved manifest via RUNFILES_DIR to %s", TestOptimizationPathForLog(normalized))
 			return normalized, true
 		}
 	}
@@ -191,7 +191,7 @@ func resolveManifestPath(p string) (string, bool) {
 			absolutePathForLog(runfilesManifest), p)
 		if candidate, ok := resolveRunfilesManifestEntry(runfilesManifest, p); ok {
 			if normalized, exists := existingFilePath(candidate); exists {
-				logger.Debug("civisibility: resolved manifest path via RUNFILES_MANIFEST_FILE to %s", absolutePathForLog(normalized))
+				logger.Debug("civisibility: resolved manifest via RUNFILES_MANIFEST_FILE to %s", TestOptimizationPathForLog(normalized))
 				return normalized, true
 			}
 		}
@@ -201,7 +201,7 @@ func resolveManifestPath(p string) (string, bool) {
 		candidate := filepath.Join(testSrcDir, p)
 		logger.Debug("civisibility: attempting manifest resolution via TEST_SRCDIR [dir:%s candidate:%s]", absolutePathForLog(testSrcDir), absolutePathForLog(candidate))
 		if normalized, ok := existingFilePath(candidate); ok {
-			logger.Debug("civisibility: resolved manifest path via TEST_SRCDIR to %s", absolutePathForLog(normalized))
+			logger.Debug("civisibility: resolved manifest via TEST_SRCDIR to %s", TestOptimizationPathForLog(normalized))
 			return normalized, true
 		}
 	}
@@ -255,10 +255,10 @@ func resolveRunfilesManifestEntry(manifestFilePath string, rlocation string) (st
 }
 
 func isManifestVersionSupported(manifestPath string) bool {
-	logger.Debug("civisibility: reading manifest file %s", absolutePathForLog(manifestPath))
+	logger.Debug("civisibility: reading %s", TestOptimizationPathForLog(manifestPath))
 	content, err := os.ReadFile(manifestPath)
 	if err != nil {
-		logger.Debug("civisibility: failed to read manifest file %s: %v", absolutePathForLog(manifestPath), err.Error())
+		logger.Debug("civisibility: failed to read %s: %v", TestOptimizationPathForLog(manifestPath), err.Error())
 		return false
 	}
 
@@ -270,15 +270,15 @@ func isManifestVersionSupported(manifestPath string) bool {
 		}
 		version := parseManifestVersion(rawVersionLine)
 		supported := version == "1"
-		logger.Debug("civisibility: manifest file %s declared version line %q [parsed_version:%q supported:%t]",
-			absolutePathForLog(manifestPath), rawVersionLine, version, supported)
+		logger.Debug("civisibility: manifest version line %q [parsed:%q supported:%t file:%s]",
+			rawVersionLine, version, supported, TestOptimizationPathForLog(manifestPath))
 		return supported
 	}
 	if err := scanner.Err(); err != nil {
-		logger.Debug("civisibility: failed while scanning manifest file %s: %v", absolutePathForLog(manifestPath), err.Error())
+		logger.Debug("civisibility: failed while scanning %s: %v", TestOptimizationPathForLog(manifestPath), err.Error())
 		return false
 	}
-	logger.Debug("civisibility: manifest file %s did not contain a version line", absolutePathForLog(manifestPath))
+	logger.Debug("civisibility: %s did not contain a version line", TestOptimizationPathForLog(manifestPath))
 	return false
 }
 
@@ -307,6 +307,25 @@ func absolutePathForLog(path string) string {
 		return path
 	}
 	return abs
+}
+
+// TestOptimizationPathForLog shortens runfiles cache paths to .testoptimization-relative form when available.
+func TestOptimizationPathForLog(path string) string {
+	if path == "" {
+		return ""
+	}
+
+	normalized := filepath.ToSlash(absolutePathForLog(path))
+	if normalized == ".testoptimization" || strings.HasPrefix(normalized, ".testoptimization/") {
+		return normalized
+	}
+	if strings.HasSuffix(normalized, "/.testoptimization") {
+		return ".testoptimization"
+	}
+	if idx := strings.Index(normalized, "/.testoptimization/"); idx >= 0 {
+		return normalized[idx+1:]
+	}
+	return absolutePathForLog(path)
 }
 
 // ResetTestOptimizationModeForTesting resets cached mode state.
