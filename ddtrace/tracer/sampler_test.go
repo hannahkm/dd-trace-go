@@ -76,7 +76,10 @@ func TestPrioritySampler(t *testing.T) {
 		assert.Equal("my-service2", s.service)
 		v, ok := s.meta.Get(ext.Environment)
 		assert.Equal("", v)
-		assert.True(ok) // set to empty string, not absent
+		// SetTag always sets the presence bit, even for empty string, so ok=true.
+		// getRate uses only the string value, so "" and absent both fall through
+		// to the default rate — the behaviour is unchanged from the old code.
+		assert.True(ok)
 	})
 
 	t.Run("ops", func(t *testing.T) {

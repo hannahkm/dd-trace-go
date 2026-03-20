@@ -568,6 +568,9 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		size := span.meta.Count() - span.meta.AttrCount() + len(span.metrics) + len(span.metaStruct)
 		p.buf = msgp.AppendUint32(p.buf, uint32(9))           // attributes fieldID
 		p.buf = msgp.AppendArrayHeader(p.buf, uint32(size)*3) // number of attributes
+		// After Inline(), promoted keys are present in both m and attrs.
+		// All() yields them from m, so we must guard here to avoid
+		// double-encoding them in fields 13-16.
 		for k, v := range span.meta.All() {
 			if _, ok := tinternal.AttrKeyForTag(k); ok {
 				continue // promoted attrs encoded separately as fields 13-16

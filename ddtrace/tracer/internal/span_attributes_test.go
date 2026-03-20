@@ -214,3 +214,83 @@ func BenchmarkSpanAttributesGet(b *testing.B) {
 		_, _ = s, ok
 	})
 }
+
+// TestSpanMetaSetPromotedEmptyString verifies that Set("env", "") on a span with
+// no prior env records the key as present (presence bit set), rather than
+// silently no-oping because Val() returns "" for unset keys.
+func TestSpanMetaSetPromotedEmptyString(t *testing.T) {
+	sm := NewSpanMeta(nil)
+	sm.Set("env", "")
+	v, ok := sm.Get("env")
+	if !ok {
+		t.Fatal("expected env to be present after Set(\"env\", \"\"), got absent")
+	}
+	if v != "" {
+		t.Fatalf("expected empty string, got %q", v)
+	}
+}
+
+// TestSpanMetaSetPromotedNoOpWhenPresent verifies that Set("env", value) when
+// env is already set to the same value leaves the value unchanged, and that
+// updating to a different value is observed correctly.
+func TestSpanMetaSetPromotedNoOpWhenPresent(t *testing.T) {
+	var a SpanAttributes
+	a.Set(AttrEnv, "prod")
+	a.MarkShared()
+	sm := NewSpanMeta(&a)
+
+	// Same value: result must still be ("prod", true).
+	sm.Set("env", "prod")
+	v, ok := sm.Get("env")
+	if !ok || v != "prod" {
+		t.Fatalf("no-op case: expected (prod, true), got (%q, %v)", v, ok)
+	}
+
+	// Different value: must be updated.
+	sm.Set("env", "staging")
+	v, ok = sm.Get("env")
+	if !ok || v != "staging" {
+		t.Fatalf("update case: expected (staging, true), got (%q, %v)", v, ok)
+	}
+}
+
+// BenchmarkMerge measures the allocation cost of Merge() before and after Inline().
+//
+// Before Inline(), Merge() must allocate a fresh map to combine m and attrs.
+// After Inline(), all promoted attrs are already in m and Merge() returns sm.m
+// directly — zero allocation.
+func BenchmarkMerge(b *testing.B) {
+	newMeta := func() SpanMeta {
+		var a SpanAttributes
+		a.Set(AttrEnv, "prod")
+		a.Set(AttrVersion, "1.2.3")
+		a.Set(AttrComponent, "net/http")
+		a.Set(AttrSpanKind, "server")
+		sm := NewSpanMeta(&a)
+		sm.SetMap("key0", "value0")
+		sm.SetMap("key1", "value1")
+		sm.SetMap("key2", "value2")
+		sm.SetMap("key3", "value3")
+		sm.SetMap("key4", "value4")
+		return sm
+	}
+
+	b.Run("before-Inline", func(b *testing.B) {
+		sm := newMeta()
+		b.ReportAllocs()
+		b.ResetTimer()
+		for range b.N {
+			_ = sm.Merge()
+		}
+	})
+
+	b.Run("after-Inline", func(b *testing.B) {
+		sm := newMeta()
+		sm.Inline()
+		b.ReportAllocs()
+		b.ResetTimer()
+		for range b.N {
+			_ = sm.Merge()
+		}
+	})
+}
