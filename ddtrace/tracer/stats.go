@@ -27,34 +27,6 @@ import (
 // In the future this can be pulled directly from our obfuscation import.
 var tracerObfuscationVersion = 1
 
-type statSpanPool struct{ sync.Pool }
-
-func (p *statSpanPool) get(s *Span) *stats.StatSpanConfig {
-	cfg := p.Get().(*stats.StatSpanConfig)
-	if cfg.Meta == nil {
-		cfg.Meta = s.meta.Merge()
-	} else {
-		for k, v := range s.meta.All() {
-			cfg.Meta[k] = v
-		}
-	}
-	return cfg
-}
-
-// put returns cfg to the pool. It preserves the Meta map allocation (clearing
-// its contents) so subsequent gets can reuse it without allocating.
-func (p *statSpanPool) put(cfg *stats.StatSpanConfig) {
-	m := cfg.Meta
-	clear(m)
-	*cfg = stats.StatSpanConfig{}
-	cfg.Meta = m
-	p.Put(cfg)
-}
-
-var statSpanConfigPool = &statSpanPool{
-	Pool: sync.Pool{New: func() any { return &stats.StatSpanConfig{} }},
-}
-
 // defaultStatsBucketSize specifies the default span of time that will be
 // covered in one stats bucket.
 var defaultStatsBucketSize = (10 * time.Second).Nanoseconds()
@@ -196,23 +168,21 @@ func (c *concentrator) newTracerStatSpan(s *Span, obfuscator *obfuscate.Obfuscat
 	httpMethod, _ := s.meta.Get(ext.HTTPMethod)
 	httpEndpoint, _ := s.meta.Get(ext.HTTPEndpoint)
 
-	cfg := statSpanConfigPool.get(s)
-	cfg.Service = s.service
-	cfg.Resource = resource
-	cfg.Name = s.name
-	cfg.Type = s.spanType
-	cfg.ParentID = s.parentID
-	cfg.Start = s.start
-	cfg.Duration = s.duration
-	cfg.Error = s.error
-	cfg.Metrics = s.metrics
-	cfg.PeerTags = c.cfg.agent.load().peerTags
-	cfg.HTTPMethod = httpMethod
-	cfg.HTTPEndpoint = httpEndpoint
-
-	statSpan, ok := c.spanConcentrator.NewStatSpanWithConfig(*cfg)
-	statSpanConfigPool.put(cfg)
-
+	statSpan, ok := c.spanConcentrator.NewStatSpanWithConfig(stats.StatSpanConfig{
+		Service:      s.service,
+		Resource:     resource,
+		Name:         s.name,
+		Type:         s.spanType,
+		ParentID:     s.parentID,
+		Start:        s.start,
+		Duration:     s.duration,
+		Error:        s.error,
+		Meta:         s.meta.Merge(),
+		Metrics:      s.metrics,
+		PeerTags:     c.cfg.agent.load().peerTags,
+		HTTPMethod:   httpMethod,
+		HTTPEndpoint: httpEndpoint,
+	})
 	if !ok {
 		return nil, false
 	}
