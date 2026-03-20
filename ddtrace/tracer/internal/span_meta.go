@@ -363,17 +363,22 @@ func (sm *SpanMeta) EncodeMsg(en *msgp.Writer) error {
 	if n == 0 {
 		return nil
 	}
+	var (
+		v  string
+		ok bool
+	)
 	for _, d := range Defs {
-		if v, ok := sm.attrs.Get(d.Key); ok {
-			if _, inM := sm.m[d.Name]; inM {
-				continue // already encoded from m
-			}
-			if err := en.WriteString(d.Name); err != nil {
-				return msgp.WrapError(err, "Meta")
-			}
-			if err := en.WriteString(v); err != nil {
-				return msgp.WrapError(err, "Meta", d.Name)
-			}
+		if v, ok = sm.attrs.Get(d.Key); !ok {
+			continue
+		}
+		if _, inM := sm.m[d.Name]; inM {
+			continue // already encoded from m
+		}
+		if err := en.WriteString(d.Name); err != nil {
+			return msgp.WrapError(err, "Meta")
+		}
+		if err := en.WriteString(v); err != nil {
+			return msgp.WrapError(err, "Meta", d.Name)
 		}
 	}
 	return nil
