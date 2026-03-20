@@ -27,10 +27,32 @@ import (
 // In the future this can be pulled directly from our obfuscation import.
 var tracerObfuscationVersion = 1
 
-var statSpanConfigPool = sync.Pool{
-	New: func() any {
-		return &stats.StatSpanConfig{}
-	},
+type statSpanPool struct{ sync.Pool }
+
+func (p *statSpanPool) get(s *Span) *stats.StatSpanConfig {
+	cfg := p.Get().(*stats.StatSpanConfig)
+	if cfg.Meta == nil {
+		cfg.Meta = s.meta.Merge()
+	} else {
+		for k, v := range s.meta.All() {
+			cfg.Meta[k] = v
+		}
+	}
+	return cfg
+}
+
+// put returns cfg to the pool. It preserves the Meta map allocation (clearing
+// its contents) so subsequent gets can reuse it without allocating.
+func (p *statSpanPool) put(cfg *stats.StatSpanConfig) {
+	m := cfg.Meta
+	clear(m)
+	*cfg = stats.StatSpanConfig{}
+	cfg.Meta = m
+	p.Put(cfg)
+}
+
+var statSpanConfigPool = &statSpanPool{
+	Pool: sync.Pool{New: func() any { return &stats.StatSpanConfig{} }},
 }
 
 // defaultStatsBucketSize specifies the default span of time that will be
@@ -174,16 +196,7 @@ func (c *concentrator) newTracerStatSpan(s *Span, obfuscator *obfuscate.Obfuscat
 	httpMethod, _ := s.meta.Get(ext.HTTPMethod)
 	httpEndpoint, _ := s.meta.Get(ext.HTTPEndpoint)
 
-	cfg := statSpanConfigPool.Get().(*stats.StatSpanConfig)
-	if cfg.Meta == nil {
-		cfg.Meta = s.meta.Merge()
-	} else {
-		clear(cfg.Meta)
-		for k, v := range s.meta.All() {
-			cfg.Meta[k] = v
-		}
-	}
-
+	cfg := statSpanConfigPool.get(s)
 	cfg.Service = s.service
 	cfg.Resource = resource
 	cfg.Name = s.name
@@ -198,14 +211,7 @@ func (c *concentrator) newTracerStatSpan(s *Span, obfuscator *obfuscate.Obfuscat
 	cfg.HTTPEndpoint = httpEndpoint
 
 	statSpan, ok := c.spanConcentrator.NewStatSpanWithConfig(*cfg)
-
-	// Return to pool — NewStatSpanWithConfig consumed cfg by value.
-	// Keep the Meta map, zero everything else to release string refs.
-	m := cfg.Meta
-	clear(m)
-	*cfg = stats.StatSpanConfig{} // This should compile to memclr
-	cfg.Meta = m
-	statSpanConfigPool.Put(cfg)
+	statSpanConfigPool.put(cfg)
 
 	if !ok {
 		return nil, false
