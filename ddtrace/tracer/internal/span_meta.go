@@ -8,6 +8,7 @@ package internal
 import (
 	"fmt"
 	"iter"
+	"maps"
 	"strings"
 
 	"github.com/tinylib/msgp/msgp"
@@ -231,19 +232,21 @@ func (sm SpanMeta) Count() int {
 	return len(sm.m) + sm.attrs.Count()
 }
 
-// Merge returns a read-only map containing the flat map entries plus only
-// the promoted attrs that the stats concentrator needs (span.kind).
-// When span.kind is not set in attrs the internal flat map is returned
-// directly without allocating. The caller must not mutate the returned map.
+// Merge returns a freshly-allocated map containing all flat map entries plus
+// all promoted attrs. It always allocates so that the caller owns the map
+// exclusively — safe to pool or pass to code that retains the map after
+// return. To iterate without allocating, use All().
 func (sm SpanMeta) Merge() map[string]string {
-	if !sm.attrs.Has(AttrSpanKind) {
-		return sm.m
+	m := make(map[string]string, len(sm.m)+sm.attrs.Count())
+	maps.Copy(m, sm.m)
+	if sm.attrs.Count() == 0 {
+		return m
 	}
-	m := make(map[string]string, len(sm.m)+1)
-	for k, v := range sm.m {
-		m[k] = v
+	for _, d := range Defs {
+		if sm.attrs.Has(d.Key) {
+			m[d.Name] = sm.attrs.vals[d.Key]
+		}
 	}
-	m[Defs[AttrSpanKind].Name] = sm.attrs.Val(AttrSpanKind)
 	return m
 }
 
