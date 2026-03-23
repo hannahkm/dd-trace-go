@@ -38,8 +38,9 @@ var (
 // Inline() is called at span finish, after which m contains all entries
 // and Merge() returns sm.m directly without allocating.
 type SpanMeta struct {
-	m     map[string]string
-	attrs *SpanAttributes
+	m       map[string]string
+	attrs   *SpanAttributes
+	inlined bool
 }
 
 // NewSpanMeta returns a SpanMeta initialized with shared attrs (used during span creation).
@@ -113,6 +114,22 @@ func (sm SpanMeta) getPromoted(key string) (string, bool, bool) {
 func (sm SpanMeta) Has(key string) bool {
 	_, ok := sm.Get(key)
 	return ok
+}
+
+// Attr returns a promoted attribute value by AttrKey. O(1) array index + bitmask.
+func (sm SpanMeta) Attr(key AttrKey) (string, bool) {
+	return sm.attrs.Get(key)
+}
+
+// RangeInlined calls fn for each entry in the flat map. After Inline(), this includes
+// promoted attrs. fn must be a named function, not a closure, to avoid
+// heap-allocating the function value. Iteration stops if fn returns false.
+func (sm SpanMeta) RangeInlined(fn func(k, v string) bool) {
+	for k, v := range sm.m {
+		if !fn(k, v) {
+			return
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -232,21 +249,14 @@ func init() {
 // ---------------------------------------------------------------------------
 
 // attrsNotInM counts promoted attrs that are set in attrs but not yet in m.
-// Returns 0 after Inline() has been called, since Inline() copies all set
-// attrs into m. Cost: up to 4 map lookups on a small map.
+// Returns 0 after Inline() has been called. Relies on the invariant that
+// promoted keys are never written to m directly (only via Inline), so the
+// count equals attrs.Count() until Inline() sets the inlined flag.
 func (sm SpanMeta) attrsNotInM() int {
-	if sm.attrs == nil {
+	if sm.inlined || sm.attrs == nil {
 		return 0
 	}
-	count := 0
-	for _, d := range Defs {
-		if sm.attrs.Has(d.Key) {
-			if _, inM := sm.m[d.Name]; !inM {
-				count++
-			}
-		}
-	}
-	return count
+	return sm.attrs.Count()
 }
 
 // Inline copies all promoted attr values into m so that Merge() can return
@@ -265,6 +275,7 @@ func (sm *SpanMeta) Inline() {
 			sm.m[d.Name] = sm.attrs.vals[d.Key]
 		}
 	}
+	sm.inlined = true
 }
 
 // Count returns the total number of distinct entries (flat map + promoted attrs
