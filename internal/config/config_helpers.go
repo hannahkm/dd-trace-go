@@ -143,23 +143,6 @@ func detectUDSURL() *url.URL {
 	}
 }
 
-// resolveTraceURL computes the full trace endpoint URL. In OTLP export mode
-// it uses the OTLP endpoint values; otherwise it derives the URL from the
-// agent URL and Datadog protocol version.
-func resolveTraceURL(otlpMode bool, protocol float64, rawAgentURL *url.URL, otlpTracesEndpoint string) string {
-	if otlpMode {
-		return resolveOTLPTraceURL(rawAgentURL, otlpTracesEndpoint)
-	}
-	agentHTTPURL := rawAgentURL
-	if rawAgentURL != nil && rawAgentURL.Scheme == URLSchemeUnix {
-		agentHTTPURL = internal.UnixDataSocketURL(rawAgentURL.Path)
-	}
-	if protocol == TraceProtocolV1 {
-		return agentHTTPURL.String() + TracesPathV1
-	}
-	return agentHTTPURL.String() + TracesPathV04
-}
-
 // resolveOTLPTraceURL resolves the OTLP trace endpoint from OTEL_EXPORTER_OTLP_TRACES_ENDPOINT if set, else agentURL host + default OTLP port 4318 + /v1/traces
 func resolveOTLPTraceURL(rawAgentURL *url.URL, otlpTracesEndpoint string) string {
 	if otlpTracesEndpoint != "" {

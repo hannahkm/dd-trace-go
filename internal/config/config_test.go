@@ -461,55 +461,39 @@ func TestSetServiceMappingReportsFullList(t *testing.T) {
 	assert.Equal(t, []string{"a:3", "b:2"}, parts)
 }
 
-func TestTraceURLResolution(t *testing.T) {
-	t.Run("default protocol resolves traceURL from agent URL", func(t *testing.T) {
+func TestOTLPTraceURLResolution(t *testing.T) {
+	t.Run("default OTLP port from agent host", func(t *testing.T) {
 		resetGlobalState()
 		defer resetGlobalState()
 
 		cfg := Get()
 		require.NotNil(t, cfg)
 
-		traceURL := cfg.TraceURL()
-		assert.Contains(t, traceURL, "/v0.4/traces")
+		assert.Contains(t, cfg.OTLPTraceURL(), ":4318/v1/traces")
 	})
 
-	t.Run("OTLP export mode resolves traceURL with default OTLP port", func(t *testing.T) {
+	t.Run("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT overrides", func(t *testing.T) {
 		resetGlobalState()
 		defer resetGlobalState()
 
-		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
-
-		cfg := Get()
-		require.NotNil(t, cfg)
-
-		assert.True(t, cfg.OTLPExportMode())
-		assert.Contains(t, cfg.TraceURL(), ":4318/v1/traces")
-	})
-
-	t.Run("OTLP with OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
 		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://collector:4318/v1/traces")
 
 		cfg := Get()
 		require.NotNil(t, cfg)
 
-		assert.Equal(t, "http://collector:4318/v1/traces", cfg.TraceURL())
+		assert.Equal(t, "http://collector:4318/v1/traces", cfg.OTLPTraceURL())
 	})
 
-	t.Run("OTLP uses agent host when no OTLP endpoint configured", func(t *testing.T) {
+	t.Run("uses agent host when no OTLP endpoint configured", func(t *testing.T) {
 		resetGlobalState()
 		defer resetGlobalState()
 
-		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
 		t.Setenv("DD_AGENT_HOST", "custom-agent")
 
 		cfg := Get()
 		require.NotNil(t, cfg)
 
-		assert.Equal(t, "http://custom-agent:4318/v1/traces", cfg.TraceURL())
+		assert.Equal(t, "http://custom-agent:4318/v1/traces", cfg.OTLPTraceURL())
 	})
 }
 
@@ -542,25 +526,6 @@ func TestOTLPHeaders(t *testing.T) {
 		assert.Equal(t, OTLPContentTypeHeader, headers["Content-Type"])
 	})
 
-}
-
-func TestSetTraceProtocolRecomputesTraceURL(t *testing.T) {
-	resetGlobalState()
-	defer resetGlobalState()
-
-	cfg := Get()
-	require.NotNil(t, cfg)
-
-	// Default should be v0.4
-	assert.Contains(t, cfg.TraceURL(), "/v0.4/traces")
-
-	// Switch to v1
-	cfg.SetTraceProtocol(TraceProtocolV1, telemetry.OriginCode)
-	assert.Contains(t, cfg.TraceURL(), "/v1.0/traces")
-
-	// Switch back to v0.4
-	cfg.SetTraceProtocol(TraceProtocolV04, telemetry.OriginCode)
-	assert.Contains(t, cfg.TraceURL(), "/v0.4/traces")
 }
 
 func TestOTLPExportMode(t *testing.T) {

@@ -113,8 +113,8 @@ type Config struct {
 	// otlpExportMode indicates traces should be exported via OTLP rather than
 	// a Datadog protocol.
 	otlpExportMode bool
-	// traceURL is the endpoint URL for sending traces.
-	traceURL string
+	// otlpTraceURL is the OTLP collector endpoint for traces
+	otlpTraceURL string
 	// otlpHeaders holds the resolved OTLP trace headers from
 	// OTEL_EXPORTER_OTLP_TRACES_HEADERS plus Content-Type: application/x-protobuf.
 	otlpHeaders map[string]string
@@ -163,8 +163,7 @@ func loadConfig() *Config {
 	cfg.logsOTelEnabled = p.GetBool("DD_LOGS_OTEL_ENABLED", false)
 	cfg.traceProtocol = resolveTraceProtocol(p.GetStringWithValidator("DD_TRACE_AGENT_PROTOCOL_VERSION", TraceProtocolVersionStringV04, validateTraceProtocolVersion))
 	cfg.otlpExportMode = p.GetString("OTEL_TRACES_EXPORTER", "") == "otlp"
-	otlpTracesEndpoint := p.GetString("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")
-	cfg.traceURL = resolveTraceURL(cfg.otlpExportMode, cfg.traceProtocol, cfg.agentURL, otlpTracesEndpoint)
+	cfg.otlpTraceURL = resolveOTLPTraceURL(cfg.agentURL, p.GetString("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", ""))
 	cfg.otlpHeaders = resolveOTLPHeaders(p.GetString("OTEL_EXPORTER_OTLP_TRACES_HEADERS", ""))
 
 	// Parse feature flags from DD_TRACE_FEATURES as a set
@@ -710,14 +709,13 @@ func (c *Config) SetTraceProtocol(v float64, origin telemetry.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.traceProtocol = v
-	c.traceURL = resolveTraceURL(c.otlpExportMode, v, c.agentURL, "")
 	configtelemetry.Report("DD_TRACE_AGENT_PROTOCOL_VERSION", v, origin)
 }
 
-func (c *Config) TraceURL() string {
+func (c *Config) OTLPTraceURL() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.traceURL
+	return c.otlpTraceURL
 }
 
 func (c *Config) OTLPExportMode() bool {

@@ -423,12 +423,9 @@ func newConfig(opts ...StartOption) (*config, error) {
 		}
 	}
 	if c.transport == nil {
-		statsURL := c.internalConfig.AgentURL().String() + statsAPIPath
-		headers := datadogHeaders()
-		if c.internalConfig.OTLPExportMode() {
-			headers = c.internalConfig.OTLPHeaders()
-		}
-		c.transport = newHTTPTransport(c.internalConfig.TraceURL(), statsURL, c.httpClient, headers)
+		agentURL := c.internalConfig.AgentURL().String()
+		traceURL, headers := resolveTraceTransport(c.internalConfig)
+		c.transport = newHTTPTransport(traceURL, agentURL+statsAPIPath, c.httpClient, headers)
 	}
 	if c.propagator == nil {
 		envKey := "DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH"
@@ -470,7 +467,7 @@ func newConfig(opts ...StartOption) (*config, error) {
 	if c.internalConfig.TraceProtocol() == traceProtocolV1 && !af.v1ProtocolAvailable {
 		c.internalConfig.SetTraceProtocol(traceProtocolV04, internalconfig.OriginCalculated)
 		if t, ok := c.transport.(*httpTransport); ok {
-			t.traceURL = c.internalConfig.TraceURL()
+			t.traceURL = agentURL.String() + tracesAPIPath
 		}
 	}
 
@@ -533,6 +530,20 @@ func apmTracingDisabled(c *config) {
 	// tell the agent we computed them, so it doesn't do it either.
 	c.internalConfig.SetRuntimeMetricsEnabled(false, internalconfig.OriginCalculated)
 	c.internalConfig.SetRuntimeMetricsV2Enabled(false, internalconfig.OriginCalculated)
+}
+
+// resolveTraceTransport returns the trace URL and headers for the transport
+// based on whether OTLP export mode is active.
+func resolveTraceTransport(cfg *internalconfig.Config) (traceURL string, headers map[string]string) {
+	if cfg.OTLPExportMode() {
+		return cfg.OTLPTraceURL(), cfg.OTLPHeaders()
+	}
+	agentURL := cfg.AgentURL().String()
+	traceURL = agentURL + tracesAPIPath
+	if cfg.TraceProtocol() == traceProtocolV1 {
+		traceURL = agentURL + tracesAPIPathV1
+	}
+	return traceURL, datadogHeaders()
 }
 
 // resolveDogstatsdAddr resolves the Dogstatsd address to use, based on the user-defined
