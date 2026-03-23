@@ -214,8 +214,11 @@ func (e *ciVisibilityEvent) Finish(opts ...FinishOption) {
 	e.span.Finish(opts...)
 	// span.Finish() calls Inline(), so Merge() returns sm.m directly here —
 	// no allocation. Rebuild Content.Meta once with the final span state.
+	// Hold the span lock to avoid racing with the serialization worker.
+	e.span.mu.Lock()
 	e.Content.Meta = e.span.meta.Merge()
 	e.Content.Metrics = e.span.metrics
+	e.span.mu.Unlock()
 }
 
 // Context returns the span context of the event's span.
