@@ -119,6 +119,10 @@ type payloadV1 struct {
 	processTagsStr    string
 }
 
+// Constant dummy value to represent a serialization failure. Used to prevent failures while
+// decoding the payload.
+const serializationFailed string = "serialization_failed"
+
 // newPayloadV1 returns a ready to use payloadV1.
 func newPayloadV1() *payloadV1 {
 	return &payloadV1{
@@ -455,6 +459,9 @@ func encodeField[F fieldValue](buf []byte, bm bitmap, fieldID uint32, a F, st *s
 		for _, v := range value {
 			buf = v.encode(buf, st)
 		}
+	default:
+		log.Warn("failed to serialize value: %v", value)
+		buf = st.serialize(serializationFailed, buf)
 	}
 	return buf
 }
@@ -556,6 +563,8 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 	var scratch []byte
 	for _, span := range spans {
 		if span == nil {
+			// encode an empty map for nil spans
+			p.buf = msgp.AppendMapHeader(p.buf, 0)
 			continue
 		}
 		p.buf = msgp.AppendMapHeader(p.buf, 16) // number of fields in span
@@ -589,7 +598,10 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 			var err error
 			scratch, err = msgp.AppendIntf(scratch[:0], v)
 			if err != nil {
-				log.Error("failed to serialize meta_struct value for key %s: %v", k, err.Error())
+				log.Warn("failed to serialize meta_struct value for key %s: %v", k, err.Error())
+				p.buf = st.serialize(k, p.buf)
+				p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))
+				p.buf = st.serialize(serializationFailed, p.buf)
 				continue
 			}
 			p.buf = st.serialize(k, p.buf)
@@ -701,25 +713,21 @@ func (p *payloadV1) encodeSpanEvents(bm bitmap, fieldID int, spanEvents []spanEv
 		p.buf = msgp.AppendUint32(p.buf, uint32(3))                            // attributes fieldID
 		p.buf = msgp.AppendArrayHeader(p.buf, uint32(len(event.Attributes))*3) // number of attributes
 		for k, v := range event.Attributes {
+			p.buf = st.serialize(k, p.buf)
 			switch v.Type {
 			case spanEventAttributeTypeString:
-				p.buf = st.serialize(k, p.buf)
 				p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))
 				p.buf = st.serialize(v.StringValue, p.buf)
 			case spanEventAttributeTypeInt:
-				p.buf = st.serialize(k, p.buf)
 				p.buf = msgp.AppendUint32(p.buf, uint32(IntValueType))
 				p.buf = msgp.AppendInt64(p.buf, v.IntValue)
 			case spanEventAttributeTypeDouble:
-				p.buf = st.serialize(k, p.buf)
 				p.buf = msgp.AppendUint32(p.buf, uint32(FloatValueType))
 				p.buf = msgp.AppendFloat64(p.buf, v.DoubleValue)
 			case spanEventAttributeTypeBool:
-				p.buf = st.serialize(k, p.buf)
 				p.buf = msgp.AppendUint32(p.buf, uint32(BoolValueType))
 				p.buf = msgp.AppendBool(p.buf, v.BoolValue)
 			case spanEventAttributeTypeArray:
-				p.buf = st.serialize(k, p.buf)
 				p.buf = msgp.AppendUint32(p.buf, uint32(ArrayValueType))
 				// Array format is (type, value) per element; decoder expects len/2 anyValues.
 				p.buf = msgp.AppendArrayHeader(p.buf, uint32(len(v.ArrayValue.Values))*2)
@@ -728,6 +736,8 @@ func (p *payloadV1) encodeSpanEvents(bm bitmap, fieldID int, spanEvents []spanEv
 				}
 			default:
 				log.Warn("dropped unsupported span event attribute type %d", v.Type)
+				p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))
+				p.buf = st.serialize(serializationFailed, p.buf)
 			}
 		}
 	}
@@ -749,7 +759,9 @@ func (p *payloadV1) encodeSpanEventArrayValues(v *spanEventArrayAttributeValue, 
 		p.buf = msgp.AppendUint32(p.buf, uint32(BoolValueType))
 		p.buf = msgp.AppendBool(p.buf, v.BoolValue)
 	default:
-		log.Warn("dropped unsupported span event array attribute type %d", v.Type)
+		log.Warn("could not serialize unsupported span event array attribute type %d", v.Type)
+		p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))
+		p.buf = st.serialize(serializationFailed, p.buf)
 	}
 	return true, nil
 }
@@ -914,24 +926,33 @@ const (
 )
 
 func (a anyValue) encode(buf []byte, st *stringTable) []byte {
-	buf = msgp.AppendInt32(buf, int32(a.valueType))
 	switch a.valueType {
 	case StringValueType:
+		buf = msgp.AppendInt32(buf, int32(a.valueType))
 		s := a.value.(string)
 		buf = st.serialize(s, buf)
 	case BoolValueType:
+		buf = msgp.AppendInt32(buf, int32(a.valueType))
 		buf = msgp.AppendBool(buf, a.value.(bool))
 	case FloatValueType:
+		buf = msgp.AppendInt32(buf, int32(a.valueType))
 		buf = msgp.AppendFloat64(buf, a.value.(float64))
 	case IntValueType:
+		buf = msgp.AppendInt32(buf, int32(a.valueType))
 		buf = msgp.AppendInt64(buf, a.value.(int64))
 	case BytesValueType:
+		buf = msgp.AppendInt32(buf, int32(a.valueType))
 		buf = msgp.AppendBytes(buf, a.value.([]byte))
 	case ArrayValueType:
+		buf = msgp.AppendInt32(buf, int32(a.valueType))
 		buf = msgp.AppendArrayHeader(buf, uint32(len(a.value.(arrayValue))))
 		for _, v := range a.value.(arrayValue) {
 			buf = v.encode(buf, st)
 		}
+	default:
+		log.Warn("failed to serialize value: %v", a.value)
+		buf = msgp.AppendInt32(buf, StringValueType)
+		buf = st.serialize(serializationFailed, buf)
 	}
 	return buf
 }

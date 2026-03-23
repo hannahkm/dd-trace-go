@@ -532,6 +532,79 @@ func assertProcessTags(t *testing.T, payload spanLists) {
 	}
 }
 
+func TestPayloadV1SerializationFailure(t *testing.T) {
+	t.Run("nil span", func(t *testing.T) {
+		assert := assert.New(t)
+		p := newPayloadV1()
+		sl := newSpanList(1)
+		sl = append(sl, nil) // add a nil span
+
+		_, err := p.push(sl)
+		assert.NoError(err)
+
+		encoded, err := io.ReadAll(p)
+		assert.NoError(err)
+
+		got := newPayloadV1()
+		buf := bytes.NewBuffer(encoded)
+		_, err = buf.WriteTo(got)
+		assert.NoError(err)
+
+		_, err = got.decodeBuffer()
+		assert.NoError(err)
+
+		require.Len(t, got.chunks, 1)
+		require.Len(t, got.chunks[0].spans, 2)
+		assert.Equal(&Span{}, got.chunks[0].spans[1])
+	})
+
+	t.Run("unsupported type conversions", func(t *testing.T) {
+		assert := assert.New(t)
+		p := newPayloadV1()
+
+		s := newBasicSpan("test.span")
+		s.setMetaStructLocked("bad-key", make(chan int)) // unsupported type
+		_, err := p.push(spanList{s})
+		assert.NoError(err)
+
+		encoded, err := io.ReadAll(p)
+		assert.NoError(err)
+
+		got := newPayloadV1()
+		buf := bytes.NewBuffer(encoded)
+		_, err = buf.WriteTo(got)
+		assert.NoError(err)
+
+		_, err = got.decodeBuffer()
+		assert.NoError(err)
+
+		require.Len(t, got.chunks, 1)
+		require.Len(t, got.chunks[0].spans, 1)
+		span := got.chunks[0].spans[0]
+		assert.Equal(serializationFailed, span.meta["bad-key"])
+	})
+
+	t.Run("invalid valueType", func(t *testing.T) {
+		p := newPayloadV1()
+		p.attributes["bad-attr"] = anyValue{valueType: 999, value: "x"}
+		s := newBasicSpan("test-span")
+		_, err := p.push(spanList{s})
+		require.NoError(t, err)
+		encoded, err := io.ReadAll(p)
+		require.NoError(t, err)
+
+		got := newPayloadV1()
+		_, err = bytes.NewBuffer(encoded).WriteTo(got)
+		require.NoError(t, err)
+
+		_, err = got.decodeBuffer()
+		require.NoError(t, err)
+		require.NotNil(t, got.attributes["bad-attr"])
+		assert.Equal(t, StringValueType, got.attributes["bad-attr"].valueType)
+		assert.Equal(t, serializationFailed, got.attributes["bad-attr"].value)
+	})
+}
+
 func BenchmarkPayloadThroughput(b *testing.B) {
 	b.Run("10K", benchmarkPayloadThroughput(1))
 	b.Run("100K", benchmarkPayloadThroughput(10))
