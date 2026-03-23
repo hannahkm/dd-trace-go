@@ -571,21 +571,9 @@ func TestDDTraceProtocolTakesPrecedenceOverOTEL(t *testing.T) {
 }
 
 func TestOTLPHeaders(t *testing.T) {
-	t.Run("nil when not in OTLP mode", func(t *testing.T) {
+	t.Run("always populated with at least Content-Type", func(t *testing.T) {
 		resetGlobalState()
 		defer resetGlobalState()
-
-		cfg := Get()
-		require.NotNil(t, cfg)
-
-		assert.Nil(t, cfg.OTLPHeaders())
-	})
-
-	t.Run("includes Content-Type in OTLP mode with no custom headers", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
 
 		cfg := Get()
 		require.NotNil(t, cfg)
@@ -593,13 +581,13 @@ func TestOTLPHeaders(t *testing.T) {
 		headers := cfg.OTLPHeaders()
 		require.NotNil(t, headers)
 		assert.Equal(t, OTLPContentTypeHeader, headers["Content-Type"])
+		assert.Len(t, headers, 1)
 	})
 
 	t.Run("OTEL_EXPORTER_OTLP_TRACES_HEADERS parsed into map", func(t *testing.T) {
 		resetGlobalState()
 		defer resetGlobalState()
 
-		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
 		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_HEADERS", "api-key=secret,x-custom=value")
 
 		cfg := Get()
@@ -611,34 +599,6 @@ func TestOTLPHeaders(t *testing.T) {
 		assert.Equal(t, OTLPContentTypeHeader, headers["Content-Type"])
 	})
 
-	t.Run("OTEL_EXPORTER_OTLP_HEADERS used as fallback", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
-		t.Setenv("OTEL_EXPORTER_OTLP_HEADERS", "api-key=fallback")
-
-		cfg := Get()
-		require.NotNil(t, cfg)
-
-		headers := cfg.OTLPHeaders()
-		assert.Equal(t, "fallback", headers["api-key"])
-	})
-
-	t.Run("TRACES_HEADERS takes priority over HEADERS", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
-		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_HEADERS", "api-key=specific")
-		t.Setenv("OTEL_EXPORTER_OTLP_HEADERS", "api-key=generic")
-
-		cfg := Get()
-		require.NotNil(t, cfg)
-
-		headers := cfg.OTLPHeaders()
-		assert.Equal(t, "specific", headers["api-key"])
-	})
 }
 
 func TestSetTraceProtocolRecomputesTraceURL(t *testing.T) {

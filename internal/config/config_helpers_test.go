@@ -84,28 +84,23 @@ func TestResolveOTLPTraceURL(t *testing.T) {
 }
 
 func TestResolveOTLPHeaders(t *testing.T) {
-	t.Run("TRACES_HEADERS takes priority over HEADERS", func(t *testing.T) {
-		got := resolveOTLPHeaders("api-key=traces-key", "api-key=generic-key")
-		assert.Equal(t, "traces-key", got["api-key"])
-	})
-
-	t.Run("falls back to HEADERS when TRACES_HEADERS is empty", func(t *testing.T) {
-		got := resolveOTLPHeaders("", "api-key=fallback")
-		assert.Equal(t, "fallback", got["api-key"])
-	})
-
 	t.Run("always includes Content-Type for protobuf", func(t *testing.T) {
-		got := resolveOTLPHeaders("", "")
+		got := resolveOTLPHeaders("")
 		assert.Equal(t, OTLPContentTypeHeader, got["Content-Type"])
 	})
 
 	t.Run("user headers plus Content-Type", func(t *testing.T) {
-		got := resolveOTLPHeaders("api-key=key,other=value", "")
+		got := resolveOTLPHeaders("api-key=key,other=value")
 		assert.Equal(t, "key", got["api-key"])
 		assert.Equal(t, "value", got["other"])
 		assert.Equal(t, OTLPContentTypeHeader, got["Content-Type"])
 	})
 
+	t.Run("empty TRACES_HEADERS still gets Content-Type", func(t *testing.T) {
+		got := resolveOTLPHeaders("")
+		assert.Len(t, got, 1)
+		assert.Equal(t, OTLPContentTypeHeader, got["Content-Type"])
+	})
 }
 
 func TestParseOTLPHeaders(t *testing.T) {

@@ -192,16 +192,11 @@ func resolveOTLPTraceURL(rawAgentURL *url.URL, otlpTracesEndpoint, otlpEndpoint 
 	return fmt.Sprintf("http://%s:%s%s", host, otlpDefaultPort, otlpTracesPath)
 }
 
-// resolveOTLPHeaders builds the OTLP trace headers map from the signal-specific
-// and fallback header strings (OTEL_EXPORTER_OTLP_TRACES_HEADERS /
-// OTEL_EXPORTER_OTLP_HEADERS). The signal-specific value takes full precedence.
-// The required Content-Type header for HTTP protobuf is always added.
-func resolveOTLPHeaders(otlpTracesHeaders, otlpHeaders string) map[string]string {
-	raw := otlpTracesHeaders
-	if raw == "" {
-		raw = otlpHeaders
-	}
-	headers := parseOTLPHeaders(raw)
+// resolveOTLPHeaders builds the OTLP trace headers map from
+// OTEL_EXPORTER_OTLP_TRACES_HEADERS. The required Content-Type header for
+// HTTP protobuf is always included.
+func resolveOTLPHeaders(otlpTracesHeaders string) map[string]string {
+	headers := parseOTLPHeaders(otlpTracesHeaders)
 	headers["Content-Type"] = OTLPContentTypeHeader
 	return headers
 }

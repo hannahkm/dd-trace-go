@@ -429,8 +429,8 @@ func newConfig(opts ...StartOption) (*config, error) {
 	if c.transport == nil {
 		agentURL := c.internalConfig.AgentURL().String()
 		headers := datadogHeaders()
-		if h := c.internalConfig.OTLPHeaders(); h != nil {
-			headers = h
+		if c.internalConfig.TraceProtocol() == traceProtocolOTLP {
+			headers = c.internalConfig.OTLPHeaders()
 		}
 		c.transport = newHTTPTransport(c.internalConfig.TraceURL(), agentURL, c.httpClient, headers)
 	}
