@@ -212,7 +212,7 @@ func mapTraceProtocol(ot string) (string, error) {
 	case "none":
 		return "", nil // not relevant to protocol
 	case "otlp":
-		return "2.0", nil
+		return "otlp", nil
 	default:
 		return "", fmt.Errorf("the following configuration is not supported: OTEL_TRACES_EXPORTER=%v", ot)
 	}

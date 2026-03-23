@@ -158,7 +158,9 @@ func loadConfig() *Config {
 	cfg.retryInterval = p.GetDuration("DD_TRACE_RETRY_INTERVAL", time.Millisecond)
 	cfg.logsOTelEnabled = p.GetBool("DD_LOGS_OTEL_ENABLED", false)
 	cfg.traceProtocol = resolveTraceProtocol(p.GetStringWithValidator("DD_TRACE_AGENT_PROTOCOL_VERSION", "0.4", validateTraceProtocolVersion))
-	cfg.traceURL = resolveTraceURL(cfg.traceProtocol, cfg.agentURL)
+	otlpTracesEndpoint := p.GetString("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")
+	otlpEndpoint := p.GetString("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+	cfg.traceURL = resolveTraceURL(cfg.traceProtocol, cfg.agentURL, otlpTracesEndpoint, otlpEndpoint)
 
 	// Parse feature flags from DD_TRACE_FEATURES as a set
 	cfg.featureFlags = make(map[string]struct{})
@@ -703,6 +705,7 @@ func (c *Config) SetTraceProtocol(v float64, origin telemetry.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.traceProtocol = v
+	c.traceURL = resolveTraceURL(v, c.agentURL, "", "")
 	configtelemetry.Report("DD_TRACE_AGENT_PROTOCOL_VERSION", v, origin)
 }
 
@@ -710,10 +713,4 @@ func (c *Config) TraceURL() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.traceURL
-}
-
-func (c *Config) SetTraceURL(url string, origin telemetry.Origin) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.traceURL = url
 }

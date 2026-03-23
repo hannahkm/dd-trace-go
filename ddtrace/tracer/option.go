@@ -468,7 +468,10 @@ func newConfig(opts ...StartOption) (*config, error) {
 	c.agent.store(af)
 	// If the agent doesn't support the v1 protocol, downgrade to v0.4
 	if c.internalConfig.TraceProtocol() == traceProtocolV1 && !af.v1ProtocolAvailable {
-		c.setTraceEndpoint(traceProtocolV04, fmt.Sprintf("%s%s", agentURL.String(), tracesAPIPath))
+		c.internalConfig.SetTraceProtocol(traceProtocolV04, internalconfig.OriginCalculated)
+		if t, ok := c.transport.(*httpTransport); ok {
+			t.traceURL = c.internalConfig.TraceURL()
+		}
 	}
 
 	info, ok := debug.ReadBuildInfo()
@@ -789,16 +792,6 @@ func loadAgentFeatures(agentDisabled bool, agentURL *url.URL, httpClient *http.C
 		log.Error("%s", err.Error())
 	}
 	return features
-}
-
-// setTraceEndpoint updates the trace protocol, trace URL on the config, and
-// the traceURL on the active transport (if it is an httpTransport) in one step.
-func (c *config) setTraceEndpoint(protocol float64, traceURL string) {
-	c.internalConfig.SetTraceProtocol(protocol, internalconfig.OriginCalculated)
-	c.internalConfig.SetTraceURL(traceURL, internalconfig.OriginCalculated)
-	if t, ok := c.transport.(*httpTransport); ok {
-		t.traceURL = traceURL
-	}
 }
 
 // agentEnabled reports whether the tracer should communicate with the agent.

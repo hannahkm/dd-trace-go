@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/dd-trace-go/v2/internal"
-	"github.com/DataDog/dd-trace-go/v2/internal/env"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
 
@@ -79,7 +78,7 @@ func validatePartialFlushMinSpans(minSpans int) bool {
 }
 
 func validateTraceProtocolVersion(v string) bool {
-	return v == TraceProtocolVersionStringV04 || v == TraceProtocolVersionStringV1
+	return v == TraceProtocolVersionStringV04 || v == TraceProtocolVersionStringV1 || v == TraceProtocolVersionStringOTLP
 }
 
 func resolveTraceProtocol(v string) float64 {
@@ -152,8 +151,8 @@ func detectUDSURL() *url.URL {
 
 // resolveTraceURL computes the full trace endpoint URL based on the protocol
 // and agent URL. For Datadog protocols the URL is derived from agentURL; for
-// OTLP it follows the standard env-var fallback chain.
-func resolveTraceURL(protocol float64, rawAgentURL *url.URL) string {
+// OTLP it uses the provided endpoint values (sourced from the config provider).
+func resolveTraceURL(protocol float64, rawAgentURL *url.URL, otlpTracesEndpoint, otlpEndpoint string) string {
 	agentHTTPURL := rawAgentURL
 	if rawAgentURL != nil && rawAgentURL.Scheme == URLSchemeUnix {
 		agentHTTPURL = internal.UnixDataSocketURL(rawAgentURL.Path)
@@ -161,7 +160,7 @@ func resolveTraceURL(protocol float64, rawAgentURL *url.URL) string {
 
 	switch protocol {
 	case TraceProtocolOTLP:
-		return resolveOTLPTraceURL(rawAgentURL)
+		return resolveOTLPTraceURL(rawAgentURL, otlpTracesEndpoint, otlpEndpoint)
 	case TraceProtocolV1:
 		return agentHTTPURL.String() + TracesPathV1
 	default:
@@ -174,13 +173,12 @@ func resolveTraceURL(protocol float64, rawAgentURL *url.URL) string {
 //  1. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT (full URL)
 //  2. OTEL_EXPORTER_OTLP_ENDPOINT (base URL) + /v1/traces
 //  3. agentURL host + default OTLP port 4318 + /v1/traces
-func resolveOTLPTraceURL(rawAgentURL *url.URL) string {
-	// TODO: Potentially check these env vars in configprovider instead, if they need to be supported across config sources and report telemetry
-	if v := env.Get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"); v != "" {
-		return v
+func resolveOTLPTraceURL(rawAgentURL *url.URL, otlpTracesEndpoint, otlpEndpoint string) string {
+	if otlpTracesEndpoint != "" {
+		return otlpTracesEndpoint
 	}
-	if v := env.Get("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
-		return strings.TrimRight(v, "/") + otlpTracesPath
+	if otlpEndpoint != "" {
+		return strings.TrimRight(otlpEndpoint, "/") + otlpTracesPath
 	}
 	host := internal.DefaultAgentHostname
 	if rawAgentURL != nil {
