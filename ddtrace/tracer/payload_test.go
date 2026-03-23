@@ -603,6 +603,32 @@ func TestPayloadV1SerializationFailure(t *testing.T) {
 		assert.Equal(t, StringValueType, got.attributes["bad-attr"].valueType)
 		assert.Equal(t, serializationFailed, got.attributes["bad-attr"].value)
 	})
+
+	t.Run("invalid meta struct value", func(t *testing.T) {
+		p := newPayloadV1()
+		s := newBasicSpan("test-span")
+		s.mu.Lock()
+		s.setMetaStructLocked("bad-key", make(chan int)) // unsupported type
+		s.mu.Unlock()
+		_, err := p.push(spanList{s})
+		require.NoError(t, err)
+		encoded, err := io.ReadAll(p)
+		require.NoError(t, err)
+
+		got := newPayloadV1()
+		_, err = bytes.NewBuffer(encoded).WriteTo(got)
+		require.NoError(t, err)
+
+		_, err = got.decodeBuffer()
+		require.NoError(t, err)
+		require.Len(t, got.chunks, 1)
+		require.Len(t, got.chunks[0].spans, 1)
+		ms := got.chunks[0].spans[0].metaStruct["bad-key"]
+		require.NotNil(t, ms)
+		v, ok := ms.([]byte)
+		assert.True(t, ok)
+		assert.Equal(t, []byte(serializationFailed), v)
+	})
 }
 
 func BenchmarkPayloadThroughput(b *testing.B) {

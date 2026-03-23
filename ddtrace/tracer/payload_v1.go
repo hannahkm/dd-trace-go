@@ -599,10 +599,7 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 			scratch, err = msgp.AppendIntf(scratch[:0], v)
 			if err != nil {
 				log.Warn("failed to serialize meta_struct value for key %s: %v", k, err.Error())
-				p.buf = st.serialize(k, p.buf)
-				p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))
-				p.buf = st.serialize(serializationFailed, p.buf)
-				continue
+				scratch, _ = msgp.AppendIntf(nil, []byte(serializationFailed))
 			}
 			p.buf = st.serialize(k, p.buf)
 			p.buf = msgp.AppendUint32(p.buf, uint32(BytesValueType))
