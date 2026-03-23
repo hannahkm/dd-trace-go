@@ -134,9 +134,8 @@ var (
 
 // Supported trace protocols.
 const (
-	traceProtocolV04  = internalconfig.TraceProtocolV04
-	traceProtocolV1   = internalconfig.TraceProtocolV1
-	traceProtocolOTLP = internalconfig.TraceProtocolOTLP
+	traceProtocolV04 = internalconfig.TraceProtocolV04
+	traceProtocolV1  = internalconfig.TraceProtocolV1
 )
 
 // config holds the tracer configuration.
@@ -429,7 +428,7 @@ func newConfig(opts ...StartOption) (*config, error) {
 	if c.transport == nil {
 		agentURL := c.internalConfig.AgentURL().String()
 		headers := datadogHeaders()
-		if c.internalConfig.TraceProtocol() == traceProtocolOTLP {
+		if c.internalConfig.OTLPExportMode() {
 			headers = c.internalConfig.OTLPHeaders()
 		}
 		c.transport = newHTTPTransport(c.internalConfig.TraceURL(), agentURL, c.httpClient, headers)

@@ -17,33 +17,33 @@ func TestResolveTraceURL(t *testing.T) {
 	unixAgent := &url.URL{Scheme: "unix", Path: "/var/run/datadog/apm.socket"}
 
 	t.Run("v0.4 protocol uses agent URL", func(t *testing.T) {
-		got := resolveTraceURL(TraceProtocolV04, httpAgent, "", "")
+		got := resolveTraceURL(false, TraceProtocolV04, httpAgent, "", "")
 		assert.Equal(t, "http://myhost:8126/v0.4/traces", got)
 	})
 
 	t.Run("v1 protocol uses agent URL", func(t *testing.T) {
-		got := resolveTraceURL(TraceProtocolV1, httpAgent, "", "")
+		got := resolveTraceURL(false, TraceProtocolV1, httpAgent, "", "")
 		assert.Equal(t, "http://myhost:8126/v1.0/traces", got)
 	})
 
 	t.Run("v0.4 with unix socket rewrites to HTTP", func(t *testing.T) {
-		got := resolveTraceURL(TraceProtocolV04, unixAgent, "", "")
+		got := resolveTraceURL(false, TraceProtocolV04, unixAgent, "", "")
 		assert.Contains(t, got, "/v0.4/traces")
 		assert.Contains(t, got, "http://")
 	})
 
-	t.Run("OTLP delegates to resolveOTLPTraceURL", func(t *testing.T) {
-		got := resolveTraceURL(TraceProtocolOTLP, httpAgent, "", "")
+	t.Run("OTLP mode delegates to resolveOTLPTraceURL", func(t *testing.T) {
+		got := resolveTraceURL(true, TraceProtocolV04, httpAgent, "", "")
 		assert.Equal(t, "http://myhost:4318/v1/traces", got)
 	})
 
-	t.Run("OTLP with traces endpoint set", func(t *testing.T) {
-		got := resolveTraceURL(TraceProtocolOTLP, httpAgent, "http://collector:4318/v1/traces", "")
+	t.Run("OTLP mode with traces endpoint set", func(t *testing.T) {
+		got := resolveTraceURL(true, TraceProtocolV04, httpAgent, "http://collector:4318/v1/traces", "")
 		assert.Equal(t, "http://collector:4318/v1/traces", got)
 	})
 
-	t.Run("OTLP with base endpoint set", func(t *testing.T) {
-		got := resolveTraceURL(TraceProtocolOTLP, httpAgent, "", "http://collector:4318")
+	t.Run("OTLP mode with base endpoint set", func(t *testing.T) {
+		got := resolveTraceURL(true, TraceProtocolV04, httpAgent, "", "http://collector:4318")
 		assert.Equal(t, "http://collector:4318/v1/traces", got)
 	})
 }

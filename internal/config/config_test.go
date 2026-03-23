@@ -473,7 +473,7 @@ func TestTraceURLResolution(t *testing.T) {
 		assert.Contains(t, traceURL, "/v0.4/traces")
 	})
 
-	t.Run("OTLP protocol resolves traceURL with default OTLP port", func(t *testing.T) {
+	t.Run("OTLP export mode resolves traceURL with default OTLP port", func(t *testing.T) {
 		resetGlobalState()
 		defer resetGlobalState()
 
@@ -482,7 +482,7 @@ func TestTraceURLResolution(t *testing.T) {
 		cfg := Get()
 		require.NotNil(t, cfg)
 
-		assert.Equal(t, TraceProtocolOTLP, cfg.TraceProtocol())
+		assert.True(t, cfg.OTLPExportMode())
 		assert.Contains(t, cfg.TraceURL(), ":4318/v1/traces")
 	})
 
@@ -541,7 +541,7 @@ func TestTraceURLResolution(t *testing.T) {
 }
 
 func TestDDTraceProtocolTakesPrecedenceOverOTEL(t *testing.T) {
-	t.Run("DD_TRACE_AGENT_PROTOCOL_VERSION overrides OTEL_TRACES_EXPORTER=otlp", func(t *testing.T) {
+	t.Run("DD_TRACE_AGENT_PROTOCOL_VERSION disables OTLP export mode", func(t *testing.T) {
 		resetGlobalState()
 		defer resetGlobalState()
 
@@ -551,11 +551,12 @@ func TestDDTraceProtocolTakesPrecedenceOverOTEL(t *testing.T) {
 		cfg := Get()
 		require.NotNil(t, cfg)
 
+		assert.False(t, cfg.OTLPExportMode())
 		assert.Equal(t, TraceProtocolV04, cfg.TraceProtocol())
 		assert.Contains(t, cfg.TraceURL(), "/v0.4/traces")
 	})
 
-	t.Run("DD_TRACE_AGENT_PROTOCOL_VERSION=1.0 overrides OTEL_TRACES_EXPORTER=otlp", func(t *testing.T) {
+	t.Run("DD_TRACE_AGENT_PROTOCOL_VERSION=1.0 disables OTLP export mode", func(t *testing.T) {
 		resetGlobalState()
 		defer resetGlobalState()
 
@@ -565,6 +566,7 @@ func TestDDTraceProtocolTakesPrecedenceOverOTEL(t *testing.T) {
 		cfg := Get()
 		require.NotNil(t, cfg)
 
+		assert.False(t, cfg.OTLPExportMode())
 		assert.Equal(t, TraceProtocolV1, cfg.TraceProtocol())
 		assert.Contains(t, cfg.TraceURL(), "/v1.0/traces")
 	})

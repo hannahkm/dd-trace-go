@@ -27,13 +27,11 @@ const (
 	// nothing.
 	TraceMaxSize = int(1e5)
 
-	// Trace protocol versions (agent wire format).
-	TraceProtocolV04               = 0.4 // default
-	TraceProtocolV1                = 1.0
-	TraceProtocolOTLP              = 2.0
-	TraceProtocolVersionStringV04  = "0.4"
-	TraceProtocolVersionStringV1   = "1.0"
-	TraceProtocolVersionStringOTLP = "otlp"
+	// Datadog trace protocol versions (agent wire format).
+	TraceProtocolV04              = 0.4 // default
+	TraceProtocolV1               = 1.0
+	TraceProtocolVersionStringV04 = "0.4"
+	TraceProtocolVersionStringV1  = "1.0"
 
 	// Agent URL schemes supported by DD_TRACE_AGENT_URL.
 	URLSchemeUnix  = "unix"
@@ -81,7 +79,7 @@ func validatePartialFlushMinSpans(minSpans int) bool {
 }
 
 func validateTraceProtocolVersion(v string) bool {
-	return v == TraceProtocolVersionStringV04 || v == TraceProtocolVersionStringV1 || v == TraceProtocolVersionStringOTLP
+	return v == TraceProtocolVersionStringV04 || v == TraceProtocolVersionStringV1
 }
 
 func resolveTraceProtocol(v string) float64 {
@@ -90,8 +88,6 @@ func resolveTraceProtocol(v string) float64 {
 		return TraceProtocolV04
 	case TraceProtocolVersionStringV1:
 		return TraceProtocolV1
-	case TraceProtocolVersionStringOTLP:
-		return TraceProtocolOTLP
 	default:
 		return TraceProtocolV04
 	}
@@ -152,23 +148,21 @@ func detectUDSURL() *url.URL {
 	}
 }
 
-// resolveTraceURL computes the full trace endpoint URL based on the protocol
-// and agent URL. For Datadog protocols the URL is derived from agentURL; for
-// OTLP it uses the provided endpoint values (sourced from the config provider).
-func resolveTraceURL(protocol float64, rawAgentURL *url.URL, otlpTracesEndpoint, otlpEndpoint string) string {
+// resolveTraceURL computes the full trace endpoint URL. In OTLP export mode
+// it uses the OTLP endpoint values; otherwise it derives the URL from the
+// agent URL and Datadog protocol version.
+func resolveTraceURL(otlpMode bool, protocol float64, rawAgentURL *url.URL, otlpTracesEndpoint, otlpEndpoint string) string {
+	if otlpMode {
+		return resolveOTLPTraceURL(rawAgentURL, otlpTracesEndpoint, otlpEndpoint)
+	}
 	agentHTTPURL := rawAgentURL
 	if rawAgentURL != nil && rawAgentURL.Scheme == URLSchemeUnix {
 		agentHTTPURL = internal.UnixDataSocketURL(rawAgentURL.Path)
 	}
-
-	switch protocol {
-	case TraceProtocolOTLP:
-		return resolveOTLPTraceURL(rawAgentURL, otlpTracesEndpoint, otlpEndpoint)
-	case TraceProtocolV1:
+	if protocol == TraceProtocolV1 {
 		return agentHTTPURL.String() + TracesPathV1
-	default:
-		return agentHTTPURL.String() + TracesPathV04
 	}
+	return agentHTTPURL.String() + TracesPathV04
 }
 
 // resolveOTLPTraceURL resolves the OTLP trace endpoint using the standard

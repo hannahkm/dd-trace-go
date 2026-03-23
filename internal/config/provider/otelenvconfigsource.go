@@ -85,10 +85,6 @@ var otelConfigs = map[string]*otelDDEnv{
 		ot:       "OTEL_RESOURCE_ATTRIBUTES",
 		remapper: mapDDTags,
 	},
-	"DD_TRACE_AGENT_PROTOCOL_VERSION": {
-		ot:       "OTEL_TRACES_EXPORTER",
-		remapper: mapTraceProtocol,
-	},
 }
 
 var ddTagsMapping = map[string]string{
@@ -139,7 +135,7 @@ func mapEnabled(ot string) (string, error) {
 	case "none":
 		return "false", nil
 	case "otlp":
-		return "true", nil // Handled separately by mapTraceProtocol
+		return "true", nil
 	default:
 		return "", fmt.Errorf("the following configuration is not supported: OTEL_TRACES_EXPORTER=%v", ot)
 	}
@@ -207,13 +203,3 @@ func mapDDTags(ot string) (string, error) {
 	return strings.Join(ddTags, ","), nil
 }
 
-func mapTraceProtocol(ot string) (string, error) {
-	switch strings.TrimSpace(strings.ToLower(ot)) {
-	case "none":
-		return "", nil // not relevant to protocol
-	case "otlp":
-		return "otlp", nil
-	default:
-		return "", fmt.Errorf("the following configuration is not supported: OTEL_TRACES_EXPORTER=%v", ot)
-	}
-}
