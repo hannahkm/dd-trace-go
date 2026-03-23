@@ -134,8 +134,9 @@ var (
 
 // Supported trace protocols.
 const (
-	traceProtocolV04 = internalconfig.TraceProtocolV04
-	traceProtocolV1  = internalconfig.TraceProtocolV1
+	traceProtocolV04  = internalconfig.TraceProtocolV04
+	traceProtocolV1   = internalconfig.TraceProtocolV1
+	traceProtocolOTLP = internalconfig.TraceProtocolOTLP
 )
 
 // config holds the tracer configuration.
@@ -426,7 +427,8 @@ func newConfig(opts ...StartOption) (*config, error) {
 		}
 	}
 	if c.transport == nil {
-		c.transport = newHTTPTransport(c.internalConfig.AgentURL().String(), c.httpClient)
+		agentURL := c.internalConfig.AgentURL().String()
+		c.transport = newHTTPTransport(c.internalConfig.TraceURL(), agentURL, c.httpClient)
 	}
 	if c.propagator == nil {
 		envKey := "DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH"
@@ -465,13 +467,8 @@ func newConfig(opts ...StartOption) (*config, error) {
 	af := loadAgentFeatures(agentDisabled, agentURL, c.httpClient)
 	c.agent.store(af)
 	// If the agent doesn't support the v1 protocol, downgrade to v0.4
-	if !af.v1ProtocolAvailable {
-		c.internalConfig.SetTraceProtocol(traceProtocolV04, internalconfig.OriginCalculated)
-	}
-	if c.internalConfig.TraceProtocol() == traceProtocolV1 {
-		if t, ok := c.transport.(*httpTransport); ok {
-			t.traceURL = fmt.Sprintf("%s%s", agentURL.String(), tracesAPIPathV1)
-		}
+	if c.internalConfig.TraceProtocol() == traceProtocolV1 && !af.v1ProtocolAvailable {
+		c.setTraceEndpoint(traceProtocolV04, fmt.Sprintf("%s%s", agentURL.String(), tracesAPIPath))
 	}
 
 	info, ok := debug.ReadBuildInfo()
@@ -792,6 +789,16 @@ func loadAgentFeatures(agentDisabled bool, agentURL *url.URL, httpClient *http.C
 		log.Error("%s", err.Error())
 	}
 	return features
+}
+
+// setTraceEndpoint updates the trace protocol, trace URL on the config, and
+// the traceURL on the active transport (if it is an httpTransport) in one step.
+func (c *config) setTraceEndpoint(protocol float64, traceURL string) {
+	c.internalConfig.SetTraceProtocol(protocol, internalconfig.OriginCalculated)
+	c.internalConfig.SetTraceURL(traceURL, internalconfig.OriginCalculated)
+	if t, ok := c.transport.(*httpTransport); ok {
+		t.traceURL = traceURL
+	}
 }
 
 // agentEnabled reports whether the tracer should communicate with the agent.

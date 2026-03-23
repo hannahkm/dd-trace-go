@@ -63,15 +63,12 @@ type httpTransport struct {
 	headers  map[string]string // the Transport headers
 }
 
-// newTransport returns a new Transport implementation that sends traces to a
-// trace agent at the given url, using a given *http.Client.
-//
-// In general, using this method is only necessary if you have a trace agent
-// running on a non-default port, if it's located on another machine, or when
-// otherwise needing to customize the transport layer, for instance when using
-// a unix domain socket.
-func newHTTPTransport(url string, client *http.Client) *httpTransport {
-	// initialize the default EncoderPool with Encoder headers
+// newHTTPTransport returns a new Transport implementation that sends traces
+// to the given traceURL and stats to the given agentURL, using the provided
+// *http.Client. The traceURL should be the fully resolved endpoint (including
+// path); the agentURL is the base agent address used to derive the stats
+// endpoint.
+func newHTTPTransport(traceURL string, agentURL string, client *http.Client) *httpTransport {
 	defaultHeaders := map[string]string{
 		"Datadog-Meta-Lang":             "go",
 		"Datadog-Meta-Lang-Version":     strings.TrimPrefix(runtime.Version(), "go"),
@@ -89,8 +86,8 @@ func newHTTPTransport(url string, client *http.Client) *httpTransport {
 		defaultHeaders["Datadog-External-Env"] = extEnv
 	}
 	return &httpTransport{
-		traceURL: fmt.Sprintf("%s%s", url, tracesAPIPath),
-		statsURL: fmt.Sprintf("%s%s", url, statsAPIPath),
+		traceURL: traceURL,
+		statsURL: fmt.Sprintf("%s%s", agentURL, statsAPIPath),
 		client:   client,
 		headers:  defaultHeaders,
 	}

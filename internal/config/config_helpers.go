@@ -6,11 +6,14 @@
 package config
 
 import (
+	"fmt"
 	"net"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/DataDog/dd-trace-go/v2/internal"
+	"github.com/DataDog/dd-trace-go/v2/internal/env"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
 
@@ -26,15 +29,25 @@ const (
 	TraceMaxSize = int(1e5)
 
 	// Trace protocol versions (agent wire format).
-	TraceProtocolV04              = 0.4 // default
-	TraceProtocolV1               = 1.0
-	TraceProtocolVersionStringV04 = "0.4"
-	TraceProtocolVersionStringV1  = "1.0"
+	TraceProtocolV04               = 0.4 // default
+	TraceProtocolV1                = 1.0
+	TraceProtocolOTLP              = 2.0
+	TraceProtocolVersionStringV04  = "0.4"
+	TraceProtocolVersionStringV1   = "1.0"
+	TraceProtocolVersionStringOTLP = "otlp"
 
 	// Agent URL schemes supported by DD_TRACE_AGENT_URL.
 	URLSchemeUnix  = "unix"
 	URLSchemeHTTP  = "http"
 	URLSchemeHTTPS = "https"
+
+	// Trace API paths appended to the agent URL for each protocol.
+	TracesPathV04 = "/v0.4/traces"
+	TracesPathV1  = "/v1.0/traces"
+
+	// OTLP standard traces path and default collector port.
+	otlpTracesPath  = "/v1/traces"
+	otlpDefaultPort = "4318"
 )
 
 func validateSampleRate(rate float64) bool {
@@ -70,10 +83,16 @@ func validateTraceProtocolVersion(v string) bool {
 }
 
 func resolveTraceProtocol(v string) float64 {
-	if v == TraceProtocolVersionStringV1 {
+	switch v {
+	case TraceProtocolVersionStringV04:
+		return TraceProtocolV04
+	case TraceProtocolVersionStringV1:
 		return TraceProtocolV1
+	case TraceProtocolVersionStringOTLP:
+		return TraceProtocolOTLP
+	default:
+		return TraceProtocolV04
 	}
-	return TraceProtocolV04
 }
 
 // resolveAgentURL computes the final agent URL from the three env-var strings
@@ -129,4 +148,45 @@ func detectUDSURL() *url.URL {
 		Scheme: URLSchemeUnix,
 		Path:   internal.DefaultTraceAgentUDSPath,
 	}
+}
+
+// resolveTraceURL computes the full trace endpoint URL based on the protocol
+// and agent URL. For Datadog protocols the URL is derived from agentURL; for
+// OTLP it follows the standard env-var fallback chain.
+func resolveTraceURL(protocol float64, rawAgentURL *url.URL) string {
+	agentHTTPURL := rawAgentURL
+	if rawAgentURL != nil && rawAgentURL.Scheme == URLSchemeUnix {
+		agentHTTPURL = internal.UnixDataSocketURL(rawAgentURL.Path)
+	}
+
+	switch protocol {
+	case TraceProtocolOTLP:
+		return resolveOTLPTraceURL(rawAgentURL)
+	case TraceProtocolV1:
+		return agentHTTPURL.String() + TracesPathV1
+	default:
+		return agentHTTPURL.String() + TracesPathV04
+	}
+}
+
+// resolveOTLPTraceURL resolves the OTLP trace endpoint using the standard
+// OTel env-var priority:
+//  1. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT (full URL)
+//  2. OTEL_EXPORTER_OTLP_ENDPOINT (base URL) + /v1/traces
+//  3. agentURL host + default OTLP port 4318 + /v1/traces
+func resolveOTLPTraceURL(rawAgentURL *url.URL) string {
+	// TODO: Potentially check these env vars in configprovider instead, if they need to be supported across config sources and report telemetry
+	if v := env.Get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"); v != "" {
+		return v
+	}
+	if v := env.Get("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
+		return strings.TrimRight(v, "/") + otlpTracesPath
+	}
+	host := internal.DefaultAgentHostname
+	if rawAgentURL != nil {
+		if h := rawAgentURL.Hostname(); h != "" {
+			host = h
+		}
+	}
+	return fmt.Sprintf("http://%s:%s%s", host, otlpDefaultPort, otlpTracesPath)
 }
