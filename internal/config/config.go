@@ -114,6 +114,9 @@ type Config struct {
 	// traceURL is the endpoint URL for sending traces, resolved from
 	// the active traceProtocol, agent URL, and OTLP env vars.
 	traceURL string
+	// otlpHeaders holds the resolved OTLP trace headers when using traceProtocolOTLP.
+	// nil when not in OTLP mode. Always includes Content-Type: application/x-protobuf.
+	otlpHeaders map[string]string
 }
 
 // loadConfig initializes and returns a new config by reading from all configured sources.
@@ -161,6 +164,11 @@ func loadConfig() *Config {
 	otlpTracesEndpoint := p.GetString("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")
 	otlpEndpoint := p.GetString("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 	cfg.traceURL = resolveTraceURL(cfg.traceProtocol, cfg.agentURL, otlpTracesEndpoint, otlpEndpoint)
+	if cfg.traceProtocol == TraceProtocolOTLP {
+		otlpTracesHeaders := p.GetString("OTEL_EXPORTER_OTLP_TRACES_HEADERS", "")
+		otlpFallbackHeaders := p.GetString("OTEL_EXPORTER_OTLP_HEADERS", "")
+		cfg.otlpHeaders = resolveOTLPHeaders(otlpTracesHeaders, otlpFallbackHeaders)
+	}
 
 	// Parse feature flags from DD_TRACE_FEATURES as a set
 	cfg.featureFlags = make(map[string]struct{})
@@ -713,4 +721,11 @@ func (c *Config) TraceURL() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.traceURL
+}
+
+// OTLPHeaders returns the resolved OTLP trace headers, or nil when not in OTLP mode.
+func (c *Config) OTLPHeaders() map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return maps.Clone(c.otlpHeaders)
 }

@@ -82,3 +82,60 @@ func TestResolveOTLPTraceURL(t *testing.T) {
 		assert.Equal(t, "http://localhost:4318/v1/traces", got)
 	})
 }
+
+func TestResolveOTLPHeaders(t *testing.T) {
+	t.Run("TRACES_HEADERS takes priority over HEADERS", func(t *testing.T) {
+		got := resolveOTLPHeaders("api-key=traces-key", "api-key=generic-key")
+		assert.Equal(t, "traces-key", got["api-key"])
+	})
+
+	t.Run("falls back to HEADERS when TRACES_HEADERS is empty", func(t *testing.T) {
+		got := resolveOTLPHeaders("", "api-key=fallback")
+		assert.Equal(t, "fallback", got["api-key"])
+	})
+
+	t.Run("always includes Content-Type for protobuf", func(t *testing.T) {
+		got := resolveOTLPHeaders("", "")
+		assert.Equal(t, OTLPContentTypeHeader, got["Content-Type"])
+	})
+
+	t.Run("user headers plus Content-Type", func(t *testing.T) {
+		got := resolveOTLPHeaders("api-key=key,other=value", "")
+		assert.Equal(t, "key", got["api-key"])
+		assert.Equal(t, "value", got["other"])
+		assert.Equal(t, OTLPContentTypeHeader, got["Content-Type"])
+	})
+
+}
+
+func TestParseOTLPHeaders(t *testing.T) {
+	t.Run("parses comma-separated key=value pairs", func(t *testing.T) {
+		got := parseOTLPHeaders("api-key=key,other-config=value")
+		assert.Equal(t, map[string]string{"api-key": "key", "other-config": "value"}, got)
+	})
+
+	t.Run("trims whitespace around keys and values", func(t *testing.T) {
+		got := parseOTLPHeaders(" api-key = key , other = value ")
+		assert.Equal(t, map[string]string{"api-key": "key", "other": "value"}, got)
+	})
+
+	t.Run("skips empty pairs", func(t *testing.T) {
+		got := parseOTLPHeaders("api-key=key,,other=value,")
+		assert.Equal(t, map[string]string{"api-key": "key", "other": "value"}, got)
+	})
+
+	t.Run("skips pairs without =", func(t *testing.T) {
+		got := parseOTLPHeaders("valid=yes,invalid,also-valid=ok")
+		assert.Equal(t, map[string]string{"valid": "yes", "also-valid": "ok"}, got)
+	})
+
+	t.Run("empty string returns empty map", func(t *testing.T) {
+		got := parseOTLPHeaders("")
+		assert.Empty(t, got)
+	})
+
+	t.Run("value can contain equals sign", func(t *testing.T) {
+		got := parseOTLPHeaders("auth=base64encoded==")
+		assert.Equal(t, "base64encoded==", got["auth"])
+	})
+}

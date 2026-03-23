@@ -65,11 +65,20 @@ type httpTransport struct {
 
 // newHTTPTransport returns a new Transport implementation that sends traces
 // to the given traceURL and stats to the given agentURL, using the provided
-// *http.Client. The traceURL should be the fully resolved endpoint (including
-// path); the agentURL is the base agent address used to derive the stats
-// endpoint.
-func newHTTPTransport(traceURL string, agentURL string, client *http.Client) *httpTransport {
-	defaultHeaders := map[string]string{
+// *http.Client and headers. The caller is responsible for providing the
+// appropriate headers (e.g. datadogHeaders() for Datadog mode, or OTLP
+// headers resolved from config).
+func newHTTPTransport(traceURL string, agentURL string, client *http.Client, headers map[string]string) *httpTransport {
+	return &httpTransport{
+		traceURL: traceURL,
+		statsURL: fmt.Sprintf("%s%s", agentURL, statsAPIPath),
+		client:   client,
+		headers:  headers,
+	}
+}
+
+func datadogHeaders() map[string]string {
+	h := map[string]string{
 		"Datadog-Meta-Lang":             "go",
 		"Datadog-Meta-Lang-Version":     strings.TrimPrefix(runtime.Version(), "go"),
 		"Datadog-Meta-Lang-Interpreter": runtime.Compiler + "-" + runtime.GOARCH + "-" + runtime.GOOS,
@@ -77,20 +86,15 @@ func newHTTPTransport(traceURL string, agentURL string, client *http.Client) *ht
 		"Content-Type":                  "application/msgpack",
 	}
 	if cid := internal.ContainerID(); cid != "" {
-		defaultHeaders["Datadog-Container-ID"] = cid
+		h["Datadog-Container-ID"] = cid
 	}
 	if eid := internal.EntityID(); eid != "" {
-		defaultHeaders["Datadog-Entity-ID"] = eid
+		h["Datadog-Entity-ID"] = eid
 	}
 	if extEnv := internal.ExternalEnvironment(); extEnv != "" {
-		defaultHeaders["Datadog-External-Env"] = extEnv
+		h["Datadog-External-Env"] = extEnv
 	}
-	return &httpTransport{
-		traceURL: traceURL,
-		statsURL: fmt.Sprintf("%s%s", agentURL, statsAPIPath),
-		client:   client,
-		headers:  defaultHeaders,
-	}
+	return h
 }
 
 func (t *httpTransport) sendStats(p *pb.ClientStatsPayload, tracerObfuscationVersion int) error {

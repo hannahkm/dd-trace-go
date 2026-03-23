@@ -47,6 +47,9 @@ const (
 	// OTLP standard traces path and default collector port.
 	otlpTracesPath  = "/v1/traces"
 	otlpDefaultPort = "4318"
+
+	// OTLPContentTypeHeader is the Content-Type header value required for HTTP protobuf payloads.
+	OTLPContentTypeHeader = "application/x-protobuf"
 )
 
 func validateSampleRate(rate float64) bool {
@@ -187,4 +190,39 @@ func resolveOTLPTraceURL(rawAgentURL *url.URL, otlpTracesEndpoint, otlpEndpoint 
 		}
 	}
 	return fmt.Sprintf("http://%s:%s%s", host, otlpDefaultPort, otlpTracesPath)
+}
+
+// resolveOTLPHeaders builds the OTLP trace headers map from the signal-specific
+// and fallback header strings (OTEL_EXPORTER_OTLP_TRACES_HEADERS /
+// OTEL_EXPORTER_OTLP_HEADERS). The signal-specific value takes full precedence.
+// The required Content-Type header for HTTP protobuf is always added.
+func resolveOTLPHeaders(otlpTracesHeaders, otlpHeaders string) map[string]string {
+	raw := otlpTracesHeaders
+	if raw == "" {
+		raw = otlpHeaders
+	}
+	headers := parseOTLPHeaders(raw)
+	headers["Content-Type"] = OTLPContentTypeHeader
+	return headers
+}
+
+// parseOTLPHeaders parses a comma-separated list of key=value pairs as
+// defined by the OTEL_EXPORTER_OTLP_*_HEADERS specification.
+func parseOTLPHeaders(s string) map[string]string {
+	headers := make(map[string]string)
+	if s == "" {
+		return headers
+	}
+	for _, pair := range strings.Split(s, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(pair, "=")
+		if !ok || strings.TrimSpace(k) == "" {
+			continue
+		}
+		headers[strings.TrimSpace(k)] = strings.TrimSpace(v)
+	}
+	return headers
 }

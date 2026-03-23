@@ -428,7 +428,11 @@ func newConfig(opts ...StartOption) (*config, error) {
 	}
 	if c.transport == nil {
 		agentURL := c.internalConfig.AgentURL().String()
-		c.transport = newHTTPTransport(c.internalConfig.TraceURL(), agentURL, c.httpClient)
+		headers := datadogHeaders()
+		if h := c.internalConfig.OTLPHeaders(); h != nil {
+			headers = h
+		}
+		c.transport = newHTTPTransport(c.internalConfig.TraceURL(), agentURL, c.httpClient, headers)
 	}
 	if c.propagator == nil {
 		envKey := "DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH"
