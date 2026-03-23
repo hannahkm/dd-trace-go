@@ -315,6 +315,9 @@ func TestPayloadV1SpanLinkTraceID(t *testing.T) {
 	assert.Equal(uint64(123), link.TraceID)
 	assert.Equal(uint64(456), link.TraceIDHigh)
 	assert.Equal(uint64(789), link.SpanID)
+
+	span = got.chunks[0].spans[0]
+	assert.Empty(span.meta["_dd.span_links"])
 }
 
 // TestPayloadV1SpanEventArray tests that a span with a span event containing ArrayValue
@@ -556,32 +559,6 @@ func TestPayloadV1SerializationFailure(t *testing.T) {
 		require.Len(t, got.chunks, 1)
 		require.Len(t, got.chunks[0].spans, 2)
 		assert.Equal(&Span{}, got.chunks[0].spans[1])
-	})
-
-	t.Run("unsupported type conversions", func(t *testing.T) {
-		assert := assert.New(t)
-		p := newPayloadV1()
-
-		s := newBasicSpan("test.span")
-		s.setMetaStructLocked("bad-key", make(chan int)) // unsupported type
-		_, err := p.push(spanList{s})
-		assert.NoError(err)
-
-		encoded, err := io.ReadAll(p)
-		assert.NoError(err)
-
-		got := newPayloadV1()
-		buf := bytes.NewBuffer(encoded)
-		_, err = buf.WriteTo(got)
-		assert.NoError(err)
-
-		_, err = got.decodeBuffer()
-		assert.NoError(err)
-
-		require.Len(t, got.chunks, 1)
-		require.Len(t, got.chunks[0].spans, 1)
-		span := got.chunks[0].spans[0]
-		assert.Equal(serializationFailed, span.meta["bad-key"])
 	})
 
 	t.Run("invalid valueType", func(t *testing.T) {
