@@ -360,9 +360,9 @@ func TestStatsIncludeServiceSource(t *testing.T) {
 		start:         time.Now().UnixNano(),
 		duration:      int64(time.Millisecond),
 		metrics:       map[string]float64{keyMeasured: 1},
-		meta: map[string]string{
+		meta: tinternal.NewSpanMetaFromMap(map[string]string{
 			ext.KeyServiceSource: "m",
-		},
+		}),
 	}
 	transport := newDummyTransport()
 	c := newConcentrator(newTestConfigWithTransport(t, transport), bucketSize, &statsd.NoOpClientDirect{})
