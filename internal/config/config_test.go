@@ -590,6 +590,84 @@ func TestSetTraceProtocolRecomputesTraceURL(t *testing.T) {
 	assert.Contains(t, cfg.TraceURL(), "/v0.4/traces")
 }
 
+func TestOTLPExportMode(t *testing.T) {
+	t.Run("disabled by default", func(t *testing.T) {
+		resetGlobalState()
+		defer resetGlobalState()
+
+		cfg := Get()
+		require.NotNil(t, cfg)
+
+		assert.False(t, cfg.OTLPExportMode())
+	})
+
+	t.Run("enabled by OTEL_TRACES_EXPORTER=otlp", func(t *testing.T) {
+		resetGlobalState()
+		defer resetGlobalState()
+
+		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
+
+		cfg := Get()
+		require.NotNil(t, cfg)
+
+		assert.True(t, cfg.OTLPExportMode())
+	})
+
+	t.Run("not enabled by unsupported exporter value", func(t *testing.T) {
+		resetGlobalState()
+		defer resetGlobalState()
+
+		t.Setenv("OTEL_TRACES_EXPORTER", "jaeger")
+
+		cfg := Get()
+		require.NotNil(t, cfg)
+
+		assert.False(t, cfg.OTLPExportMode())
+	})
+
+	t.Run("not enabled by OTEL_TRACES_EXPORTER=none", func(t *testing.T) {
+		resetGlobalState()
+		defer resetGlobalState()
+
+		t.Setenv("OTEL_TRACES_EXPORTER", "none")
+
+		cfg := Get()
+		require.NotNil(t, cfg)
+
+		assert.False(t, cfg.OTLPExportMode())
+	})
+
+	t.Run("independent of traceProtocol", func(t *testing.T) {
+		resetGlobalState()
+		defer resetGlobalState()
+
+		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
+		t.Setenv("DD_TRACE_AGENT_PROTOCOL_VERSION", "1.0")
+
+		cfg := Get()
+		require.NotNil(t, cfg)
+
+		assert.True(t, cfg.OTLPExportMode(), "otlpExportMode should be true regardless of traceProtocol")
+		assert.Equal(t, TraceProtocolV1, cfg.TraceProtocol(), "traceProtocol should reflect DD_TRACE_AGENT_PROTOCOL_VERSION")
+	})
+
+	t.Run("SetOTLPExportMode toggles mode", func(t *testing.T) {
+		resetGlobalState()
+		defer resetGlobalState()
+
+		cfg := Get()
+		require.NotNil(t, cfg)
+
+		assert.False(t, cfg.OTLPExportMode())
+
+		cfg.SetOTLPExportMode(true, telemetry.OriginCode)
+		assert.True(t, cfg.OTLPExportMode())
+
+		cfg.SetOTLPExportMode(false, telemetry.OriginCode)
+		assert.False(t, cfg.OTLPExportMode())
+	})
+}
+
 func TestHostnameConfiguration(t *testing.T) {
 	t.Run("default behavior - hostname empty when not configured", func(t *testing.T) {
 		resetGlobalState()

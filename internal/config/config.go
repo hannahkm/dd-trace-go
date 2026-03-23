@@ -728,6 +728,13 @@ func (c *Config) OTLPExportMode() bool {
 	return c.otlpExportMode
 }
 
+func (c *Config) SetOTLPExportMode(v bool, origin telemetry.Origin) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.otlpExportMode = v
+	configtelemetry.Report("OTEL_TRACES_EXPORTER", v, origin)
+}
+
 func (c *Config) OTLPHeaders() map[string]string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
