@@ -190,28 +190,8 @@ func resolveOTLPTraceURL(rawAgentURL *url.URL, otlpTracesEndpoint, otlpEndpoint 
 // OTEL_EXPORTER_OTLP_TRACES_HEADERS. The required Content-Type header for
 // HTTP protobuf is always included.
 func resolveOTLPHeaders(otlpTracesHeaders string) map[string]string {
-	headers := parseOTLPHeaders(otlpTracesHeaders)
-	headers["Content-Type"] = OTLPContentTypeHeader
-	return headers
-}
-
-// parseOTLPHeaders parses a comma-separated list of key=value pairs as
-// defined by the OTEL_EXPORTER_OTLP_*_HEADERS specification.
-func parseOTLPHeaders(s string) map[string]string {
 	headers := make(map[string]string)
-	if s == "" {
-		return headers
-	}
-	for _, pair := range strings.Split(s, ",") {
-		pair = strings.TrimSpace(pair)
-		if pair == "" {
-			continue
-		}
-		k, v, ok := strings.Cut(pair, "=")
-		if !ok || strings.TrimSpace(k) == "" {
-			continue
-		}
-		headers[strings.TrimSpace(k)] = strings.TrimSpace(v)
-	}
+	internal.ForEachStringTag(otlpTracesHeaders, "=", func(k, v string) { headers[k] = v })
+	headers["Content-Type"] = OTLPContentTypeHeader
 	return headers
 }
