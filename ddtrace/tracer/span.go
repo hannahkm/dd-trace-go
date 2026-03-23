@@ -736,7 +736,6 @@ func (s *Span) setMetaLocked(key, v string) {
 // the key may be any user-supplied string.
 // +checklocks:s.mu
 func (s *Span) setMetaTagLocked(key, v string) {
-	assert.RWMutexLocked(&s.mu)
 	if tinternal.IsPromotedKeyLen(len(key)) {
 		if _, ok := tinternal.AttrKeyForTag(key); ok {
 			delete(s.metrics, key)
