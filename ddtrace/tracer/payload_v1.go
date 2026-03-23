@@ -569,16 +569,9 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		p.buf = msgp.AppendUint32(p.buf, uint32(9))           // attributes fieldID
 		p.buf = msgp.AppendArrayHeader(p.buf, uint32(size)*3) // number of attributes
 		// After Inline(), promoted keys are present in both m and attrs.
-		// All() yields them from m, so we must guard here to avoid
-		// double-encoding them in fields 13-16.
-		for k, v := range span.meta.All() {
-			if _, ok := tinternal.AttrKeyForTag(k); ok {
-				continue // promoted attrs encoded separately as fields 13-16
-			}
-			p.buf = st.serialize(k, p.buf)
-			p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))
-			p.buf = st.serialize(v, p.buf)
-		}
+		// Range iterates m directly; we must skip promoted keys here to
+		// avoid double-encoding them (they are encoded as fields 13-16).
+		span.meta.RangeInlined(p.encodeMetaEntry)
 		for k, v := range span.metrics {
 			p.buf = st.serialize(k, p.buf)
 			p.buf = msgp.AppendUint32(p.buf, uint32(FloatValueType))
@@ -603,10 +596,10 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		// val() is used: an absent key and an empty value are both encoded as an
 		// empty string, so the "was it set?" distinction is irrelevant for wire encoding.
 		var (
-			env, _       = span.meta.Get(ext.Environment)
-			version, _   = span.meta.Get(ext.Version)
-			component, _ = span.meta.Get(ext.Component)
-			spanKind, _  = span.meta.Get(ext.SpanKind)
+			env, _       = span.meta.Attr(tinternal.AttrEnv)
+			version, _   = span.meta.Attr(tinternal.AttrVersion)
+			component, _ = span.meta.Attr(tinternal.AttrComponent)
+			spanKind, _  = span.meta.Attr(tinternal.AttrSpanKind)
 		)
 		p.buf = encodeField(p.buf, fullSetBitmap, 13, env, st)
 		p.buf = encodeField(p.buf, fullSetBitmap, 14, version, st)
@@ -614,6 +607,19 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		p.buf = encodeField(p.buf, fullSetBitmap, 16, getSpanKindValue(spanKind), st)
 	}
 	return true, nil
+}
+
+// encodeMetaEntry is a named callback for SpanMeta.Range. It encodes one
+// non-promoted meta entry into p.buf using p.st. Promoted keys (env, version,
+// component, span.kind) are skipped; they are encoded as dedicated fields 13-16.
+func (p *payloadV1) encodeMetaEntry(k, v string) bool {
+	if _, ok := tinternal.AttrKeyForTag(k); ok {
+		return true // skip; encoded as fields 13-16
+	}
+	p.buf = p.st.serialize(k, p.buf)
+	p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))
+	p.buf = p.st.serialize(v, p.buf)
+	return true
 }
 
 // translate a span kind string to its uint32 value
