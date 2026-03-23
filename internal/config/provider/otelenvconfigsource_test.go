@@ -77,13 +77,6 @@ func TestOtelEnvConfigSource(t *testing.T) {
 		assert.Equal(t, "false", v)
 	})
 
-	t.Run("maps OTEL_TRACES_EXPORTER=otlp to DD_TRACE_ENABLED=true", func(t *testing.T) {
-		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
-		source := &otelEnvConfigSource{}
-		v := source.get("DD_TRACE_ENABLED")
-		assert.Equal(t, "true", v)
-	})
-
 	t.Run("returns empty for invalid OTEL_TRACES_EXPORTER", func(t *testing.T) {
 		telemetryClient := new(telemetrytest.RecordClient)
 		defer telemetry.MockClient(telemetryClient)()

@@ -83,14 +83,10 @@ func validateTraceProtocolVersion(v string) bool {
 }
 
 func resolveTraceProtocol(v string) float64 {
-	switch v {
-	case TraceProtocolVersionStringV04:
-		return TraceProtocolV04
-	case TraceProtocolVersionStringV1:
+	if v == TraceProtocolVersionStringV1 {
 		return TraceProtocolV1
-	default:
-		return TraceProtocolV04
 	}
+	return TraceProtocolV04
 }
 
 // resolveAgentURL computes the final agent URL from the three env-var strings
@@ -165,7 +161,7 @@ func resolveTraceURL(otlpMode bool, protocol float64, rawAgentURL *url.URL, otlp
 	return agentHTTPURL.String() + TracesPathV04
 }
 
-// resolveOTLPTraceURL resolves the OTLP trace endpoint using the standard
+// resolveOTLPTraceURL resolves the OTLP trace endpoint using the following
 // OTel env-var priority:
 //  1. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT (full URL)
 //  2. OTEL_EXPORTER_OTLP_ENDPOINT (base URL) + /v1/traces

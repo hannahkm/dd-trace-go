@@ -111,13 +111,12 @@ type Config struct {
 	// Only meaningful when otlpExportMode is false.
 	traceProtocol float64
 	// otlpExportMode indicates traces should be exported via OTLP rather than
-	// a Datadog protocol. Set when OTEL_TRACES_EXPORTER=otlp.
+	// a Datadog protocol.
 	otlpExportMode bool
 	// traceURL is the endpoint URL for sending traces.
 	traceURL string
 	// otlpHeaders holds the resolved OTLP trace headers from
 	// OTEL_EXPORTER_OTLP_TRACES_HEADERS plus Content-Type: application/x-protobuf.
-	// Always populated; the tracer decides whether to use them based on otlpExportMode.
 	otlpHeaders map[string]string
 }
 

@@ -64,14 +64,14 @@ type httpTransport struct {
 }
 
 // newHTTPTransport returns a new Transport implementation that sends traces
-// to the given traceURL and stats to the given agentURL, using the provided
+// to the given traceURL and stats to the given statsURL, using the provided
 // *http.Client and headers. The caller is responsible for providing the
 // appropriate headers (e.g. datadogHeaders() for Datadog mode, or OTLP
 // headers resolved from config).
-func newHTTPTransport(traceURL string, agentURL string, client *http.Client, headers map[string]string) *httpTransport {
+func newHTTPTransport(traceURL string, statsURL string, client *http.Client, headers map[string]string) *httpTransport {
 	return &httpTransport{
 		traceURL: traceURL,
-		statsURL: fmt.Sprintf("%s%s", agentURL, statsAPIPath),
+		statsURL: statsURL,
 		client:   client,
 		headers:  headers,
 	}

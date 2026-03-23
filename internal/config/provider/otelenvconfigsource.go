@@ -135,7 +135,7 @@ func mapEnabled(ot string) (string, error) {
 	case "none":
 		return "false", nil
 	case "otlp":
-		return "true", nil
+		return "true", nil // Handled separately by otlpExportMode
 	default:
 		return "", fmt.Errorf("the following configuration is not supported: OTEL_TRACES_EXPORTER=%v", ot)
 	}
@@ -202,4 +202,3 @@ func mapDDTags(ot string) (string, error) {
 
 	return strings.Join(ddTags, ","), nil
 }
-
