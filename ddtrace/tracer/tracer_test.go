@@ -410,7 +410,7 @@ func TestSamplingDecision(t *testing.T) {
 	t.Run("sampled", func(t *testing.T) {
 		tracer, _, _, stop, err := startTestTracer(t)
 		assert.Nil(t, err)
-		tracer.prioritySampling.defaultRate = 1
+		testPrioritySampler(tracer).defaultRate = 1
 		tracer.config.serviceName = "test_service"
 		span := tracer.StartSpan("name_1")
 		child := tracer.StartSpan("name_2", ChildOf(span.context))
@@ -430,7 +430,7 @@ func TestSamplingDecision(t *testing.T) {
 		// client-side stats are also enabled.
 		tracer, _, _, stop, err := startTestTracer(t, WithStatsComputation(false))
 		assert.Nil(t, err)
-		tracer.prioritySampling.defaultRate = 0
+		testPrioritySampler(tracer).defaultRate = 0
 		tracer.config.serviceName = "test_service"
 		span := tracer.StartSpan("name_1")
 		child := tracer.StartSpan("name_2", ChildOf(span.context))
@@ -448,7 +448,7 @@ func TestSamplingDecision(t *testing.T) {
 	t.Run("dropped_stats", func(t *testing.T) {
 		tracer, _, _, stop, err := startTestTracer(t)
 		assert.Nil(t, err)
-		tracer.prioritySampling.defaultRate = 0
+		testPrioritySampler(tracer).defaultRate = 0
 		tracer.config.serviceName = "test_service"
 		span := tracer.StartSpan("name_1")
 		child := tracer.StartSpan("name_2", ChildOf(span.context))
@@ -466,7 +466,7 @@ func TestSamplingDecision(t *testing.T) {
 	t.Run("events_sampled", func(t *testing.T) {
 		tracer, _, _, stop, err := startTestTracer(t)
 		assert.Nil(t, err)
-		tracer.prioritySampling.defaultRate = 0
+		testPrioritySampler(tracer).defaultRate = 0
 		tracer.config.serviceName = "test_service"
 		span := tracer.StartSpan("name_1")
 		child := tracer.StartSpan("name_2", ChildOf(span.context))
@@ -486,7 +486,7 @@ func TestSamplingDecision(t *testing.T) {
 		tracer, _, _, stop, err := startTestTracer(t)
 		assert.Nil(t, err)
 		tracer.config.sampler = NewRateSampler(0)
-		tracer.prioritySampling.defaultRate = 0
+		testPrioritySampler(tracer).defaultRate = 0
 		tracer.config.serviceName = "test_service"
 		span := tracer.StartSpan("name_1")
 		child := tracer.StartSpan("name_2", ChildOf(span.context))
@@ -515,7 +515,7 @@ func TestSamplingDecision(t *testing.T) {
 		assert.Nil(t, err)
 		tracer.config.internalConfig.SetFeatureFlags([]string{"discovery"}, internalconfig.OriginCode)
 		tracer.config.sampler = NewRateSampler(0)
-		tracer.prioritySampling.defaultRate = 0
+		testPrioritySampler(tracer).defaultRate = 0
 		tracer.config.serviceName = "test_service"
 		parent := tracer.StartSpan("name_1")
 		child := tracer.StartSpan("name_2", ChildOf(parent.context))
@@ -539,7 +539,7 @@ func TestSamplingDecision(t *testing.T) {
 		tracer, _, _, stop, err := startTestTracer(t)
 		assert.Nil(t, err)
 		tracer.config.sampler = NewRateSampler(0)
-		tracer.prioritySampling.defaultRate = 0
+		testPrioritySampler(tracer).defaultRate = 0
 		tracer.config.serviceName = "test_service"
 		parent := tracer.StartSpan("name_1")
 		child := tracer.StartSpan("name_2", ChildOf(parent.context))
@@ -563,7 +563,7 @@ func TestSamplingDecision(t *testing.T) {
 		tracer, _, _, stop, err := startTestTracer(t)
 		assert.Nil(t, err)
 		tracer.config.sampler = NewRateSampler(0)
-		tracer.prioritySampling.defaultRate = 0
+		testPrioritySampler(tracer).defaultRate = 0
 		tracer.config.serviceName = "test_service"
 		parent := tracer.StartSpan("name_1")
 		child := tracer.StartSpan("name_2", ChildOf(parent.context))
@@ -587,7 +587,7 @@ func TestSamplingDecision(t *testing.T) {
 		tracer, _, _, stop, err := startTestTracer(t)
 		assert.Nil(t, err)
 		tracer.config.sampler = NewRateSampler(1)
-		tracer.prioritySampling.defaultRate = 1
+		testPrioritySampler(tracer).defaultRate = 1
 		tracer.config.serviceName = "test_service"
 		parent := tracer.StartSpan("name_1")
 		child := tracer.StartSpan("name_2", ChildOf(parent.context))
@@ -1395,7 +1395,7 @@ func TestTracerPrioritySampler(t *testing.T) {
 	// response asynchronously, so we must poll rather than use a fixed sleep.
 	timeout := time.After(time.Second * timeMultiplicator)
 	for {
-		rate := tr.prioritySampling.getDefaultRate()
+		rate := testPrioritySampler(tr).getDefaultRate()
 		// Expected default rate to be 0.1 after reading the agent response.
 		if rate == 0.1 {
 			break
@@ -1481,6 +1481,30 @@ func TestTracerEdgeSampler(t *testing.T) {
 
 	assert.Equal(tracer0.traceWriter.(*agentTraceWriter).payload.stats().itemCount, 0)
 	tracer1.awaitPayload(t, count)
+}
+
+func TestOTLPExportMode(t *testing.T) {
+	t.Run("uses otlpTraceWriter and otelParentBasedAlwaysOnSampler", func(t *testing.T) {
+		assert := assert.New(t)
+		tracer, err := newUnstartedTracer(func(c *config) { c.otlpExportMode = true })
+		assert.NoError(err)
+		defer tracer.Stop()
+		_, isOTLPWriter := tracer.traceWriter.(*otlpTraceWriter)
+		assert.True(isOTLPWriter, "expected otlpTraceWriter in OTLP export mode")
+		_, isAlwaysOn := tracer.defaultSampler.(*otelParentBasedAlwaysOnSampler)
+		assert.True(isAlwaysOn, "expected otelParentBasedAlwaysOnSampler in OTLP export mode")
+	})
+
+	t.Run("default mode uses agentTraceWriter and prioritySampler", func(t *testing.T) {
+		assert := assert.New(t)
+		tracer, err := newUnstartedTracer()
+		assert.NoError(err)
+		defer tracer.Stop()
+		_, isAgentWriter := tracer.traceWriter.(*agentTraceWriter)
+		assert.True(isAgentWriter, "expected agentTraceWriter in default mode")
+		_, isPriority := tracer.defaultSampler.(*prioritySampler)
+		assert.True(isPriority, "expected prioritySampler in default mode")
+	})
 }
 
 func TestTracerConcurrent(t *testing.T) {
@@ -2413,6 +2437,12 @@ func startTestTracer(t testing.TB, opts ...StartOption) (trc *tracer, transport 
 	}, nil
 }
 
+// testPrioritySampler extracts the *prioritySampler from a test tracer.
+// Only valid for agent-mode tracers (the default in tests).
+func testPrioritySampler(t *tracer) *prioritySampler {
+	return t.defaultSampler.(*prioritySampler)
+}
+
 // newTestConfig wraps newConfig to set a default HTTP client with keep-alives
 // disabled. This is necessary to avoid goroutine leaks between tests, see
 // TestMain.
@@ -2691,7 +2721,7 @@ func BenchmarkSingleSpanRetention(b *testing.B) {
 		defer stop()
 		tracer.config.internalConfig.SetFeatureFlags([]string{"discovery"}, internalconfig.OriginCode)
 		tracer.config.sampler = NewRateSampler(0)
-		tracer.prioritySampling.defaultRate = 0
+		testPrioritySampler(tracer).defaultRate = 0
 		tracer.config.serviceName = "test_service"
 		b.ResetTimer()
 		for range b.N {
@@ -2711,7 +2741,7 @@ func BenchmarkSingleSpanRetention(b *testing.B) {
 		defer stop()
 		tracer.config.internalConfig.SetFeatureFlags([]string{"discovery"}, internalconfig.OriginCode)
 		tracer.config.sampler = NewRateSampler(0)
-		tracer.prioritySampling.defaultRate = 0
+		testPrioritySampler(tracer).defaultRate = 0
 		tracer.config.serviceName = "test_service"
 		b.ResetTimer()
 		for range b.N {
@@ -2735,7 +2765,7 @@ func BenchmarkSingleSpanRetention(b *testing.B) {
 		defer stop()
 		tracer.config.internalConfig.SetFeatureFlags([]string{"discovery"}, internalconfig.OriginCode)
 		tracer.config.sampler = NewRateSampler(0)
-		tracer.prioritySampling.defaultRate = 0
+		testPrioritySampler(tracer).defaultRate = 0
 		tracer.config.serviceName = "test_service"
 		b.ResetTimer()
 		for range b.N {
@@ -2868,7 +2898,7 @@ func TestEmptyChunksNotSent(t *testing.T) {
 	defer stop()
 
 	tracer.config.internalConfig.SetStatsComputationEnabled(true, internalconfig.OriginCode)
-	tracer.prioritySampling.defaultRate = 0
+	testPrioritySampler(tracer).defaultRate = 0
 	tracer.config.serviceName = "test_service"
 
 	span := tracer.StartSpan("name_1")
