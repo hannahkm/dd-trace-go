@@ -163,6 +163,10 @@ func loadConfig() *Config {
 	cfg.logsOTelEnabled = p.GetBool("DD_LOGS_OTEL_ENABLED", false)
 	cfg.traceProtocol = resolveTraceProtocol(p.GetStringWithValidator("DD_TRACE_AGENT_PROTOCOL_VERSION", TraceProtocolVersionStringV04, validateTraceProtocolVersion))
 	cfg.otlpExportMode = p.GetString("OTEL_TRACES_EXPORTER", "") == "otlp"
+	// DD_TRACE_AGENT_PROTOCOL_VERSION overrides OTEL_TRACES_EXPORTER
+	if p.IsSet("DD_TRACE_AGENT_PROTOCOL_VERSION") {
+		cfg.otlpExportMode = false
+	}
 	cfg.otlpTraceURL = resolveOTLPTraceURL(cfg.agentURL, p.GetString("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", ""))
 	cfg.otlpHeaders = resolveOTLPHeaders(p.GetString("OTEL_EXPORTER_OTLP_TRACES_HEADERS", ""))
 

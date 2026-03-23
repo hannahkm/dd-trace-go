@@ -154,6 +154,19 @@ func (p *Provider) GetFloatWithValidator(key string, def float64, validate func(
 	})
 }
 
+// / IsSet returns true if any configuration source provides a non-empty value for the key.
+//
+// TODO: populate an isSet field on the Provider at the time of iterating over
+// sources instead of re-querying them here.
+func (p *Provider) IsSet(key string) bool {
+	for _, source := range p.sources {
+		if source.get(key) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // normalizeKey normalizes the key to a valid environment variable name.
 func normalizeKey(key string) string {
 	if strings.HasPrefix(key, "DD_") || strings.HasPrefix(key, "OTEL_") {
