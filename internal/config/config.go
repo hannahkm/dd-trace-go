@@ -164,8 +164,7 @@ func loadConfig() *Config {
 	cfg.traceProtocol = resolveTraceProtocol(p.GetStringWithValidator("DD_TRACE_AGENT_PROTOCOL_VERSION", TraceProtocolVersionStringV04, validateTraceProtocolVersion))
 	cfg.otlpExportMode = p.GetString("OTEL_TRACES_EXPORTER", "") == "otlp"
 	otlpTracesEndpoint := p.GetString("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")
-	otlpEndpoint := p.GetString("OTEL_EXPORTER_OTLP_ENDPOINT", "")
-	cfg.traceURL = resolveTraceURL(cfg.otlpExportMode, cfg.traceProtocol, cfg.agentURL, otlpTracesEndpoint, otlpEndpoint)
+	cfg.traceURL = resolveTraceURL(cfg.otlpExportMode, cfg.traceProtocol, cfg.agentURL, otlpTracesEndpoint)
 	cfg.otlpHeaders = resolveOTLPHeaders(p.GetString("OTEL_EXPORTER_OTLP_TRACES_HEADERS", ""))
 
 	// Parse feature flags from DD_TRACE_FEATURES as a set
@@ -711,7 +710,7 @@ func (c *Config) SetTraceProtocol(v float64, origin telemetry.Origin) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.traceProtocol = v
-	c.traceURL = resolveTraceURL(c.otlpExportMode, v, c.agentURL, "", "")
+	c.traceURL = resolveTraceURL(c.otlpExportMode, v, c.agentURL, "")
 	configtelemetry.Report("DD_TRACE_AGENT_PROTOCOL_VERSION", v, origin)
 }
 

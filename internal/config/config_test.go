@@ -499,33 +499,6 @@ func TestTraceURLResolution(t *testing.T) {
 		assert.Equal(t, "http://collector:4318/v1/traces", cfg.TraceURL())
 	})
 
-	t.Run("OTLP with OTEL_EXPORTER_OTLP_ENDPOINT appends path", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
-		t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318")
-
-		cfg := Get()
-		require.NotNil(t, cfg)
-
-		assert.Equal(t, "http://collector:4318/v1/traces", cfg.TraceURL())
-	})
-
-	t.Run("OTLP TRACES_ENDPOINT takes priority over ENDPOINT", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
-		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://specific:4318/v1/traces")
-		t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://generic:4318")
-
-		cfg := Get()
-		require.NotNil(t, cfg)
-
-		assert.Equal(t, "http://specific:4318/v1/traces", cfg.TraceURL())
-	})
-
 	t.Run("OTLP uses agent host when no OTLP endpoint configured", func(t *testing.T) {
 		resetGlobalState()
 		defer resetGlobalState()

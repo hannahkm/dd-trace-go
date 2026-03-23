@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"strings"
 
 	"github.com/DataDog/dd-trace-go/v2/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
@@ -147,9 +146,9 @@ func detectUDSURL() *url.URL {
 // resolveTraceURL computes the full trace endpoint URL. In OTLP export mode
 // it uses the OTLP endpoint values; otherwise it derives the URL from the
 // agent URL and Datadog protocol version.
-func resolveTraceURL(otlpMode bool, protocol float64, rawAgentURL *url.URL, otlpTracesEndpoint, otlpEndpoint string) string {
+func resolveTraceURL(otlpMode bool, protocol float64, rawAgentURL *url.URL, otlpTracesEndpoint string) string {
 	if otlpMode {
-		return resolveOTLPTraceURL(rawAgentURL, otlpTracesEndpoint, otlpEndpoint)
+		return resolveOTLPTraceURL(rawAgentURL, otlpTracesEndpoint)
 	}
 	agentHTTPURL := rawAgentURL
 	if rawAgentURL != nil && rawAgentURL.Scheme == URLSchemeUnix {
@@ -161,17 +160,10 @@ func resolveTraceURL(otlpMode bool, protocol float64, rawAgentURL *url.URL, otlp
 	return agentHTTPURL.String() + TracesPathV04
 }
 
-// resolveOTLPTraceURL resolves the OTLP trace endpoint using the following
-// OTel env-var priority:
-//  1. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT (full URL)
-//  2. OTEL_EXPORTER_OTLP_ENDPOINT (base URL) + /v1/traces
-//  3. agentURL host + default OTLP port 4318 + /v1/traces
-func resolveOTLPTraceURL(rawAgentURL *url.URL, otlpTracesEndpoint, otlpEndpoint string) string {
+// resolveOTLPTraceURL resolves the OTLP trace endpoint from OTEL_EXPORTER_OTLP_TRACES_ENDPOINT if set, else agentURL host + default OTLP port 4318 + /v1/traces
+func resolveOTLPTraceURL(rawAgentURL *url.URL, otlpTracesEndpoint string) string {
 	if otlpTracesEndpoint != "" {
 		return otlpTracesEndpoint
-	}
-	if otlpEndpoint != "" {
-		return strings.TrimRight(otlpEndpoint, "/") + otlpTracesPath
 	}
 	host := internal.DefaultAgentHostname
 	if rawAgentURL != nil {
