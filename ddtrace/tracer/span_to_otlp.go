@@ -47,7 +47,7 @@ func buildResource(cfg *internalconfig.Config) *otlpresource.Resource {
 // -----------------------------------------------------------------------------
 
 // +checklocksignore — Post-finish: reads finished span fields during payload encoding.
-func convertSpan(s *Span) *otlptrace.Span {
+func convertSpan(s *Span, defaultServiceName string) *otlptrace.Span {
 	if p, ok := s.context.SamplingPriority(); ok && p < ext.PriorityAutoKeep {
 		return nil
 	}
@@ -59,7 +59,7 @@ func convertSpan(s *Span) *otlptrace.Span {
 		Kind:              convertSpanKind(getSpanKind(s)),
 		StartTimeUnixNano: uint64(s.start),
 		EndTimeUnixNano:   uint64(s.start + s.duration),
-		Attributes:        convertSpanAttributes(s),
+		Attributes:        convertSpanAttributes(s, defaultServiceName),
 		Events:            convertEvents(s),
 		Links:             convertSpanLinks(s.spanLinks),
 		Status:            convertSpanStatus(s),
@@ -149,10 +149,13 @@ func getSpanKind(s *Span) string { return s.meta[ext.SpanKind] }
 // -----------------------------------------------------------------------------
 
 // +checklocksignore — Post-finish: reads finished span fields during payload encoding.
-func convertSpanAttributes(s *Span) []*otlpcommon.KeyValue {
+func convertSpanAttributes(s *Span, defaultServiceName string) []*otlpcommon.KeyValue {
 	attributes := convertMapToOTLPAttributesString(s.meta)
 	for key, value := range s.metrics {
 		attributes = append(attributes, otlpKeyValue(key, otlpDoubleValue(value)))
+	}
+	if s.service != defaultServiceName {
+		attributes = append(attributes, otlpKeyValue("service.name", otlpStringValue(s.service)))
 	}
 	return attributes
 }

@@ -56,6 +56,8 @@ func TestBuildResource(t *testing.T) {
 		assert.Equal(t, "svc", attrs["service.name"])
 		_, hasEnv := attrs["deployment.environment.name"]
 		assert.False(t, hasEnv, "deployment.environment.name should be absent when env is empty")
+		_, hasVer := attrs["service.version"]
+		assert.False(t, hasVer, "service.version should be absent when version is empty")
 	})
 }
 
@@ -69,7 +71,7 @@ func TestConvertSpan(t *testing.T) {
 	s.error = 1
 	s.meta[ext.ErrorMsg] = "something failed"
 
-	otlp := convertSpan(s)
+	otlp := convertSpan(s, "svc")
 	require.NotNil(t, otlp)
 
 	// DD resource → OTLP name (spec: "resource field must be encoded as the OTLP span's name field")
@@ -112,7 +114,7 @@ func TestConvertSpanFiltersUnsampled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newSpan("op", "svc", "res", 1, 1, 0)
 			s.context.setSamplingPriority(tt.priority, samplernames.Unknown)
-			result := convertSpan(s)
+			result := convertSpan(s, "svc")
 			if tt.wantNil {
 				assert.Nil(t, result)
 			} else {
@@ -125,8 +127,27 @@ func TestConvertSpanFiltersUnsampled(t *testing.T) {
 func TestConvertSpanPriorityUnset(t *testing.T) {
 	s := newSpan("op", "svc", "res", 1, 1, 0)
 	// priority is not set — span should be included (not dropped)
-	result := convertSpan(s)
+	result := convertSpan(s, "")
 	assert.NotNil(t, result)
+}
+
+func TestConvertSpanServiceNameOverride(t *testing.T) {
+	t.Run("same as default - no service.name attribute", func(t *testing.T) {
+		s := newSpan("op", "my-service", "res", 1, 1, 0)
+		otlp := convertSpan(s, "my-service")
+		require.NotNil(t, otlp)
+		attrs := keyValuesToMap(otlp.Attributes)
+		_, hasServiceName := attrs["service.name"]
+		assert.False(t, hasServiceName)
+	})
+
+	t.Run("different from default - service.name attribute added", func(t *testing.T) {
+		s := newSpan("op", "other-service", "res", 1, 1, 0)
+		otlp := convertSpan(s, "my-service")
+		require.NotNil(t, otlp)
+		attrs := keyValuesToMap(otlp.Attributes)
+		assert.Equal(t, "other-service", attrs["service.name"])
+	})
 }
 
 func TestConvertSpanKind(t *testing.T) {
@@ -175,12 +196,29 @@ func TestConvertSpanAttributes(t *testing.T) {
 	s.meta = map[string]string{"tag": "val", "env": "test"}
 	s.metrics = map[string]float64{"count": 10, "rate": 0.5}
 
-	attrs := convertSpanAttributes(s)
+	attrs := convertSpanAttributes(s, "")
 	m := keyValuesToMap(attrs)
 	assert.Equal(t, "val", m["tag"])
 	assert.Equal(t, "test", m["env"])
 	assert.Equal(t, 10.0, m["count"])
 	assert.Equal(t, 0.5, m["rate"])
+}
+
+func TestConvertSpanAttributesServiceNameOverride(t *testing.T) {
+	t.Run("same as default - no attribute", func(t *testing.T) {
+		s := newSpan("op", "my-service", "res", 1, 1, 0)
+		attrs := convertSpanAttributes(s, "my-service")
+		m := keyValuesToMap(attrs)
+		_, hasServiceName := m["service.name"]
+		assert.False(t, hasServiceName, "service.name attribute should be absent when it matches the default")
+	})
+
+	t.Run("different from default - attribute added", func(t *testing.T) {
+		s := newSpan("op", "other-service", "res", 1, 1, 0)
+		attrs := convertSpanAttributes(s, "my-service")
+		m := keyValuesToMap(attrs)
+		assert.Equal(t, "other-service", m["service.name"])
+	})
 }
 
 func TestConvertMapToOTLPAttributesString(t *testing.T) {
