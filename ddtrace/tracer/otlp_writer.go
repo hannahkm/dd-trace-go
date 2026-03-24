@@ -63,7 +63,9 @@ func (w *otlpTraceWriter) add(spanList []*Span) {
 	defer w.mu.Unlock()
 	w.spans = slices.Grow(w.spans, len(spanList))
 	for _, span := range spanList {
-		w.spans = append(w.spans, convertSpan(span))
+		if otlpSpan := convertSpan(span); otlpSpan != nil {
+			w.spans = append(w.spans, otlpSpan)
+		}
 	}
 }
 

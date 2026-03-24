@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 
 	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
+	"github.com/DataDog/dd-trace-go/v2/internal/version"
 	otlpcommon "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresource "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptrace "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -30,10 +31,10 @@ func buildResource(cfg *internalconfig.Config) *otlpresource.Resource {
 		otlpKeyValue("service.name", otlpStringValue(cfg.ServiceName())),
 		otlpKeyValue("telemetry.sdk.language", otlpStringValue("go")),
 		otlpKeyValue("telemetry.sdk.name", otlpStringValue("datadog")),
-		otlpKeyValue("telemetry.sdk.version", otlpStringValue(cfg.Version())),
+		otlpKeyValue("telemetry.sdk.version", otlpStringValue(version.Tag)),
 	}
 	if v := cfg.Env(); v != "" {
-		attrs = append(attrs, otlpKeyValue("deployment.environment", otlpStringValue(v)))
+		attrs = append(attrs, otlpKeyValue("deployment.environment.name", otlpStringValue(v)))
 	}
 	if v := cfg.Version(); v != "" {
 		attrs = append(attrs, otlpKeyValue("service.version", otlpStringValue(v)))
@@ -47,9 +48,13 @@ func buildResource(cfg *internalconfig.Config) *otlpresource.Resource {
 
 // +checklocksignore — Post-finish: reads finished span fields during payload encoding.
 func convertSpan(s *Span) *otlptrace.Span {
+	if p, ok := s.context.SamplingPriority(); ok && p < ext.PriorityAutoKeep {
+		return nil
+	}
 	return &otlptrace.Span{
 		TraceId:           convertTraceID(s.context.traceID.Upper(), s.context.traceID.Lower()),
 		SpanId:            convertSpanID(s.spanID),
+		ParentSpanId:      convertSpanID(s.parentID),
 		Name:              s.resource,
 		Kind:              convertSpanKind(getSpanKind(s)),
 		StartTimeUnixNano: uint64(s.start),
