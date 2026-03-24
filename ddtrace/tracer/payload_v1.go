@@ -460,7 +460,7 @@ func encodeField[F fieldValue](buf []byte, bm bitmap, fieldID uint32, a F, st *s
 			buf = v.encode(buf, st)
 		}
 	default:
-		log.Warn("failed to serialize value: %v", value)
+		log.Warn("failed to serialize unsupported fieldValue type for field %d", fieldID)
 		buf = st.serialize(serializationFailed, buf)
 	}
 	return buf
@@ -603,7 +603,7 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 			var err error
 			scratch, err = msgp.AppendIntf(scratch[:0], v)
 			if err != nil {
-				log.Warn("failed to serialize meta_struct value for key %s: %v", k, err.Error())
+				log.Warn("failed to serialize meta_struct value for key %s: %s", k, err.Error())
 				scratch, _ = msgp.AppendIntf(nil, []byte(serializationFailed))
 			}
 			p.buf = st.serialize(k, p.buf)
