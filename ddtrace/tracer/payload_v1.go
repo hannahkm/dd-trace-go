@@ -952,7 +952,7 @@ func (a anyValue) encode(buf []byte, st *stringTable) []byte {
 			buf = v.encode(buf, st)
 		}
 	default:
-		log.Warn("failed to serialize value: %v", a.value)
+		log.Warn("failed to serialize value type: %d", a.valueType)
 		buf = msgp.AppendInt32(buf, StringValueType)
 		buf = st.serialize(serializationFailed, buf)
 	}
