@@ -581,7 +581,7 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		// After Inline(), promoted keys are present in both m and attrs.
 		// Range iterates m directly; we must skip promoted keys here to
 		// avoid double-encoding them (they are encoded as fields 13-16).
-		span.meta.RangeInlined(p.encodeMetaEntry)
+		span.meta.Range(p.encodeMetaEntry)
 		for k, v := range span.metrics {
 			p.buf = st.serialize(k, p.buf)
 			p.buf = msgp.AppendUint32(p.buf, uint32(FloatValueType))

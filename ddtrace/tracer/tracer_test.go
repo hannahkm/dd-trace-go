@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	llog "log"
 	"net/http"
 	"net/http/httptest"
@@ -2377,6 +2378,65 @@ func BenchmarkStartSpanConcurrent(b *testing.B) {
 			StartSpan("op", ChildOf(s.Context()))
 		}
 	})
+}
+
+// BenchmarkSpanLifecycleDistribution measures the full span lifecycle
+// (StartSpan + SetTag×N + Finish) using the production tag-count distribution
+// observed at the Datadog intake:
+//
+//	probs  = {0.01, 0.09, 0.40, 0.25, 0.15, 0.05, 0.04, 0.01}
+//	counts = {8.75, 14.59, 22.8, 31.2, 39.1, 43.5, 54.3, 70.0}
+//
+// The allocs/op value reveals the effective pivot rate for the current
+// tagStoreInline capacity: subtract the baseline (tracer overhead allocs)
+// from BenchmarkStartSpan to isolate tag-store allocs.
+//
+// To tune tagStoreInline, change the constant in tag_store.go and re-run:
+//
+//	go test -run='^$' -bench=BenchmarkSpanLifecycleDistribution -benchmem -count=6
+func BenchmarkSpanLifecycleDistribution(b *testing.B) {
+	tracer, _, _, stop, err := startTestTracer(b, WithLogger(log.DiscardLogger{}), WithSamplerRate(0))
+	assert.Nil(b, err)
+	defer stop()
+
+	// Build the workload: a fixed pool of tag counts sampling the distribution.
+	// Mirrors internal.productionTagWorkload(); kept inline due to package boundary.
+	probs := []float64{0.01, 0.09, 0.4, 0.25, 0.15, 0.05, 0.04, 0.01}
+	means := []float64{8.75, 14.59, 22.8, 31.2, 39.1, 43.5, 54.3, 70.0}
+	const poolSize = 1000
+	tagCounts := make([]int, 0, poolSize)
+	for i, p := range probs {
+		n := int(math.Round(p * poolSize))
+		c := int(math.Round(means[i]))
+		for range n {
+			tagCounts = append(tagCounts, c)
+		}
+	}
+
+	// Pre-allocate keys and values so the benchmark measures the store, not fmt.
+	// Mirrors internal.tagPairs(); kept inline due to package boundary.
+	const maxTags = 70
+	keys := make([]string, maxTags)
+	vals := make([]string, maxTags)
+	for i := range keys {
+		keys[i] = fmt.Sprintf("user.tag.key.%02d", i)
+		vals[i] = fmt.Sprintf("v%04d", i)
+	}
+
+	root := tracer.StartSpan("root", ServiceName("bench"), ResourceName("/"))
+	defer root.Finish()
+	ctx := ContextWithSpan(context.TODO(), root)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := range b.N {
+		n := tagCounts[i%poolSize]
+		span, _ := StartSpanFromContext(ctx, "op")
+		for j := range n {
+			span.SetTag(keys[j], vals[j])
+		}
+		span.Finish()
+	}
 }
 
 func BenchmarkGenSpanID(b *testing.B) {
