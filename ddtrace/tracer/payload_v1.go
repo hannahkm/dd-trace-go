@@ -582,6 +582,10 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		// To avoid increased allocations, we serialize attributes immediately without
 		// creating an intermediate map.
 		size := len(span.meta) + len(span.metrics) + len(span.metaStruct)
+		_, containsSpanLinks := span.meta["_dd.span_links"]
+		if containsSpanLinks {
+			size--
+		}
 		p.buf = msgp.AppendUint32(p.buf, uint32(9))           // attributes fieldID
 		p.buf = msgp.AppendArrayHeader(p.buf, uint32(size)*3) // number of attributes
 		for k, v := range span.meta {

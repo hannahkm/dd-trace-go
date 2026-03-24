@@ -293,6 +293,8 @@ func TestPayloadV1SpanLinkTraceID(t *testing.T) {
 	span.spanLinks = []SpanLink{
 		{TraceID: 123, TraceIDHigh: 456, SpanID: 789},
 	}
+	span.setMeta("_dd.span_links", "test") // should not get serialized
+
 	_, err := p.push(spanList{span})
 	assert.NoError(err)
 
