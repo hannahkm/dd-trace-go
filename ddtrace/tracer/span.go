@@ -1046,11 +1046,6 @@ func (s *Span) finish(finishTime int64) {
 		log.Debug("Finished Span: %v, Operation: %s, Resource: %s, Tags: %v, %v", //nolint:gocritic // Debug logging needs full span representation
 			s, s.name, s.resource, s.meta, s.metrics)
 	}
-	// Inline promoted attrs into m before context.finish() so that by the time
-	// the trace is flushed to the writer, sm.m is fully populated and the
-	// serialization path (Msgsize/MarshalMsg) cannot race with Inline().
-	s.meta.Inline()
-
 	// Call context.finish() which handles trace-level bookkeeping and may modify
 	// this span (to set trace-level tags).
 	// Lock ordering is span.mu -> trace.mu.

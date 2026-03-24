@@ -164,9 +164,6 @@ type ciVisibilityEvent struct {
 // +checklocksignore — CI visibility event: reads span fields after SetTag releases lock.
 func (e *ciVisibilityEvent) SetTag(key string, value any) {
 	e.span.SetTag(key, value)
-	// No need to call Merge() here — it would allocate on every SetTag call.
-	// Content.Meta is rebuilt once in Finish(), after span.Finish() has
-	// called Inline(), so Merge() returns sm.m directly (zero allocation).
 	e.Content.Metrics = e.span.metrics
 }
 
@@ -212,9 +209,8 @@ func (e *ciVisibilityEvent) SetBaggageItem(key, val string) {
 //	opts - Optional finish options.
 func (e *ciVisibilityEvent) Finish(opts ...FinishOption) {
 	e.span.Finish(opts...)
-	// span.Finish() calls Inline(), so Merge() returns sm.m directly here —
-	// no allocation. Rebuild Content.Meta once with the final span state.
-	// Hold the span lock to avoid racing with the serialization worker.
+	// Rebuild Content.Meta once with the final span state, under the span
+	// lock to avoid racing with the serialization worker.
 	e.span.mu.Lock()
 	e.Content.Meta = e.span.meta.Merge()
 	e.Content.Metrics = e.span.metrics
