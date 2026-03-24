@@ -26,7 +26,7 @@ import (
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/internal/tracerstats"
-	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
+	traceinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	globalinternal "github.com/DataDog/dd-trace-go/v2/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/appsec"
 	appsecConfig "github.com/DataDog/dd-trace-go/v2/internal/appsec/config"
@@ -182,13 +182,13 @@ type tracer struct {
 	// When universalVersion=true it includes env+version; otherwise env only.
 	// All spans start by sharing this pointer; copy-on-write clones it
 	// only when a span needs to set per-span fields (component, spanKind).
-	sharedAttrs tinternal.SpanAttributes
+	sharedAttrs traceinternal.SpanAttributes
 
 	// sharedAttrsForMainSvc is like sharedAttrs but always includes version
 	// (when a version is configured). It is used for main-service spans when
 	// universalVersion=false so that the version write in StartSpan is a
 	// copy-on-write no-op rather than triggering an unnecessary Clone.
-	sharedAttrsForMainSvc tinternal.SpanAttributes
+	sharedAttrsForMainSvc traceinternal.SpanAttributes
 }
 
 type dynInstSubscriptions struct {
@@ -500,18 +500,18 @@ func newUnstartedTracer(opts ...StartOption) (t *tracer, err error) {
 	// Process-level values (env, version) are set once here;
 	// spans share this pointer and only clone on per-span overrides.
 	if env := c.internalConfig.Env(); env != "" {
-		t.sharedAttrs.Set(tinternal.AttrEnv, env)
-		t.sharedAttrsForMainSvc.Set(tinternal.AttrEnv, env)
+		t.sharedAttrs.Set(traceinternal.AttrEnv, env)
+		t.sharedAttrsForMainSvc.Set(traceinternal.AttrEnv, env)
 	}
 	if ver := c.internalConfig.Version(); ver != "" {
 		if c.universalVersion {
 			// universalVersion=true: all spans get version via sharedAttrs.
-			t.sharedAttrs.Set(tinternal.AttrVersion, ver)
+			t.sharedAttrs.Set(traceinternal.AttrVersion, ver)
 		}
 		// Always pre-populate sharedAttrsForMainSvc with version so that
 		// main-service spans in non-universal mode get a COW no-op rather
 		// than a Clone when StartSpan applies version (see below).
-		t.sharedAttrsForMainSvc.Set(tinternal.AttrVersion, ver)
+		t.sharedAttrsForMainSvc.Set(traceinternal.AttrVersion, ver)
 	}
 	t.sharedAttrs.MarkShared()
 	t.sharedAttrsForMainSvc.MarkShared()
@@ -768,7 +768,7 @@ func (t *tracer) pushChunk(trace *chunk) {
 }
 
 // +checklocksignore — Initialization time, span not yet shared.
-func spanStart(operationName string, sharedAttrs *tinternal.SpanAttributes, options ...StartSpanOption) *Span {
+func spanStart(operationName string, sharedAttrs *traceinternal.SpanAttributes, options ...StartSpanOption) *Span {
 	var opts StartSpanConfig
 	for _, fn := range options {
 		if fn == nil {
@@ -833,7 +833,7 @@ func spanStart(operationName string, sharedAttrs *tinternal.SpanAttributes, opti
 		traceID:       id,
 		start:         startTime,
 		integration:   "manual",
-		meta:          tinternal.NewSpanMeta(sharedAttrs), // COW: shared until a per-span field is set
+		meta:          traceinternal.NewSpanMeta(sharedAttrs), // COW: shared until a per-span field is set
 	}
 
 	span.spanLinks = append(span.spanLinks, opts.SpanLinks...)

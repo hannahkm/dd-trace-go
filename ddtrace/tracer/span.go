@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
-	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
+	traceinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	"github.com/DataDog/dd-trace-go/v2/instrumentation/errortrace"
 	sharedinternal "github.com/DataDog/dd-trace-go/v2/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/env"
@@ -142,7 +142,7 @@ type Span struct {
 	// meta holds string metadata. Promoted attributes (env, version, component,
 	// span.kind) live in meta.attrs and are excluded from meta.m; the custom
 	// msgp codec merges both for wire encoding.
-	meta tinternal.SpanMeta `msg:"meta,omitempty"` // arbitrary map of metadata + promoted attrs
+	meta traceinternal.SpanMeta `msg:"meta,omitempty"` // arbitrary map of metadata + promoted attrs
 	// +checklocks:mu
 	metaStruct metaStructMap `msg:"meta_struct,omitempty"` // arbitrary map of metadata with structured values
 	// +checklocks:mu
