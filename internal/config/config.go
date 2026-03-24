@@ -38,8 +38,9 @@ type Origin = telemetryapi.Origin
 
 // Re-exported origin constants for common configuration sources
 const (
-	OriginCode       = telemetryapi.OriginCode
-	OriginCalculated = telemetryapi.OriginCalculated
+	OriginCode       = telemetry.OriginCode
+	OriginCalculated = telemetry.OriginCalculated
+	OriginDefault    = telemetry.OriginDefault
 )
 
 // Config represents global configuration properties.
@@ -51,7 +52,8 @@ type Config struct {
 	agentURL *url.URL
 	debug    bool
 	// logStartup, when true, causes various startup info to be written when the tracer starts.
-	logStartup  bool
+	logStartup bool
+	// serviceName specifies the name of this application.
 	serviceName string
 	version     string
 	// env contains the environment that this application will run under.
