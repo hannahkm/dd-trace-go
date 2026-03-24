@@ -36,23 +36,3 @@ func TestResolveOTLPTraceURL(t *testing.T) {
 		assert.Equal(t, "http://localhost:4318/v1/traces", got)
 	})
 }
-
-func TestResolveOTLPHeaders(t *testing.T) {
-	t.Run("always includes Content-Type for protobuf", func(t *testing.T) {
-		got := resolveOTLPHeaders("")
-		assert.Equal(t, OTLPContentTypeHeader, got["Content-Type"])
-	})
-
-	t.Run("user headers plus Content-Type", func(t *testing.T) {
-		got := resolveOTLPHeaders("api-key=key,other=value")
-		assert.Equal(t, "key", got["api-key"])
-		assert.Equal(t, "value", got["other"])
-		assert.Equal(t, OTLPContentTypeHeader, got["Content-Type"])
-	})
-
-	t.Run("empty TRACES_HEADERS still gets Content-Type", func(t *testing.T) {
-		got := resolveOTLPHeaders("")
-		assert.Len(t, got, 1)
-		assert.Equal(t, OTLPContentTypeHeader, got["Content-Type"])
-	})
-}

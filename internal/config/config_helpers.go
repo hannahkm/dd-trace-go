@@ -157,12 +157,12 @@ func resolveOTLPTraceURL(rawAgentURL *url.URL, otlpTracesEndpoint string) string
 	return fmt.Sprintf("http://%s:%s%s", host, otlpDefaultPort, otlpTracesPath)
 }
 
-// resolveOTLPHeaders builds the OTLP trace headers map from
-// OTEL_EXPORTER_OTLP_TRACES_HEADERS. The required Content-Type header for
-// HTTP protobuf is always included.
-func resolveOTLPHeaders(otlpTracesHeaders string) map[string]string {
-	headers := make(map[string]string)
-	internal.ForEachStringTag(otlpTracesHeaders, "=", func(k, v string) { headers[k] = v })
+// buildOTLPHeaders builds the OTLP headers map from the provided map.
+// It adds the Content-Type header if not present.
+func buildOTLPHeaders(headers map[string]string) map[string]string {
+	if headers == nil {
+		headers = make(map[string]string)
+	}
 	headers["Content-Type"] = OTLPContentTypeHeader
 	return headers
 }
