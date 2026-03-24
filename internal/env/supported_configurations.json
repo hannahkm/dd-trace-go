@@ -1670,7 +1670,7 @@
       {
         "implementation": "B",
         "type": "string",
-        "default": ""
+        "default": null
       }
     ],
     "OTEL_EXPORTER_OTLP_TRACES_HEADERS": [
