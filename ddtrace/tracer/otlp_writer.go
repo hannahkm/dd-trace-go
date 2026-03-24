@@ -6,8 +6,11 @@
 package tracer
 
 import (
+	"fmt"
+	"io"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/internal/locking"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
@@ -21,6 +24,7 @@ var _ traceWriter = (*otlpTraceWriter)(nil)
 
 type otlpTraceWriter struct {
 	config   *config
+	sender   otlpSender
 	mu       locking.Mutex
 	resource *otlpresource.Resource
 	scope    *otlpcommon.InstrumentationScope
@@ -29,10 +33,24 @@ type otlpTraceWriter struct {
 	wg       sync.WaitGroup
 }
 
+// noopOTLPSender is a fallback sender that drops all payloads. Used when the
+// configured transport does not implement otlpSender.
+type noopOTLPSender struct{}
+
+func (noopOTLPSender) sendOTLP([]byte) (io.ReadCloser, error) {
+	return nil, fmt.Errorf("OTLP sending is not supported by the configured transport")
+}
+
 func newOTLPTraceWriter(c *config) *otlpTraceWriter {
+	sender, ok := c.transport.(otlpSender)
+	if !ok {
+		log.Error("OTLP trace writer: transport %T does not implement otlpSender; traces will be dropped", c.transport)
+		sender = noopOTLPSender{}
+	}
 	return &otlpTraceWriter{
 		config:   c,
-		resource: buildResource(c),
+		sender:   sender,
+		resource: buildResource(c.internalConfig),
 		scope:    &otlpcommon.InstrumentationScope{Name: "dd-trace-go"},
 		spans:    make([]*otlptrace.Span, 0),
 		climit:   make(chan struct{}, concurrentConnectionLimit),
@@ -51,32 +69,57 @@ func (w *otlpTraceWriter) add(spanList []*Span) {
 
 func (w *otlpTraceWriter) flush() {
 	w.mu.Lock()
-	defer w.mu.Unlock()
-	tracesData := &otlptrace.TracesData{
-		ResourceSpans: []*otlptrace.ResourceSpans{
-			{
-				Resource: w.resource,
-				ScopeSpans: []*otlptrace.ScopeSpans{
-					{
-						Scope: w.scope,
-						Spans: w.spans,
+	if len(w.spans) == 0 {
+		w.mu.Unlock()
+		return
+	}
+	readySpans := w.spans
+	w.spans = make([]*otlptrace.Span, 0)
+	w.mu.Unlock()
+
+	w.climit <- struct{}{}
+	w.wg.Add(1)
+	go func() {
+		defer func() {
+			<-w.climit
+			w.wg.Done()
+		}()
+
+		spanCount := len(readySpans)
+		tracesData := &otlptrace.TracesData{
+			ResourceSpans: []*otlptrace.ResourceSpans{
+				{
+					Resource: w.resource,
+					ScopeSpans: []*otlptrace.ScopeSpans{
+						{
+							Scope: w.scope,
+							Spans: readySpans,
+						},
 					},
 				},
 			},
-		},
-	}
-	_, err := proto.Marshal(tracesData)
-	if err != nil {
-		log.Error("Error marshalling OTLP traces data: %s", err.Error())
-		return
-	}
-	// w.climit <- struct{}{}
-	// w.wg.Add(1)
-	// go func() {
-	// 	defer w.wg.Done()
-	// 	<-w.climit
-	// 	w.config.transport.send(b)
-	// }()
+		}
+		b, err := proto.Marshal(tracesData)
+		readySpans = nil
+		tracesData = nil
+		if err != nil {
+			log.Error("Error marshalling OTLP traces data: %s", err.Error())
+			return
+		}
+
+		var sendErr error
+		for attempt := 0; attempt <= w.config.sendRetries; attempt++ {
+			log.Debug("OTLP: attempt %d to send payload: %d bytes, %d spans", attempt+1, len(b), spanCount)
+			_, sendErr = w.sender.sendOTLP(b)
+			if sendErr == nil {
+				log.Debug("OTLP: sent traces after %d attempts", attempt+1)
+				return
+			}
+			log.Error("OTLP: failure sending traces (attempt %d of %d): %v", attempt+1, w.config.sendRetries+1, sendErr)
+			time.Sleep(w.config.internalConfig.RetryInterval())
+		}
+		log.Error("OTLP: lost %d spans: %v", spanCount, sendErr)
+	}()
 }
 
 func (w *otlpTraceWriter) stop() {

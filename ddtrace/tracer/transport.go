@@ -46,7 +46,7 @@ const (
 
 // transport is an interface for communicating data to the agent.
 type transport interface {
-	// send sends the payload p to the agent using the transport set up.
+	// send sends the msgpack-encoded payload p to the agent using the transport set up.
 	// It returns a non-nil response body when no error occurred.
 	send(p payload) (body io.ReadCloser, err error)
 	// sendStats sends the given stats payload to the agent.
@@ -54,6 +54,13 @@ type transport interface {
 	sendStats(s *pb.ClientStatsPayload, tracerObfuscationVersion int) error
 	// endpoint returns the URL to which the transport will send traces.
 	endpoint() string
+}
+
+// otlpSender is a narrow interface for sending protobuf-encoded OTLP trace payloads.
+// It is satisfied by httpTransport and used by otlpTraceWriter to avoid coupling
+// the OTLP export path to the full transport interface.
+type otlpSender interface {
+	sendOTLP(data []byte) (body io.ReadCloser, err error)
 }
 
 type httpTransport struct {
@@ -183,6 +190,29 @@ func (t *httpTransport) send(p payload) (body io.ReadCloser, err error) {
 			return nil, fmt.Errorf("%s (Status: %s)", msg[:n], txt)
 		}
 		return nil, fmt.Errorf("%s", txt)
+	}
+	return response.Body, nil
+}
+
+// sendOTLP sends a protobuf-encoded OTLP payload to the configured trace endpoint.
+// Content-Length is set automatically by net/http because the body is a *bytes.Reader.
+func (t *httpTransport) sendOTLP(p []byte) (body io.ReadCloser, err error) {
+	req, err := http.NewRequest("POST", t.traceURL, bytes.NewReader(p))
+	if err != nil {
+		return nil, fmt.Errorf("cannot create http request: %s", err)
+	}
+	for header, value := range t.headers {
+		req.Header.Set(header, value)
+	}
+	response, err := t.client.Do(req)
+	// TODO: t.statsd will point to  an agent address that is probably not in use; we need to decide what to do with these metrics.
+	if err != nil {
+		// reportAPIErrorsMetric(response, err, tracesAPIPath)
+		return nil, err
+	}
+	if code := response.StatusCode; code >= 400 {
+		// reportAPIErrorsMetric(response, err, tracesAPIPath)
+		return nil, fmt.Errorf("status code: %d", code)
 	}
 	return response.Body, nil
 }
