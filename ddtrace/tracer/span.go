@@ -731,17 +731,14 @@ func (s *Span) setMetaLocked(key, v string) {
 	s.setMetaInit(key, v)
 }
 
-// setMetaTagLocked is like setMetaLocked but routes promoted keys to COW attrs
-// via meta.Set, keeping them out of the flat map. Used by setTagLocked where
-// the key may be any user-supplied string.
+// setMetaTagLocked is like setMetaLocked but routes promoted keys to COW attrs,
+// keeping them out of the tag store. Used by setTagLocked where the key may be
+// any user-supplied string.
 // +checklocks:s.mu
 func (s *Span) setMetaTagLocked(key, v string) {
-	if tinternal.IsPromotedKeyLen(len(key)) {
-		if _, ok := tinternal.AttrKeyForTag(key); ok {
-			delete(s.metrics, key)
-			s.meta.Set(key, v)
-			return
-		}
+	if s.meta.SetIfPromoted(key, v) {
+		delete(s.metrics, key)
+		return
 	}
 	s.setMetaInit(key, v)
 }

@@ -254,43 +254,24 @@ func TestSpanMetaSetPromotedNoOpWhenPresent(t *testing.T) {
 	}
 }
 
-// BenchmarkMerge measures the allocation cost of Merge() before and after Inline().
-//
-// Before Inline(), Merge() must allocate a fresh map to combine m and attrs.
-// After Inline(), all promoted attrs are already in m and Merge() returns sm.m
-// directly — zero allocation.
+// BenchmarkMerge measures the allocation cost of Merge() with both tag store
+// entries and promoted attrs set.
 func BenchmarkMerge(b *testing.B) {
-	newMeta := func() SpanMeta {
-		var a SpanAttributes
-		a.Set(AttrEnv, "prod")
-		a.Set(AttrVersion, "1.2.3")
-		a.Set(AttrComponent, "net/http")
-		a.Set(AttrSpanKind, "server")
-		sm := NewSpanMeta(&a)
-		sm.SetMap("key0", "value0")
-		sm.SetMap("key1", "value1")
-		sm.SetMap("key2", "value2")
-		sm.SetMap("key3", "value3")
-		sm.SetMap("key4", "value4")
-		return sm
+	var a SpanAttributes
+	a.Set(AttrEnv, "prod")
+	a.Set(AttrVersion, "1.2.3")
+	a.Set(AttrComponent, "net/http")
+	a.Set(AttrSpanKind, "server")
+	sm := NewSpanMeta(&a)
+	sm.SetMap("key0", "value0")
+	sm.SetMap("key1", "value1")
+	sm.SetMap("key2", "value2")
+	sm.SetMap("key3", "value3")
+	sm.SetMap("key4", "value4")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		_ = sm.Merge()
 	}
-
-	b.Run("before-Inline", func(b *testing.B) {
-		sm := newMeta()
-		b.ReportAllocs()
-		b.ResetTimer()
-		for range b.N {
-			_ = sm.Merge()
-		}
-	})
-
-	b.Run("after-Inline", func(b *testing.B) {
-		sm := newMeta()
-		sm.Inline()
-		b.ReportAllocs()
-		b.ResetTimer()
-		for range b.N {
-			_ = sm.Merge()
-		}
-	})
 }

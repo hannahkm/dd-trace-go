@@ -16,7 +16,6 @@ import (
 	"github.com/tinylib/msgp/msgp"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
-	tinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
 	"github.com/DataDog/dd-trace-go/v2/internal/processtags"
 )
@@ -565,13 +564,12 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		// creating an intermediate map.
 		// Promoted attrs (env, version, component, span.kind) are encoded separately
 		// as fields 13-16 and must not appear in the attributes array.
-		size := span.meta.Count() - span.meta.AttrCount() + len(span.metrics) + len(span.metaStruct)
+		size := span.meta.SerializableCount() + len(span.metrics) + len(span.metaStruct)
 		p.buf = msgp.AppendUint32(p.buf, uint32(9))           // attributes fieldID
 		p.buf = msgp.AppendArrayHeader(p.buf, uint32(size)*3) // number of attributes
-		// After Inline(), promoted keys are present in both m and attrs.
-		// Range iterates m directly; we must skip promoted keys here to
-		// avoid double-encoding them (they are encoded as fields 13-16).
-		span.meta.RangeInlined(p.encodeMetaEntry)
+		// Promoted keys live only in attrs, never in the tag store, so
+		// encodeMetaEntry skipping them is a safety guard, not a dedup.
+		span.meta.Range(p.encodeMetaEntry)
 		for k, v := range span.metrics {
 			p.buf = st.serialize(k, p.buf)
 			p.buf = msgp.AppendUint32(p.buf, uint32(FloatValueType))
@@ -596,10 +594,10 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		// val() is used: an absent key and an empty value are both encoded as an
 		// empty string, so the "was it set?" distinction is irrelevant for wire encoding.
 		var (
-			env, _       = span.meta.Attr(tinternal.AttrEnv)
-			version, _   = span.meta.Attr(tinternal.AttrVersion)
-			component, _ = span.meta.Attr(tinternal.AttrComponent)
-			spanKind, _  = span.meta.Attr(tinternal.AttrSpanKind)
+			env, _       = span.meta.Env()
+			version, _   = span.meta.Version()
+			component, _ = span.meta.Component()
+			spanKind, _  = span.meta.SpanKind()
 		)
 		p.buf = encodeField(p.buf, fullSetBitmap, 13, env, st)
 		p.buf = encodeField(p.buf, fullSetBitmap, 14, version, st)
@@ -610,12 +608,9 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 }
 
 // encodeMetaEntry is a named callback for SpanMeta.Range. It encodes one
-// non-promoted meta entry into p.buf using p.st. Promoted keys (env, version,
-// component, span.kind) are skipped; they are encoded as dedicated fields 13-16.
+// meta entry into p.buf using p.st. Promoted keys never enter the tag store
+// so they cannot appear here; they are encoded separately as fields 13-16.
 func (p *payloadV1) encodeMetaEntry(k, v string) bool {
-	if _, ok := tinternal.AttrKeyForTag(k); ok {
-		return true // skip; encoded as fields 13-16
-	}
 	p.buf = p.st.serialize(k, p.buf)
 	p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))
 	p.buf = p.st.serialize(v, p.buf)
