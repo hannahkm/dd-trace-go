@@ -6,6 +6,7 @@
 package tracer
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,8 +15,49 @@ import (
 	otlpcommon "go.opentelemetry.io/proto/otlp/common/v1"
 	otlptrace "go.opentelemetry.io/proto/otlp/trace/v1"
 
+	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
+	"github.com/DataDog/dd-trace-go/v2/internal/version"
+
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
+	"github.com/DataDog/dd-trace-go/v2/internal/samplernames"
 )
+
+func TestBuildResource(t *testing.T) {
+	t.Run("nil config", func(t *testing.T) {
+		r := buildResource(nil)
+		require.NotNil(t, r)
+		assert.Empty(t, r.Attributes)
+	})
+
+	t.Run("populated", func(t *testing.T) {
+		cfg := internalconfig.CreateNew()
+		cfg.SetServiceName("my-service", internalconfig.OriginCode)
+		cfg.SetEnv("prod", internalconfig.OriginCode)
+		cfg.SetVersion("1.2.3", internalconfig.OriginCode)
+
+		r := buildResource(cfg)
+		attrs := keyValuesToMap(r.Attributes)
+
+		assert.Equal(t, "my-service", attrs["service.name"])
+		assert.Equal(t, "prod", attrs["deployment.environment.name"])
+		assert.Equal(t, "1.2.3", attrs["service.version"])
+		assert.Equal(t, "go", attrs["telemetry.sdk.language"])
+		assert.Equal(t, "datadog", attrs["telemetry.sdk.name"])
+		assert.Equal(t, version.Tag, attrs["telemetry.sdk.version"])
+	})
+
+	t.Run("optional fields omitted when empty", func(t *testing.T) {
+		cfg := internalconfig.CreateNew()
+		cfg.SetServiceName("svc", internalconfig.OriginCode)
+
+		r := buildResource(cfg)
+		attrs := keyValuesToMap(r.Attributes)
+
+		assert.Equal(t, "svc", attrs["service.name"])
+		_, hasEnv := attrs["deployment.environment.name"]
+		assert.False(t, hasEnv, "deployment.environment.name should be absent when env is empty")
+	})
+}
 
 func TestConvertSpan(t *testing.T) {
 	s := newSpan("op", "svc", "my-resource", 100, 200, 50)
@@ -28,18 +70,63 @@ func TestConvertSpan(t *testing.T) {
 	s.meta[ext.ErrorMsg] = "something failed"
 
 	otlp := convertSpan(s)
+	require.NotNil(t, otlp)
 
+	// DD resource → OTLP name (spec: "resource field must be encoded as the OTLP span's name field")
 	assert.Equal(t, "my-resource", otlp.Name)
+
 	assert.Equal(t, uint64(1000), otlp.StartTimeUnixNano)
 	assert.Equal(t, uint64(1100), otlp.EndTimeUnixNano)
 	assert.Equal(t, otlptrace.Span_SPAN_KIND_SERVER, otlp.Kind)
+
+	// parent_span_id
+	assert.Equal(t, uint64(50), binary.BigEndian.Uint64(otlp.ParentSpanId))
+
+	// trace_id and span_id are populated
+	assert.Len(t, otlp.TraceId, 16)
+	assert.Len(t, otlp.SpanId, 8)
+	assert.Equal(t, uint64(100), binary.BigEndian.Uint64(otlp.SpanId))
+
+	// Status
 	require.NotNil(t, otlp.Status)
 	assert.Equal(t, otlptrace.Status_STATUS_CODE_ERROR, otlp.Status.Code)
 	assert.Equal(t, "something failed", otlp.Status.Message)
 
+	// Attributes: meta as strings, metrics as doubles
 	attrs := keyValuesToMap(otlp.Attributes)
 	assert.Equal(t, "meta.val", attrs["meta.key"])
 	assert.Equal(t, 42.5, attrs["metric.key"])
+}
+
+func TestConvertSpanFiltersUnsampled(t *testing.T) {
+	tests := []struct {
+		name     string
+		priority int
+		wantNil  bool
+	}{
+		{"auto-reject", ext.PriorityAutoReject, true},
+		{"auto-keep", ext.PriorityAutoKeep, false},
+		{"user-keep", ext.PriorityUserKeep, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSpan("op", "svc", "res", 1, 1, 0)
+			s.context.setSamplingPriority(tt.priority, samplernames.Unknown)
+			result := convertSpan(s)
+			if tt.wantNil {
+				assert.Nil(t, result)
+			} else {
+				assert.NotNil(t, result)
+			}
+		})
+	}
+}
+
+func TestConvertSpanPriorityUnset(t *testing.T) {
+	s := newSpan("op", "svc", "res", 1, 1, 0)
+	// priority is not set — span should be included (not dropped)
+	result := convertSpan(s)
+	assert.NotNil(t, result)
 }
 
 func TestConvertSpanKind(t *testing.T) {
