@@ -722,8 +722,7 @@ func (s *Span) setMeta(key, v string) {
 }
 
 // setMetaLocked sets a string tag. This method assumes the span lock is already held.
-// Promoted keys (env, version, component, span.kind) are written to the flat
-// map via setMetaInit/SetMap — callers that may receive promoted keys should
+// Callers that may receive user-supplied keys (including promoted ones) should
 // use setMetaTagLocked instead.
 // +checklocks:s.mu
 func (s *Span) setMetaLocked(key, v string) {
@@ -757,7 +756,7 @@ func (s *Span) setMetaInit(key, v string) {
 	case ext.SpanType:
 		s.spanType = v
 	default:
-		s.meta.SetMap(key, v)
+		s.meta.Set(key, v)
 	}
 }
 
@@ -806,7 +805,7 @@ func (s *Span) setMetricInit(key string, v float64) {
 	if s.metrics == nil {
 		s.metrics = make(map[string]float64, 1)
 	}
-	s.meta.DeleteMap(key)
+	s.meta.Delete(key)
 	// Note: We don't handle ManualKeep or _sampling_priority_v1shim during init
 	// because those require modifying trace-level state which needs locking
 	s.metrics[key] = v
@@ -826,7 +825,7 @@ func (s *Span) setMetricLocked(key string, v float64) {
 	if s.metrics == nil {
 		s.metrics = make(map[string]float64, 1)
 	}
-	s.meta.DeleteMap(key)
+	s.meta.Delete(key)
 	switch key {
 	case ext.ManualKeep:
 		if v == float64(samplernames.AppSec) {

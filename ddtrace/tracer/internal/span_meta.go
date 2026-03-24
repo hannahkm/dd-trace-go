@@ -6,7 +6,6 @@
 package internal
 
 import (
-	"fmt"
 	"iter"
 	"strings"
 
@@ -112,11 +111,6 @@ func (sm SpanMeta) Has(key string) bool {
 	return ok
 }
 
-// Attr returns a promoted attribute value by AttrKey. O(1) array index + bitmask.
-func (sm SpanMeta) Attr(key AttrKey) (string, bool) {
-	return sm.attrs.Get(key)
-}
-
 // Env returns the value of the "env" promoted attribute.
 func (sm SpanMeta) Env() (string, bool) { return sm.attrs.Get(AttrEnv) }
 
@@ -151,24 +145,8 @@ func (sm SpanMeta) Range(fn func(k, v string) bool) {
 }
 
 // ---------------------------------------------------------------------------
-// Write methods — fast (map-only) and full (promoted-aware) variants.
+// Write methods
 // ---------------------------------------------------------------------------
-
-// SetMap writes key=value directly to the flat map without checking for
-// promoted attributes. This method is designed to be inlinable so that
-// setMetaInit remains inlinable.
-func (sm *SpanMeta) SetMap(key, value string) {
-	if sm.m == nil {
-		sm.m = make(map[string]string, metaMapHint)
-	}
-	sm.m[key] = value
-}
-
-// DeleteMap removes key from the flat map only. Safe to call on a nil map.
-// Like SetMap, this bypasses promoted-key routing for performance.
-func (sm *SpanMeta) DeleteMap(key string) {
-	delete(sm.m, key)
-}
 
 // Set sets key→value, routing promoted keys to attrs (with copy-on-write)
 // and others to the flat map.
@@ -336,7 +314,9 @@ func (sm SpanMeta) String() string {
 			b.WriteByte(' ')
 		}
 		first = false
-		fmt.Fprintf(&b, "%s:%s", k, v)
+		b.WriteString(k)
+		b.WriteByte(':')
+		b.WriteString(v)
 	}
 	b.WriteByte(']')
 	return b.String()
