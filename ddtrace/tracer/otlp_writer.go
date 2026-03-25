@@ -10,12 +10,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/dd-trace-go/v2/internal/locking"
-	"github.com/DataDog/dd-trace-go/v2/internal/log"
 	otlpcommon "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresource "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptrace "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/DataDog/dd-trace-go/v2/internal/locking"
+	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
 
 var _ traceWriter = (*otlpTraceWriter)(nil)

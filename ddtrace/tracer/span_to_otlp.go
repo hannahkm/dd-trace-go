@@ -8,13 +8,13 @@ package tracer
 import (
 	"encoding/binary"
 
-	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
-	"github.com/DataDog/dd-trace-go/v2/internal/version"
 	otlpcommon "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresource "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptrace "go.opentelemetry.io/proto/otlp/trace/v1"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
+	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
+	"github.com/DataDog/dd-trace-go/v2/internal/version"
 )
 
 // -----------------------------------------------------------------------------

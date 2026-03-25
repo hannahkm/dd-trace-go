@@ -15,12 +15,12 @@ import (
 	"testing"
 	"time"
 
-	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otlptrace "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/protobuf/proto"
+
+	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
 )
 
 // testOTLPServer is a test HTTP server that captures OTLP payloads.
