@@ -143,10 +143,19 @@ func detectUDSURL() *url.URL {
 	}
 }
 
-// resolveOTLPTraceURL resolves the OTLP trace endpoint from OTEL_EXPORTER_OTLP_TRACES_ENDPOINT if set, else agentURL host + default OTLP port 4318 + /v1/traces
+// resolveOTLPTraceURL resolves the OTLP trace endpoint from OTEL_EXPORTER_OTLP_TRACES_ENDPOINT if set, else agentURL host + default OTLP port 4318 + /v1/traces.
+// When the user-provided endpoint is set, it is validated: it must be a parseable URL with an http or https scheme.
+// If validation fails, the default endpoint is used instead.
 func resolveOTLPTraceURL(rawAgentURL *url.URL, otlpTracesEndpoint string) string {
 	if otlpTracesEndpoint != "" {
-		return otlpTracesEndpoint
+		u, err := url.Parse(otlpTracesEndpoint)
+		if err != nil {
+			log.Warn("Failed to parse OTEL_EXPORTER_OTLP_TRACES_ENDPOINT %q: %s. Falling back to default.", otlpTracesEndpoint, err.Error())
+		} else if u.Scheme != URLSchemeHTTP && u.Scheme != URLSchemeHTTPS {
+			log.Warn("Unsupported scheme %q in OTEL_EXPORTER_OTLP_TRACES_ENDPOINT %q. Must be %s or %s. Falling back to default.", u.Scheme, otlpTracesEndpoint, URLSchemeHTTP, URLSchemeHTTPS)
+		} else {
+			return otlpTracesEndpoint
+		}
 	}
 	host := internal.DefaultAgentHostname
 	if rawAgentURL != nil {

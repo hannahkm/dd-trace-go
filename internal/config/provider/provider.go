@@ -154,7 +154,7 @@ func (p *Provider) GetFloatWithValidator(key string, def float64, validate func(
 	})
 }
 
-// / IsSet returns true if any configuration source provides a non-empty value for the key.
+// IsSet returns true if any configuration source provides a non-empty value for the key.
 //
 // TODO: populate an isSet field on the Provider at the time of iterating over
 // sources instead of re-querying them here.
