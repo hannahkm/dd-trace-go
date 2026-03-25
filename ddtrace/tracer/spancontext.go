@@ -28,6 +28,17 @@ import (
 
 const TraceIDZero string = "00000000000000000000000000000000"
 
+// traceID128BitEnabled caches DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED
+// at init time so that newSpanContext avoids calling BoolEnv on every span.
+// It is re-set by newConfig on every tracer start so that restarts pick up
+// any changed value. The init here ensures it is correct even when using
+// mocktracer (which does not call newConfig).
+var traceID128BitEnabled atomic.Bool
+
+func init() {
+	traceID128BitEnabled.Store(sharedinternal.BoolEnv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", true))
+}
+
 var _ ddtrace.SpanContext = (*SpanContext)(nil)
 
 // traceID in big endian, i.e. <upper><lower>
@@ -196,8 +207,11 @@ func FromGenericCtx(c ddtrace.SpanContext) *SpanContext {
 	if sc.trace == nil {
 		sc.trace = newTrace()
 	}
-	sc.trace.tags = ctx.Tags()                       // +checklocksignore - Initialization time, not shared yet.
-	sc.trace.propagatingTags = ctx.PropagatingTags() // +checklocksignore - Initialization time, not shared yet.
+	sc.trace.tags = ctx.Tags()                                    // +checklocksignore - Initialization time, not shared yet.
+	sc.trace.propagatingTags = ctx.PropagatingTags()              // +checklocksignore - Initialization time, not shared yet.
+	if dm, ok := sc.trace.propagatingTags[keyDecisionMaker]; ok { // +checklocksignore - Initialization time, not shared yet.
+		sc.trace.dm = parseDecisionMaker(dm) // +checklocksignore - Initialization time, not shared yet.
+	}
 	return &sc
 }
 
@@ -225,7 +239,7 @@ func newSpanContext(span *Span, parent *SpanContext) *SpanContext {
 			context.setBaggageItem(k, v)
 			return true
 		})
-	} else if sharedinternal.BoolEnv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", true) {
+	} else if traceID128BitEnabled.Load() {
 		// add 128 bit trace id, if enabled, formatted as big-endian:
 		// <32-bit unix seconds> <32 bits of zero> <64 random bits>
 		id128 := time.Duration(span.start) / time.Second
@@ -464,6 +478,10 @@ type trace struct {
 	// specifies if the sampling priority can be altered
 	// +checklocks:mu
 	locked bool
+	// dm is the numeric form of _dd.p.dm for v1 protocol encoding.
+	// It is the absolute value of the parsed integer (e.g., "-4" → 4).
+	// +checklocks:mu
+	dm uint32
 	// samplingDecision indicates whether to send the trace to the agent.
 	samplingDecision samplingDecision // +checkatomic
 
@@ -600,7 +618,7 @@ func (t *trace) setSamplingPriorityLockedWithForce(p int, sampler samplernames.S
 		}
 	}
 	if p <= 0 && existed {
-		delete(t.propagatingTags, keyDecisionMaker)
+		t.unsetPropagatingTagLocked(keyDecisionMaker)
 	}
 
 	return updatedPriority
