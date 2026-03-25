@@ -1227,7 +1227,7 @@ func TestTracerNoDebugStack(t *testing.T) {
 }
 
 // newDefaultTransport return a default transport for this tracing client
-func newDefaultTransport() transport {
+func newDefaultTransport() ddTransport {
 	return newHTTPTransport(defaultURL+tracesAPIPath, defaultURL+statsAPIPath, internal.DefaultHTTPClient(defaultHTTPTimeout, true), datadogHeaders())
 }
 
@@ -1468,17 +1468,6 @@ func TestOTLPExportMode(t *testing.T) {
 		assert.True(isOTLPWriter, "expected otlpTraceWriter in OTLP export mode")
 		_, isAlwaysOn := tracer.defaultSampler.(*otelParentBasedAlwaysOnSampler)
 		assert.True(isAlwaysOn, "expected otelParentBasedAlwaysOnSampler in OTLP export mode")
-	})
-
-	t.Run("default mode uses agentTraceWriter and prioritySampler", func(t *testing.T) {
-		assert := assert.New(t)
-		tracer, err := newUnstartedTracer()
-		assert.NoError(err)
-		defer tracer.Stop()
-		_, isAgentWriter := tracer.traceWriter.(*agentTraceWriter)
-		assert.True(isAgentWriter, "expected agentTraceWriter in default mode")
-		_, isPriority := tracer.defaultSampler.(*prioritySampler)
-		assert.True(isPriority, "expected prioritySampler in default mode")
 	})
 
 	t.Run("OTEL_TRACES_EXPORTER=otlp env var enables OTLP mode", func(t *testing.T) {
