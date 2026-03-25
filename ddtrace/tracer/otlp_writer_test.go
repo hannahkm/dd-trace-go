@@ -69,14 +69,12 @@ func newTestOTLPWriter(t *testing.T, srv *testOTLPServer, opts ...StartOption) *
 	})...)
 	require.NoError(t, err)
 	return &otlpTraceWriter{
-		config:   cfg,
-		client:   srv.Client(),
-		traceURL: srv.URL,
-		headers:  map[string]string{"Content-Type": "application/x-protobuf"},
-		resource: buildResource(cfg.internalConfig),
-		scope:    nil,
-		spans:    make([]*otlptrace.Span, 0),
-		climit:   make(chan struct{}, concurrentConnectionLimit),
+		config:    cfg,
+		transport: newOTLPTransport(srv.Client(), srv.URL, map[string]string{"Content-Type": "application/x-protobuf"}),
+		resource:  buildResource(cfg.internalConfig),
+		scope:     nil,
+		spans:     make([]*otlptrace.Span, 0),
+		climit:    make(chan struct{}, concurrentConnectionLimit),
 	}
 }
 
@@ -209,8 +207,7 @@ func TestOTLPWriterFlushRetries(t *testing.T) {
 				c.sendRetries = tc.configRetries
 				c.internalConfig.SetRetryInterval(time.Millisecond, internalconfig.OriginCode)
 			})
-			w.traceURL = countingSrv.URL
-			w.client = countingSrv.Client()
+			w.transport = newOTLPTransport(countingSrv.Client(), countingSrv.URL, map[string]string{"Content-Type": "application/x-protobuf"})
 
 			w.add([]*Span{newSpan("op", "svc", "res", 1, 1, 0)})
 			w.flush()

@@ -6,9 +6,6 @@
 package tracer
 
 import (
-	"bytes"
-	"fmt"
-	"net/http"
 	"slices"
 	"sync"
 	"time"
@@ -24,29 +21,25 @@ import (
 var _ traceWriter = (*otlpTraceWriter)(nil)
 
 type otlpTraceWriter struct {
-	config   *config
-	client   *http.Client
-	traceURL string
-	headers  map[string]string
-	mu       locking.Mutex
-	resource *otlpresource.Resource
-	scope    *otlpcommon.InstrumentationScope
-	spans    []*otlptrace.Span // +checklocks:mu
-	climit   chan struct{}
-	wg       sync.WaitGroup
+	config    *config
+	transport *otlpTransport
+	mu        locking.Mutex
+	resource  *otlpresource.Resource
+	scope     *otlpcommon.InstrumentationScope
+	spans     []*otlptrace.Span // +checklocks:mu
+	climit    chan struct{}
+	wg        sync.WaitGroup
 }
 
 func newOTLPTraceWriter(c *config) *otlpTraceWriter {
 	return &otlpTraceWriter{
-		config:   c,
-		client:   c.httpClient,
-		traceURL: c.internalConfig.OTLPTraceURL(),
-		headers:  c.internalConfig.OTLPHeaders(),
-		resource: buildResource(c.internalConfig),
-		scope:    &otlpcommon.InstrumentationScope{Name: "dd-trace-go"},
-		spans:    make([]*otlptrace.Span, 0),
-		climit:   make(chan struct{}, concurrentConnectionLimit),
-		wg:       sync.WaitGroup{},
+		config:    c,
+		transport: newOTLPTransport(c.httpClient, c.internalConfig.OTLPTraceURL(), c.internalConfig.OTLPHeaders()),
+		resource:  buildResource(c.internalConfig),
+		scope:     &otlpcommon.InstrumentationScope{Name: "dd-trace-go"},
+		spans:     make([]*otlptrace.Span, 0),
+		climit:    make(chan struct{}, concurrentConnectionLimit),
+		wg:        sync.WaitGroup{},
 	}
 }
 
@@ -60,26 +53,6 @@ func (w *otlpTraceWriter) add(spanList []*Span) {
 			w.spans = append(w.spans, otlpSpan)
 		}
 	}
-}
-
-// send posts a protobuf-encoded OTLP payload to the configured collector endpoint.
-func (w *otlpTraceWriter) send(data []byte) error {
-	req, err := http.NewRequest("POST", w.traceURL, bytes.NewReader(data))
-	if err != nil {
-		return fmt.Errorf("cannot create http request: %s", err)
-	}
-	for header, value := range w.headers {
-		req.Header.Set(header, value)
-	}
-	resp, err := w.client.Do(req)
-	if err != nil {
-		return err
-	}
-	resp.Body.Close()
-	if code := resp.StatusCode; code >= 400 {
-		return fmt.Errorf("HTTP %d: %s", code, http.StatusText(code))
-	}
-	return nil
 }
 
 func (w *otlpTraceWriter) flush() {
@@ -125,7 +98,7 @@ func (w *otlpTraceWriter) flush() {
 		var sendErr error
 		for attempt := 0; attempt <= w.config.sendRetries; attempt++ {
 			log.Debug("OTLP: attempt %d to send payload: %d bytes, %d spans", attempt+1, len(b), spanCount)
-			sendErr = w.send(b)
+			sendErr = w.transport.send(b)
 			if sendErr == nil {
 				log.Debug("OTLP: sent traces after %d attempts", attempt+1)
 				return
