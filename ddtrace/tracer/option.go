@@ -529,12 +529,11 @@ func apmTracingDisabled(c *config) {
 	c.internalConfig.SetRuntimeMetricsV2Enabled(false, internalconfig.OriginCalculated)
 }
 
-// resolveTraceTransport returns the trace URL and headers for the transport
-// based on whether OTLP export mode is active.
+// resolveTraceTransport returns the trace URL and headers for the Datadog
+// agent transport. In OTLP export mode the ddTransport is not used for trace
+// sending (otlpTransport handles that), but it may still be used for stats
+// and agent discovery, so it always points at the DD agent.
 func resolveTraceTransport(cfg *internalconfig.Config) (traceURL string, headers map[string]string) {
-	if cfg.OTLPExportMode() {
-		return cfg.OTLPTraceURL(), cfg.OTLPHeaders()
-	}
 	agentURL := cfg.AgentURL().String()
 	traceURL = agentURL + tracesAPIPath
 	if cfg.TraceProtocol() == traceProtocolV1 {
