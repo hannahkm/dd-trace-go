@@ -157,6 +157,7 @@ func convertSpanAttributes(s *Span, defaultServiceName string) []*otlpcommon.Key
 	if s.service != defaultServiceName {
 		attributes = append(attributes, otlpKeyValue("service.name", otlpStringValue(s.service)))
 	}
+	// TODO: add meta_struct attributes
 	return attributes
 }
 
