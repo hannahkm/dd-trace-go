@@ -6,7 +6,6 @@
 package config
 
 import (
-	"fmt"
 	"net/url"
 	"reflect"
 	"sort"
@@ -522,7 +521,6 @@ func TestOTLPHeaders(t *testing.T) {
 		require.NotNil(t, cfg)
 
 		headers := cfg.OTLPHeaders()
-		fmt.Println(t, headers)
 		assert.Equal(t, "secret", headers["api-key"])
 		assert.Equal(t, "value", headers["x-custom"])
 		assert.Equal(t, OTLPContentTypeHeader, headers["Content-Type"])
