@@ -1810,7 +1810,7 @@ func TestSpanLinksInMeta(t *testing.T) {
 		sp.AddLink(SpanLink{SpanID: 789, TraceID: 012})
 		sp.Finish()
 
-		_, ok := sp.meta["_dd.span_links"]
+		_, ok := sp.meta.Get("_dd.span_links")
 		assert.False(t, ok, "Expected no _dd.span_links in meta when native links are supported.")
 		assert.Len(t, sp.spanLinks, 2, "Expected spanLinks slice to be preserved for native encoding.")
 	})

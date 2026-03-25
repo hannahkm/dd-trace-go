@@ -7,6 +7,7 @@ package internal
 
 import (
 	"iter"
+	"maps"
 	"strings"
 
 	"github.com/tinylib/msgp/msgp"
@@ -270,9 +271,7 @@ func (sm SpanMeta) Merge() map[string]string {
 		return nil
 	}
 	m := make(map[string]string, n)
-	for k, v := range sm.m {
-		m[k] = v
-	}
+	maps.Copy(m, sm.m)
 	for _, d := range Defs {
 		if sm.attrs.Has(d.Key) {
 			m[d.Name] = sm.attrs.vals[d.Key]
