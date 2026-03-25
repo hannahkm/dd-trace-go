@@ -245,26 +245,22 @@ func TestOTLPWriterConcurrency(t *testing.T) {
 	var spansAdded int32
 
 	for range numAdders {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			for range spansPerAdder {
 				w.add([]*Span{newSpan("op", "svc", "res", randUint64(), randUint64(), 0)})
 				atomic.AddInt32(&spansAdded, 1)
 			}
-		}()
+		})
 	}
 
 	for range numFlushers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			for range 10 {
 				w.flush()
 			}
-		}()
+		})
 	}
 
 	close(start)

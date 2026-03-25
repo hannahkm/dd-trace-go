@@ -104,10 +104,10 @@ func (w *otlpTraceWriter) flush() {
 				log.Debug("OTLP: sent traces after %d attempts", attempt+1)
 				return
 			}
-			log.Error("OTLP: failure sending traces (attempt %d of %d): %v", attempt+1, w.config.sendRetries+1, sendErr)
+			log.Error("OTLP: failure sending traces (attempt %d of %d): %v", attempt+1, w.config.sendRetries+1, sendErr.Error())
 			time.Sleep(w.config.internalConfig.RetryInterval())
 		}
-		log.Error("OTLP: lost %d spans: %v", spanCount, sendErr)
+		log.Error("OTLP: lost %d spans: %v", spanCount, sendErr.Error())
 	}()
 }
 
