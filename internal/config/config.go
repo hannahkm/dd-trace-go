@@ -120,6 +120,8 @@ type Config struct {
 	// otlpHeaders holds the resolved OTLP trace headers from
 	// OTEL_EXPORTER_OTLP_TRACES_HEADERS plus Content-Type: application/x-protobuf.
 	otlpHeaders map[string]string
+	// traceID128BitEnabled controls if trace IDs are generated as 128-bits or 64-bits.
+	traceID128BitEnabled bool
 }
 
 // loadConfig initializes and returns a new config by reading from all configured sources.
@@ -171,6 +173,7 @@ func loadConfig() *Config {
 	}
 	cfg.otlpTraceURL = resolveOTLPTraceURL(cfg.agentURL, p.GetString("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", ""))
 	cfg.otlpHeaders = buildOTLPHeaders(p.GetMap("OTEL_EXPORTER_OTLP_TRACES_HEADERS", nil, internal.OtelTagsDelimeter))
+	cfg.traceID128BitEnabled = p.GetBool("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", true)
 
 	// Parse feature flags from DD_TRACE_FEATURES as a set
 	cfg.featureFlags = make(map[string]struct{})
@@ -743,4 +746,10 @@ func (c *Config) OTLPHeaders() map[string]string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return maps.Clone(c.otlpHeaders)
+}
+
+func (c *Config) TraceID128BitEnabled() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.traceID128BitEnabled
 }
