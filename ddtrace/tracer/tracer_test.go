@@ -809,7 +809,8 @@ func TestTracerStartSpanOptions128(t *testing.T) {
 	defer setGlobalTracer(&NoopTracer{})
 	t.Run("64-bit-trace-id", func(t *testing.T) {
 		assert := assert.New(t)
-		t.Setenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "false")
+		old := traceID128BitEnabled.Swap(false)
+		defer func(v bool) { traceID128BitEnabled.Store(v) }(old)
 		opts := []StartSpanOption{
 			WithSpanID(987654),
 		}
@@ -1251,15 +1252,16 @@ func TestNewSpanChild(t *testing.T) {
 
 func testNewSpanChild(t *testing.T, is128 bool) {
 	t.Run(fmt.Sprintf("TestNewChildSpan(is128=%t)", is128), func(t *testing.T) {
-		if !is128 {
-			t.Setenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "false")
-		}
 		assert := assert.New(t)
 
 		// the tracer must create child spans
 		tracer, err := newTracer(withTransport(newDefaultTransport()))
 		setGlobalTracer(tracer)
 		defer tracer.Stop()
+		if !is128 {
+			old := traceID128BitEnabled.Swap(false)
+			defer func(v bool) { traceID128BitEnabled.Store(v) }(old)
+		}
 		assert.Nil(err)
 		parent := tracer.newRootSpan("pylons.request", "pylons", "/")
 		child := tracer.newChildSpan("redis.command", parent)
