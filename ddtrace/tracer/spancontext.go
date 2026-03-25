@@ -196,8 +196,11 @@ func FromGenericCtx(c ddtrace.SpanContext) *SpanContext {
 	if sc.trace == nil {
 		sc.trace = newTrace()
 	}
-	sc.trace.tags = ctx.Tags()                       // +checklocksignore - Initialization time, not shared yet.
-	sc.trace.propagatingTags = ctx.PropagatingTags() // +checklocksignore - Initialization time, not shared yet.
+	sc.trace.tags = ctx.Tags()                                    // +checklocksignore - Initialization time, not shared yet.
+	sc.trace.propagatingTags = ctx.PropagatingTags()              // +checklocksignore - Initialization time, not shared yet.
+	if dm, ok := sc.trace.propagatingTags[keyDecisionMaker]; ok { // +checklocksignore - Initialization time, not shared yet.
+		sc.trace.dm = parseDecisionMaker(dm) // +checklocksignore - Initialization time, not shared yet.
+	}
 	return &sc
 }
 
@@ -464,6 +467,10 @@ type trace struct {
 	// specifies if the sampling priority can be altered
 	// +checklocks:mu
 	locked bool
+	// dm is the numeric form of _dd.p.dm for v1 protocol encoding.
+	// It is the absolute value of the parsed integer (e.g., "-4" → 4).
+	// +checklocks:mu
+	dm uint32
 	// samplingDecision indicates whether to send the trace to the agent.
 	samplingDecision samplingDecision // +checkatomic
 
@@ -600,7 +607,7 @@ func (t *trace) setSamplingPriorityLockedWithForce(p int, sampler samplernames.S
 		}
 	}
 	if p <= 0 && existed {
-		delete(t.propagatingTags, keyDecisionMaker)
+		t.unsetPropagatingTagLocked(keyDecisionMaker)
 	}
 
 	return updatedPriority
