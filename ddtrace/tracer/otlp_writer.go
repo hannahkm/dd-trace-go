@@ -28,6 +28,7 @@ type otlpTraceWriter struct {
 	resource  *otlpresource.Resource
 	scope     *otlpcommon.InstrumentationScope
 	spans     []*otlptrace.Span // +checklocks:mu
+	buffSize  int               // +checklocks:mu — estimated serialized size in bytes
 	climit    chan struct{}
 	wg        sync.WaitGroup
 }
@@ -40,19 +41,39 @@ func newOTLPTraceWriter(c *config) *otlpTraceWriter {
 		scope:     &otlpcommon.InstrumentationScope{Name: "dd-trace-go"},
 		spans:     make([]*otlptrace.Span, 0),
 		climit:    make(chan struct{}, concurrentConnectionLimit),
-		wg:        sync.WaitGroup{},
 	}
+}
+
+// reset swaps out the current span buffer and returns it, resetting the
+// writer to an empty state ready for new spans.
+func (w *otlpTraceWriter) reset() []*otlptrace.Span {
+	old := w.spans
+	w.spans = make([]*otlptrace.Span, 0)
+	w.buffSize = proto.Size(&otlptrace.TracesData{
+		ResourceSpans: []*otlptrace.ResourceSpans{{
+			Resource: w.resource,
+			ScopeSpans: []*otlptrace.ScopeSpans{{
+				Scope: w.scope,
+			}},
+		}},
+	})
+	return old
 }
 
 func (w *otlpTraceWriter) add(spanList []*Span) {
 	defaultServiceName := w.config.internalConfig.ServiceName()
 	w.mu.Lock()
-	defer w.mu.Unlock()
 	w.spans = slices.Grow(w.spans, len(spanList))
 	for _, span := range spanList {
 		if otlpSpan := convertSpan(span, defaultServiceName); otlpSpan != nil {
 			w.spans = append(w.spans, otlpSpan)
+			w.buffSize += proto.Size(otlpSpan)
 		}
+	}
+	needsFlush := w.buffSize > payloadSizeLimit
+	w.mu.Unlock()
+	if needsFlush {
+		w.flush()
 	}
 }
 
@@ -62,8 +83,7 @@ func (w *otlpTraceWriter) flush() {
 		w.mu.Unlock()
 		return
 	}
-	readySpans := w.spans
-	w.spans = make([]*otlptrace.Span, 0)
+	readySpans := w.reset()
 	w.mu.Unlock()
 
 	w.climit <- struct{}{}

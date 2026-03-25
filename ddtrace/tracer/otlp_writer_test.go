@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -165,6 +166,55 @@ func TestOTLPWriterFlushClearsSpans(t *testing.T) {
 	w.flush()
 	w.wg.Wait()
 	assert.Equal(t, 1, srv.requestCount())
+}
+
+func TestOTLPWriterFlushOnSize(t *testing.T) {
+	t.Run("single large span triggers flush", func(t *testing.T) {
+		srv := newTestOTLPServer()
+		defer srv.Close()
+		w := newTestOTLPWriter(t, srv)
+
+		bigSpan := newSpan("op", "svc", "res", 1, 1, 0)
+		bigSpan.meta["big"] = strings.Repeat("X", payloadSizeLimit+1)
+		w.add([]*Span{bigSpan})
+		w.wg.Wait()
+
+		assert.GreaterOrEqual(t, srv.requestCount(), 1)
+		w.mu.Lock()
+		assert.Equal(t, 0, len(w.spans))
+		w.mu.Unlock()
+	})
+
+	t.Run("many small spans accumulate past limit", func(t *testing.T) {
+		srv := newTestOTLPServer()
+		defer srv.Close()
+		w := newTestOTLPWriter(t, srv)
+
+		// Each span has ~1KB of meta, so we need ~payloadSizeLimit/1024 spans.
+		spanSize := 1024
+		numSpans := (payloadSizeLimit / spanSize) + 1
+		for i := range numSpans {
+			s := newSpan("op", "svc", "res", uint64(i+1), 1, 0)
+			s.meta["data"] = strings.Repeat("X", spanSize)
+			w.add([]*Span{s})
+		}
+		w.wg.Wait()
+
+		assert.GreaterOrEqual(t, srv.requestCount(), 1)
+	})
+
+	t.Run("under limit does not trigger flush", func(t *testing.T) {
+		srv := newTestOTLPServer()
+		defer srv.Close()
+		w := newTestOTLPWriter(t, srv)
+
+		w.add([]*Span{newSpan("op", "svc", "res", 1, 1, 0)})
+
+		assert.Equal(t, 0, srv.requestCount())
+		w.mu.Lock()
+		assert.Equal(t, 1, len(w.spans))
+		w.mu.Unlock()
+	})
 }
 
 func TestOTLPWriterFlushRetries(t *testing.T) {
