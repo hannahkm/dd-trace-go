@@ -6,8 +6,9 @@
 package tracer
 
 import (
+	"bytes"
 	"fmt"
-	"io"
+	"net/http"
 	"slices"
 	"sync"
 	"time"
@@ -24,7 +25,9 @@ var _ traceWriter = (*otlpTraceWriter)(nil)
 
 type otlpTraceWriter struct {
 	config   *config
-	sender   otlpSender
+	client   *http.Client
+	traceURL string
+	headers  map[string]string
 	mu       locking.Mutex
 	resource *otlpresource.Resource
 	scope    *otlpcommon.InstrumentationScope
@@ -33,23 +36,12 @@ type otlpTraceWriter struct {
 	wg       sync.WaitGroup
 }
 
-// noopOTLPSender is a fallback sender that drops all payloads. Used when the
-// configured transport does not implement otlpSender.
-type noopOTLPSender struct{}
-
-func (noopOTLPSender) sendOTLP([]byte) (io.ReadCloser, error) {
-	return nil, fmt.Errorf("OTLP sending is not supported by the configured transport")
-}
-
 func newOTLPTraceWriter(c *config) *otlpTraceWriter {
-	sender, ok := c.transport.(otlpSender)
-	if !ok {
-		log.Error("OTLP trace writer: transport %T does not implement otlpSender; traces will be dropped", c.transport)
-		sender = noopOTLPSender{}
-	}
 	return &otlpTraceWriter{
 		config:   c,
-		sender:   sender,
+		client:   c.httpClient,
+		traceURL: c.internalConfig.OTLPTraceURL(),
+		headers:  c.internalConfig.OTLPHeaders(),
 		resource: buildResource(c.internalConfig),
 		scope:    &otlpcommon.InstrumentationScope{Name: "dd-trace-go"},
 		spans:    make([]*otlptrace.Span, 0),
@@ -68,6 +60,26 @@ func (w *otlpTraceWriter) add(spanList []*Span) {
 			w.spans = append(w.spans, otlpSpan)
 		}
 	}
+}
+
+// send posts a protobuf-encoded OTLP payload to the configured collector endpoint.
+func (w *otlpTraceWriter) send(data []byte) error {
+	req, err := http.NewRequest("POST", w.traceURL, bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("cannot create http request: %s", err)
+	}
+	for header, value := range w.headers {
+		req.Header.Set(header, value)
+	}
+	resp, err := w.client.Do(req)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	if code := resp.StatusCode; code >= 400 {
+		return fmt.Errorf("HTTP %d: %s", code, http.StatusText(code))
+	}
+	return nil
 }
 
 func (w *otlpTraceWriter) flush() {
@@ -113,7 +125,7 @@ func (w *otlpTraceWriter) flush() {
 		var sendErr error
 		for attempt := 0; attempt <= w.config.sendRetries; attempt++ {
 			log.Debug("OTLP: attempt %d to send payload: %d bytes, %d spans", attempt+1, len(b), spanCount)
-			_, sendErr = w.sender.sendOTLP(b)
+			sendErr = w.send(b)
 			if sendErr == nil {
 				log.Debug("OTLP: sent traces after %d attempts", attempt+1)
 				return
@@ -126,7 +138,6 @@ func (w *otlpTraceWriter) flush() {
 }
 
 func (w *otlpTraceWriter) stop() {
-	// TODO: agentTraceWriter reports datadog.tracer.flush_triggered to its statsd client here; do we want to do the same here?
 	w.flush()
 	w.wg.Wait()
 }

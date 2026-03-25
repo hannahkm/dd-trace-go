@@ -6,9 +6,10 @@
 package tracer
 
 import (
-	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -22,49 +23,56 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// mockOTLPSender records sendOTLP calls for test assertions.
-type mockOTLPSender struct {
-	mu           sync.Mutex
-	calls        [][]byte
-	failCount    int
-	sendAttempts int
+// testOTLPServer is a test HTTP server that captures OTLP payloads.
+type testOTLPServer struct {
+	*httptest.Server
+	mu       sync.Mutex
+	payloads [][]byte
+	// failCount controls how many requests return 500 before succeeding.
+	failCount int32
 }
 
-func (m *mockOTLPSender) sendOTLP(data []byte) (io.ReadCloser, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.sendAttempts++
-	if m.failCount > 0 {
-		m.failCount--
-		return nil, errors.New("send failed")
-	}
-	cp := make([]byte, len(data))
-	copy(cp, data)
-	m.calls = append(m.calls, cp)
-	return nil, nil
+func newTestOTLPServer() *testOTLPServer {
+	s := &testOTLPServer{}
+	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if remaining := atomic.AddInt32(&s.failCount, -1); remaining >= 0 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		s.mu.Lock()
+		s.payloads = append(s.payloads, body)
+		s.mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	return s
 }
 
-func (m *mockOTLPSender) getSendAttempts() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.sendAttempts
+func (s *testOTLPServer) getPayloads() [][]byte {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := make([][]byte, len(s.payloads))
+	copy(cp, s.payloads)
+	return cp
 }
 
-func (m *mockOTLPSender) getCalls() [][]byte {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.calls
+func (s *testOTLPServer) requestCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.payloads)
 }
 
-func newTestOTLPWriter(t *testing.T, sender *mockOTLPSender, opts ...StartOption) *otlpTraceWriter {
+func newTestOTLPWriter(t *testing.T, srv *testOTLPServer, opts ...StartOption) *otlpTraceWriter {
 	t.Helper()
 	cfg, err := newTestConfig(append(opts, func(c *config) {
-		c.transport = &simpleTransport{}
+		c.ddTransport = &simpleTransport{}
 	})...)
 	require.NoError(t, err)
 	return &otlpTraceWriter{
 		config:   cfg,
-		sender:   sender,
+		client:   srv.Client(),
+		traceURL: srv.URL,
+		headers:  map[string]string{"Content-Type": "application/x-protobuf"},
 		resource: buildResource(cfg.internalConfig),
 		scope:    nil,
 		spans:    make([]*otlptrace.Span, 0),
@@ -77,8 +85,9 @@ func TestOTLPWriterImplementsTraceWriter(t *testing.T) {
 }
 
 func TestOTLPWriterAdd(t *testing.T) {
-	sender := &mockOTLPSender{}
-	w := newTestOTLPWriter(t, sender)
+	srv := newTestOTLPServer()
+	defer srv.Close()
+	w := newTestOTLPWriter(t, srv)
 
 	spans := []*Span{
 		newSpan("op1", "svc", "res1", 1, 1, 0),
@@ -92,8 +101,9 @@ func TestOTLPWriterAdd(t *testing.T) {
 }
 
 func TestOTLPWriterAddMultiple(t *testing.T) {
-	sender := &mockOTLPSender{}
-	w := newTestOTLPWriter(t, sender)
+	srv := newTestOTLPServer()
+	defer srv.Close()
+	w := newTestOTLPWriter(t, srv)
 
 	w.add([]*Span{newSpan("op1", "svc", "res", 1, 1, 0)})
 	w.add([]*Span{newSpan("op2", "svc", "res", 2, 1, 0)})
@@ -105,18 +115,20 @@ func TestOTLPWriterAddMultiple(t *testing.T) {
 }
 
 func TestOTLPWriterFlushEmpty(t *testing.T) {
-	sender := &mockOTLPSender{}
-	w := newTestOTLPWriter(t, sender)
+	srv := newTestOTLPServer()
+	defer srv.Close()
+	w := newTestOTLPWriter(t, srv)
 
 	w.flush()
 	w.wg.Wait()
 
-	assert.Equal(t, 0, sender.getSendAttempts())
+	assert.Equal(t, 0, srv.requestCount())
 }
 
 func TestOTLPWriterFlush(t *testing.T) {
-	sender := &mockOTLPSender{}
-	w := newTestOTLPWriter(t, sender)
+	srv := newTestOTLPServer()
+	defer srv.Close()
+	w := newTestOTLPWriter(t, srv)
 
 	w.add([]*Span{
 		newSpan("op1", "svc", "res", 1, 1, 0),
@@ -125,11 +137,11 @@ func TestOTLPWriterFlush(t *testing.T) {
 	w.flush()
 	w.wg.Wait()
 
-	calls := sender.getCalls()
-	require.Equal(t, 1, len(calls))
+	payloads := srv.getPayloads()
+	require.Equal(t, 1, len(payloads))
 
 	var tracesData otlptrace.TracesData
-	err := proto.Unmarshal(calls[0], &tracesData)
+	err := proto.Unmarshal(payloads[0], &tracesData)
 	require.NoError(t, err)
 
 	rs := tracesData.ResourceSpans
@@ -139,8 +151,9 @@ func TestOTLPWriterFlush(t *testing.T) {
 }
 
 func TestOTLPWriterFlushClearsSpans(t *testing.T) {
-	sender := &mockOTLPSender{}
-	w := newTestOTLPWriter(t, sender)
+	srv := newTestOTLPServer()
+	defer srv.Close()
+	w := newTestOTLPWriter(t, srv)
 
 	w.add([]*Span{newSpan("op1", "svc", "res", 1, 1, 0)})
 	w.flush()
@@ -153,7 +166,7 @@ func TestOTLPWriterFlushClearsSpans(t *testing.T) {
 	// Second flush should be a no-op
 	w.flush()
 	w.wg.Wait()
-	assert.Equal(t, 1, sender.getSendAttempts())
+	assert.Equal(t, 1, srv.requestCount())
 }
 
 func TestOTLPWriterFlushRetries(t *testing.T) {
@@ -179,35 +192,51 @@ func TestOTLPWriterFlushRetries(t *testing.T) {
 	for _, tc := range testcases {
 		name := fmt.Sprintf("retries=%d/fails=%d", tc.configRetries, tc.failCount)
 		t.Run(name, func(t *testing.T) {
-			sender := &mockOTLPSender{failCount: tc.failCount}
-			w := newTestOTLPWriter(t, sender, func(c *config) {
+			var totalRequests int32
+			srv := newTestOTLPServer()
+			atomic.StoreInt32(&srv.failCount, int32(tc.failCount))
+			defer srv.Close()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+				atomic.AddInt32(&totalRequests, 1)
+				srv.Server.Config.Handler.ServeHTTP(w, r)
+			})
+			countingSrv := httptest.NewServer(mux)
+			defer countingSrv.Close()
+
+			w := newTestOTLPWriter(t, srv, func(c *config) {
 				c.sendRetries = tc.configRetries
 				c.internalConfig.SetRetryInterval(time.Millisecond, internalconfig.OriginCode)
 			})
+			w.traceURL = countingSrv.URL
+			w.client = countingSrv.Client()
 
 			w.add([]*Span{newSpan("op", "svc", "res", 1, 1, 0)})
 			w.flush()
 			w.wg.Wait()
 
-			assert.Equal(t, tc.expAttempts, sender.getSendAttempts())
-			assert.Equal(t, tc.tracesSent, len(sender.getCalls()) > 0)
+			assert.Equal(t, int32(tc.expAttempts), atomic.LoadInt32(&totalRequests))
+			assert.Equal(t, tc.tracesSent, len(srv.getPayloads()) > 0)
 		})
 	}
 }
 
 func TestOTLPWriterStop(t *testing.T) {
-	sender := &mockOTLPSender{}
-	w := newTestOTLPWriter(t, sender)
+	srv := newTestOTLPServer()
+	defer srv.Close()
+	w := newTestOTLPWriter(t, srv)
 
 	w.add([]*Span{newSpan("op", "svc", "res", 1, 1, 0)})
 	w.stop()
 
-	assert.Equal(t, 1, len(sender.getCalls()))
+	assert.Equal(t, 1, len(srv.getPayloads()))
 }
 
 func TestOTLPWriterConcurrency(t *testing.T) {
-	sender := &mockOTLPSender{}
-	w := newTestOTLPWriter(t, sender)
+	srv := newTestOTLPServer()
+	defer srv.Close()
+	w := newTestOTLPWriter(t, srv)
 
 	const numAdders = 20
 	const spansPerAdder = 50
@@ -250,7 +279,7 @@ func TestOTLPWriterConcurrency(t *testing.T) {
 
 	// Verify all sent payloads are valid protobuf
 	totalSpans := 0
-	for _, data := range sender.getCalls() {
+	for _, data := range srv.getPayloads() {
 		var td otlptrace.TracesData
 		err := proto.Unmarshal(data, &td)
 		require.NoError(t, err)
@@ -261,19 +290,4 @@ func TestOTLPWriterConcurrency(t *testing.T) {
 		}
 	}
 	assert.Equal(t, numAdders*spansPerAdder, totalSpans)
-}
-
-func TestOTLPWriterNoopSender(t *testing.T) {
-	cfg, err := newTestConfig(func(c *config) {
-		c.transport = &simpleTransport{}
-	})
-	require.NoError(t, err)
-
-	w := newOTLPTraceWriter(cfg)
-
-	// simpleTransport doesn't implement otlpSender, so noopOTLPSender should be used
-	w.add([]*Span{newSpan("op", "svc", "res", 1, 1, 0)})
-	w.flush()
-	w.wg.Wait()
-	// No panic, no actual send — the noop sender returns an error that gets logged
 }
