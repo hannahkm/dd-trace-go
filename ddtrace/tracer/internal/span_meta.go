@@ -33,13 +33,10 @@ var (
 // Hot paths (setMetaInit, setMetricLocked) use Put for direct flat-map
 // access without promoted-key overhead. Callers that may write promoted
 // keys use Set/Delete or setMetaTagLocked which route to attrs via
-// copy-on-write. Promoted keys never appear in sm.m until Map() is
-// called, which copies them into sm.m and sets the inlined flag so that
-// EncodeMsg, Msgsize, All, and Count skip the attrs source.
+// copy-on-write. Promoted keys never appear in sm.m.
 type SpanMeta struct {
-	m       map[string]string
-	attrs   *SpanAttributes
-	inlined bool
+	m     map[string]string
+	attrs *SpanAttributes
 }
 
 // NewSpanMeta returns a SpanMeta initialized with shared attrs (used during span creation).
@@ -264,18 +261,9 @@ func init() {
 // Counting / iteration
 // ---------------------------------------------------------------------------
 
-// attrsNotInM returns the number of promoted attrs not yet present in m.
-// After Map() has inlined them, this returns 0.
-func (sm SpanMeta) attrsNotInM() int {
-	if sm.inlined || sm.attrs == nil {
-		return 0
-	}
-	return sm.attrs.Count()
-}
-
 // Count returns the total number of distinct entries (flat map + promoted attrs).
 func (sm SpanMeta) Count() int {
-	return len(sm.m) + sm.attrsNotInM()
+	return len(sm.m) + sm.attrs.Count()
 }
 
 // AttrCount returns the number of promoted attrs currently set.
@@ -290,33 +278,29 @@ func (sm SpanMeta) SerializableCount() int {
 	return len(sm.m)
 }
 
-// Map returns a map containing all flat-map entries plus all promoted
-// attrs. On the first call it copies promoted attrs into sm.m and sets the
-// inlined flag, so subsequent calls (and EncodeMsg/All/Count) skip the
-// attrs source. Returns sm.m directly — zero allocation after the first
-// call. Must only be called after the span is finished (no concurrent writes).
-func (sm *SpanMeta) Map() map[string]string {
-	n := sm.attrsNotInM()
+// Map returns a new map containing all flat-map entries plus all promoted
+// attrs. Always allocates — never returns sm.m directly, avoiding races
+// when the result outlives the span's serialization window.
+func (sm SpanMeta) Map() map[string]string {
+	n := len(sm.m) + sm.attrs.Count()
 	if n == 0 {
-		return sm.m
+		return nil
 	}
-	if sm.m == nil {
-		sm.m = make(map[string]string, n)
+	m := make(map[string]string, n)
+	for k, v := range sm.m {
+		m[k] = v
 	}
 	for _, d := range Defs {
 		if sm.attrs.Has(d.Key) {
-			sm.m[d.Name] = sm.attrs.vals[d.Key]
+			m[d.Name] = sm.attrs.vals[d.Key]
 		}
 	}
-	sm.inlined = true
-	return sm.m
+	return m
 }
 
 // All returns an iterator over all entries. Flat-map entries are yielded first
 // (in unspecified order), followed by promoted attributes in definition order
-// (env, version, component, span.kind). After Map() has been called, all
-// entries are in sm.m and the attrs section is skipped.
-// Returning false from yield stops iteration.
+// (env, version, component, span.kind). Returning false from yield stops iteration.
 func (sm SpanMeta) All() iter.Seq2[string, string] {
 	return func(yield func(string, string) bool) {
 		for k, v := range sm.m {
@@ -324,7 +308,7 @@ func (sm SpanMeta) All() iter.Seq2[string, string] {
 				return
 			}
 		}
-		if sm.inlined || sm.attrs == nil {
+		if sm.attrs == nil {
 			return
 		}
 		for _, d := range Defs {
@@ -357,11 +341,10 @@ func (sm SpanMeta) String() string {
 // msgp codec
 // ---------------------------------------------------------------------------
 
-// EncodeMsg writes the map header (flat map entries + promoted attrs not yet
-// in m), then emits all flat map entries followed by promoted attrs not yet
-// inlined. After Map(), all entries are in sm.m and the attrs loop is skipped.
+// EncodeMsg writes the map header (flat map entries + promoted attrs),
+// then emits all flat map entries followed by all set promoted attrs.
 func (sm *SpanMeta) EncodeMsg(en *msgp.Writer) error {
-	n := sm.attrsNotInM()
+	n := sm.attrs.Count()
 	if err := en.WriteMapHeader(uint32(len(sm.m) + n)); err != nil {
 		return msgp.WrapError(err, "Meta")
 	}
@@ -428,7 +411,7 @@ func (sm *SpanMeta) Msgsize() int {
 	for k, v := range sm.m {
 		size += msgp.StringPrefixSize + len(k) + msgp.StringPrefixSize + len(v)
 	}
-	if n := sm.attrsNotInM(); n > 0 {
+	if n := sm.attrs.Count(); n > 0 {
 		for _, d := range Defs {
 			if v, ok := sm.attrs.Get(d.Key); ok {
 				size += msgp.StringPrefixSize + len(d.Name) + msgp.StringPrefixSize + len(v)
