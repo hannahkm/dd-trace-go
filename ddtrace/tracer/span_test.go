@@ -1805,7 +1805,6 @@ func TestSpanLinksInMeta(t *testing.T) {
 		defer tracer.Stop()
 
 		sp := tracer.StartSpan("test-with-links-native")
-		sp.supportsLinks = true
 		sp.AddLink(SpanLink{SpanID: 123, TraceID: 456})
 		sp.AddLink(SpanLink{SpanID: 789, TraceID: 012})
 		sp.Finish()
