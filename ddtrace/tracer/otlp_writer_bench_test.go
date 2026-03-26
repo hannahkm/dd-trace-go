@@ -120,10 +120,10 @@ func BenchmarkOTLPProtoMarshal(b *testing.B) {
 				s.metrics[fmt.Sprintf("metric-%d", j)] = float64(j) * 1.5
 			}
 			s.spanLinks = append(s.spanLinks, SpanLink{
-				TraceID:    uint64(i + 100),
+				TraceID:     uint64(i + 100),
 				TraceIDHigh: uint64(i + 200),
-				SpanID:     uint64(i + 300),
-				Attributes: map[string]string{"link-key": "link-val"},
+				SpanID:      uint64(i + 300),
+				Attributes:  map[string]string{"link-key": "link-val"},
 			})
 			spans[i] = convertSpan(s, "bench-svc")
 		}

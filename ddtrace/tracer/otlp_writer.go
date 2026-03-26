@@ -46,6 +46,7 @@ func newOTLPTraceWriter(c *config) *otlpTraceWriter {
 
 // reset swaps out the current span buffer and returns it, resetting the
 // writer to an empty state ready for new spans.
+// +checklocks:w.mu
 func (w *otlpTraceWriter) reset() []*otlptrace.Span {
 	old := w.spans
 	w.spans = make([]*otlptrace.Span, 0)
