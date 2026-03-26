@@ -476,3 +476,37 @@ func TestStatsFlushRetries(t *testing.T) {
 		})
 	}
 }
+
+func TestConcentratorNilReceiver(t *testing.T) {
+	var c *concentrator
+
+	t.Run("Start", func(t *testing.T) {
+		assert.NotPanics(t, func() { c.Start() })
+	})
+
+	t.Run("Stop", func(t *testing.T) {
+		assert.NotPanics(t, func() { c.Stop() })
+	})
+
+	t.Run("flushAndSend", func(t *testing.T) {
+		assert.NotPanics(t, func() { c.flushAndSend(time.Now(), false) })
+	})
+
+	t.Run("newTracerStatSpan", func(t *testing.T) {
+		s := &Span{
+			name:     "test.op",
+			service:  "test-service",
+			resource: "/test",
+			spanType: "web",
+			start:    time.Now().UnixNano(),
+			duration: 1,
+		}
+		var ss *tracerStatSpan
+		var ok bool
+		assert.NotPanics(t, func() {
+			ss, ok = c.newTracerStatSpan(s, obfuscate.NewObfuscator(obfuscate.Config{}))
+		})
+		assert.Nil(t, ss)
+		assert.False(t, ok)
+	})
+}

@@ -455,6 +455,11 @@ func newUnstartedTracer(opts ...StartOption) (t *tracer, err error) {
 			c.internalConfig.SetLogDirectory("", telemetry.OriginCalculated)
 		}
 	}
+	var statsConcentrator *concentrator
+	// We don't submit Datadog stats in OTLP export mode
+	if !c.internalConfig.OTLPExportMode() {
+		statsConcentrator = newConcentrator(c, defaultStatsBucketSize, statsd)
+	}
 	t = &tracer{
 		config:           c,
 		traceWriter:      writer,
@@ -465,7 +470,7 @@ func newUnstartedTracer(opts ...StartOption) (t *tracer, err error) {
 		defaultSampler:   dfltSampler,
 		pid:              os.Getpid(),
 		logDroppedTraces: time.NewTicker(1 * time.Second),
-		stats:            newConcentrator(c, defaultStatsBucketSize, statsd),
+		stats:            statsConcentrator,
 		spansStarted:     *globalinternal.NewXSyncMapCounterMap(),
 		spansFinished:    *globalinternal.NewXSyncMapCounterMap(),
 		obfuscator: obfuscate.NewObfuscator(func() obfuscate.Config {

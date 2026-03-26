@@ -108,7 +108,11 @@ func alignTs(ts, bucketSize int64) int64 { return ts - ts%bucketSize }
 
 // Start starts the concentrator. A started concentrator needs to be stopped
 // in order to gracefully shut down, using Stop.
+// It is safe to call on a nil receiver (no-op).
 func (c *concentrator) Start() {
+	if c == nil {
+		return
+	}
 	if atomic.SwapUint32(&c.stopped, 0) == 0 {
 		// already running
 		log.Warn("(*concentrator).Start called more than once. This is likely a programming error.")
@@ -160,7 +164,11 @@ func (c *concentrator) runIngester() {
 }
 
 // +checklocksignore — Post-finish: reads finished span fields during stats computation.
+// Returns (nil, false) when called on a nil receiver.
 func (c *concentrator) newTracerStatSpan(s *Span, obfuscator *obfuscate.Obfuscator) (*tracerStatSpan, bool) {
+	if c == nil {
+		return nil, false
+	}
 	resource := s.resource
 	if c.shouldObfuscate() {
 		resource = obfuscatedResource(obfuscator, s.spanType, s.resource)
@@ -206,7 +214,11 @@ func (c *concentrator) add(s *tracerStatSpan) {
 }
 
 // Stop stops the concentrator and blocks until the operation completes.
+// It is safe to call on a nil receiver (no-op).
 func (c *concentrator) Stop() {
+	if c == nil {
+		return
+	}
 	if atomic.SwapUint32(&c.stopped, 1) > 0 {
 		return
 	}
@@ -232,7 +244,11 @@ const (
 
 // flushAndSend flushes all the stats buckets with the given timestamp and sends them using the transport specified in
 // the concentrator config. The current bucket is only included if includeCurrent is true, such as during shutdown.
+// It is safe to call on a nil receiver (no-op).
 func (c *concentrator) flushAndSend(timenow time.Time, includeCurrent bool) {
+	if c == nil {
+		return
+	}
 	csps := c.spanConcentrator.Flush(timenow.UnixNano(), includeCurrent)
 
 	obfVersion := 0
