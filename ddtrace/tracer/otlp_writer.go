@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/dd-trace-go/v2/internal/locking"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
+	"github.com/DataDog/dd-trace-go/v2/internal/version"
 )
 
 var _ traceWriter = (*otlpTraceWriter)(nil)
@@ -38,7 +39,7 @@ func newOTLPTraceWriter(c *config) *otlpTraceWriter {
 		config:    c,
 		transport: newOTLPTransport(c.httpClient, c.internalConfig.OTLPTraceURL(), c.internalConfig.OTLPHeaders()),
 		resource:  buildResource(c.internalConfig),
-		scope:     &otlpcommon.InstrumentationScope{Name: "dd-trace-go"},
+		scope:     &otlpcommon.InstrumentationScope{Name: "dd-trace-go", Version: version.Tag},
 		spans:     make([]*otlptrace.Span, 0),
 		climit:    make(chan struct{}, concurrentConnectionLimit),
 	}

@@ -7,6 +7,7 @@ package tracer
 
 import (
 	"encoding/binary"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -200,6 +201,69 @@ func TestConvertSpanAttributes(t *testing.T) {
 	assert.Equal(t, "test", m["env"])
 	assert.Equal(t, 10.0, m["count"])
 	assert.Equal(t, 0.5, m["rate"])
+	assert.Equal(t, "op", m["operation.name"])
+	assert.Contains(t, m, "span.type")
+}
+
+func TestConvertSpanAttributesWithMetaStruct(t *testing.T) {
+	s := newBasicSpan("op")
+	s.meta = map[string]string{"tag": "val"}
+	s.metaStruct = map[string]any{
+		"nested": map[string]any{"a": "b"},
+		"simple": map[string]string{"x": "y"},
+	}
+
+	attrs := convertSpanAttributes(s, "")
+
+	var nestedKV, simpleKV *otlpcommon.KeyValue
+	for _, kv := range attrs {
+		switch kv.Key {
+		case "nested":
+			nestedKV = kv
+		case "simple":
+			simpleKV = kv
+		}
+	}
+
+	require.NotNil(t, nestedKV, "nested metaStruct key should be present")
+	kvlist := nestedKV.Value.GetKvlistValue()
+	require.NotNil(t, kvlist)
+	assert.Equal(t, "a", kvlist.Values[0].Key)
+	assert.Equal(t, "b", kvlist.Values[0].Value.GetStringValue())
+
+	require.NotNil(t, simpleKV, "simple metaStruct key should be present")
+	kvlist = simpleKV.Value.GetKvlistValue()
+	require.NotNil(t, kvlist)
+	assert.Equal(t, "x", kvlist.Values[0].Key)
+	assert.Equal(t, "y", kvlist.Values[0].Value.GetStringValue())
+}
+
+func TestConvertSpanAttributesMaxLimit(t *testing.T) {
+	s := newBasicSpan("op")
+	s.meta = make(map[string]string, 200)
+	for i := range 200 {
+		s.meta[fmt.Sprintf("key-%d", i)] = "val"
+	}
+
+	attrs := convertSpanAttributes(s, "other-service")
+	assert.LessOrEqual(t, len(attrs), maxAttributesCount)
+}
+
+func TestConvertSpanAttributesPriorityOrder(t *testing.T) {
+	s := newBasicSpan("op")
+	s.meta = make(map[string]string, maxAttributesCount)
+	for i := range maxAttributesCount {
+		s.meta[fmt.Sprintf("key-%d", i)] = "val"
+	}
+	s.metrics = map[string]float64{"should-be-dropped": 1.0}
+
+	attrs := convertSpanAttributes(s, "")
+	m := keyValuesToMap(attrs)
+
+	assert.Equal(t, "op", m["operation.name"], "operation.name should always be present")
+	assert.Contains(t, m, "span.type", "span.type should always be present")
+	assert.NotContains(t, m, "should-be-dropped", "metrics should be dropped when meta fills the limit")
+	assert.Equal(t, maxAttributesCount, len(attrs))
 }
 
 func TestConvertSpanAttributesServiceNameOverride(t *testing.T) {
@@ -326,6 +390,106 @@ func TestConvertSpanLinks(t *testing.T) {
 func TestConvertSpanLinks_EmptyNil(t *testing.T) {
 	assert.Empty(t, convertSpanLinks(nil))
 	assert.Empty(t, convertSpanLinks([]SpanLink{}))
+}
+
+func TestConvertSpanTraceState(t *testing.T) {
+	t.Run("populated from span context", func(t *testing.T) {
+		s := newSpan("op", "svc", "res", 1, 1, 0)
+		setPropagatingTag(s.context, tracestateHeader, "dd=s:2;o:rum,othervendor=abc")
+
+		otlpSpan := convertSpan(s, "svc")
+		require.NotNil(t, otlpSpan)
+		assert.Equal(t, "dd=s:2;o:rum,othervendor=abc", otlpSpan.TraceState)
+	})
+
+	t.Run("empty when no tracestate", func(t *testing.T) {
+		s := newSpan("op", "svc", "res", 1, 1, 0)
+
+		otlpSpan := convertSpan(s, "svc")
+		require.NotNil(t, otlpSpan)
+		assert.Empty(t, otlpSpan.TraceState)
+	})
+
+	t.Run("empty when trace is nil", func(t *testing.T) {
+		s := newSpan("op", "svc", "res", 1, 1, 0)
+		s.context.trace = nil
+
+		otlpSpan := convertSpan(s, "svc")
+		require.NotNil(t, otlpSpan)
+		assert.Empty(t, otlpSpan.TraceState)
+	})
+}
+
+func TestAnyToOTLPValue(t *testing.T) {
+	t.Run("string", func(t *testing.T) {
+		av := anyToOTLPValue("hello")
+		assert.Equal(t, "hello", av.GetStringValue())
+	})
+
+	t.Run("bool", func(t *testing.T) {
+		av := anyToOTLPValue(true)
+		assert.Equal(t, true, av.GetBoolValue())
+	})
+
+	t.Run("int64", func(t *testing.T) {
+		av := anyToOTLPValue(int64(42))
+		assert.Equal(t, int64(42), av.GetIntValue())
+	})
+
+	t.Run("float64", func(t *testing.T) {
+		av := anyToOTLPValue(3.14)
+		assert.Equal(t, 3.14, av.GetDoubleValue())
+	})
+
+	t.Run("[]any", func(t *testing.T) {
+		av := anyToOTLPValue([]any{"a", int64(1), true})
+		arr := av.GetArrayValue()
+		require.NotNil(t, arr)
+		require.Len(t, arr.Values, 3)
+		assert.Equal(t, "a", arr.Values[0].GetStringValue())
+		assert.Equal(t, int64(1), arr.Values[1].GetIntValue())
+		assert.Equal(t, true, arr.Values[2].GetBoolValue())
+	})
+
+	t.Run("map[string]any", func(t *testing.T) {
+		av := anyToOTLPValue(map[string]any{"k": "v"})
+		kvlist := av.GetKvlistValue()
+		require.NotNil(t, kvlist)
+		require.Len(t, kvlist.Values, 1)
+		assert.Equal(t, "k", kvlist.Values[0].Key)
+		assert.Equal(t, "v", kvlist.Values[0].Value.GetStringValue())
+	})
+
+	t.Run("map[string]string", func(t *testing.T) {
+		av := anyToOTLPValue(map[string]string{"x": "y"})
+		kvlist := av.GetKvlistValue()
+		require.NotNil(t, kvlist)
+		require.Len(t, kvlist.Values, 1)
+		assert.Equal(t, "x", kvlist.Values[0].Key)
+		assert.Equal(t, "y", kvlist.Values[0].Value.GetStringValue())
+	})
+
+	t.Run("nested map", func(t *testing.T) {
+		av := anyToOTLPValue(map[string]any{
+			"triggers": []any{map[string]any{"id": "1"}},
+		})
+		kvlist := av.GetKvlistValue()
+		require.NotNil(t, kvlist)
+		require.Len(t, kvlist.Values, 1)
+		assert.Equal(t, "triggers", kvlist.Values[0].Key)
+		inner := kvlist.Values[0].Value.GetArrayValue()
+		require.NotNil(t, inner)
+		require.Len(t, inner.Values, 1)
+		innerMap := inner.Values[0].GetKvlistValue()
+		require.NotNil(t, innerMap)
+		assert.Equal(t, "1", innerMap.Values[0].Value.GetStringValue())
+	})
+
+	t.Run("default JSON fallback", func(t *testing.T) {
+		type custom struct{ A string }
+		av := anyToOTLPValue(custom{A: "test"})
+		assert.Contains(t, av.GetStringValue(), `"A":"test"`)
+	})
 }
 
 // keyValuesToMap converts []*otlpcommon.KeyValue into a map for easier assertion.

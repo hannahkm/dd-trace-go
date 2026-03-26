@@ -7,6 +7,8 @@ package tracer
 
 import (
 	"encoding/binary"
+	"encoding/json"
+	"fmt"
 
 	otlpcommon "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresource "go.opentelemetry.io/proto/otlp/resource/v1"
@@ -16,6 +18,8 @@ import (
 	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
 	"github.com/DataDog/dd-trace-go/v2/internal/version"
 )
+
+const maxAttributesCount = 128
 
 // -----------------------------------------------------------------------------
 // Resource construction
@@ -63,6 +67,7 @@ func convertSpan(s *Span, defaultServiceName string) *otlptrace.Span {
 		Events:            convertEvents(s),
 		Links:             convertSpanLinks(s.spanLinks),
 		Status:            convertSpanStatus(s),
+		TraceState:        convertTraceState(s.context),
 	}
 }
 
@@ -150,15 +155,41 @@ func getSpanKind(s *Span) string { return s.meta[ext.SpanKind] }
 
 // +checklocksignore — Post-finish: reads finished span fields during payload encoding.
 func convertSpanAttributes(s *Span, defaultServiceName string) []*otlpcommon.KeyValue {
-	attributes := convertMapToOTLPAttributesString(s.meta)
+	n := len(s.meta) + len(s.metrics) + len(s.metaStruct) + 2
+	if s.service != defaultServiceName {
+		n++
+	}
+	attrs := make([]*otlpcommon.KeyValue, 0, min(n, maxAttributesCount))
+
+	// add appends a key-value pair and returns true if there is still room.
+	add := func(key string, val *otlpcommon.AnyValue) bool {
+		if val != nil {
+			attrs = append(attrs, &otlpcommon.KeyValue{Key: key, Value: val})
+		}
+		return len(attrs) < maxAttributesCount
+	}
+
+	add("operation.name", otlpStringValue(s.name))
+	add("span.type", otlpStringValue(s.spanType))
+	for key, value := range s.meta {
+		if !add(key, otlpStringValue(value)) {
+			return attrs
+		}
+	}
 	for key, value := range s.metrics {
-		attributes = append(attributes, otlpKeyValue(key, otlpDoubleValue(value)))
+		if !add(key, otlpDoubleValue(value)) {
+			return attrs
+		}
+	}
+	for key, value := range s.metaStruct {
+		if !add(key, anyToOTLPValue(value)) {
+			return attrs
+		}
 	}
 	if s.service != defaultServiceName {
-		attributes = append(attributes, otlpKeyValue("service.name", otlpStringValue(s.service)))
+		add("service.name", otlpStringValue(s.service))
 	}
-	// TODO: add meta_struct attributes
-	return attributes
+	return attrs
 }
 
 func convertMapToOTLPAttributesString(ddAttributes map[string]string) []*otlpcommon.KeyValue {
@@ -186,6 +217,13 @@ func convertEventAttributes(ddAttributes map[string]*spanEventAttribute) []*otlp
 		}
 	}
 	return out
+}
+
+func convertTraceState(ctx *SpanContext) string {
+	if ctx.trace == nil {
+		return ""
+	}
+	return ctx.trace.propagatingTag(tracestateHeader)
 }
 
 // --- AnyValue helpers ---
@@ -224,6 +262,58 @@ func otlpArrayValue(arr *spanEventArrayAttribute) *otlpcommon.AnyValue {
 		}
 	}
 	return &otlpcommon.AnyValue{Value: &otlpcommon.AnyValue_ArrayValue{ArrayValue: &otlpcommon.ArrayValue{Values: values}}}
+}
+
+// anyToOTLPValue converts an arbitrary Go value to an OTLP AnyValue.
+// Handles primitives, maps, and slices recursively. For types that don't map
+// directly to OTLP, falls back to JSON-encoding as a string.
+func anyToOTLPValue(v any) *otlpcommon.AnyValue {
+	switch val := v.(type) {
+	case string:
+		return otlpStringValue(val)
+	case bool:
+		return otlpBoolValue(val)
+	case int64:
+		return otlpIntValue(val)
+	case float64:
+		return otlpDoubleValue(val)
+	case []any:
+		values := make([]*otlpcommon.AnyValue, 0, len(val))
+		for _, elem := range val {
+			if av := anyToOTLPValue(elem); av != nil {
+				values = append(values, av)
+			}
+		}
+		return &otlpcommon.AnyValue{Value: &otlpcommon.AnyValue_ArrayValue{
+			ArrayValue: &otlpcommon.ArrayValue{Values: values},
+		}}
+	case map[string]any:
+		kvs := make([]*otlpcommon.KeyValue, 0, len(val))
+		for k, elem := range val {
+			if av := anyToOTLPValue(elem); av != nil {
+				kvs = append(kvs, otlpKeyValue(k, av))
+			}
+		}
+		return &otlpcommon.AnyValue{Value: &otlpcommon.AnyValue_KvlistValue{
+			KvlistValue: &otlpcommon.KeyValueList{Values: kvs},
+		}}
+	case map[string]string:
+		kvs := make([]*otlpcommon.KeyValue, 0, len(val))
+		for k, elem := range val {
+			kvs = append(kvs, otlpKeyValue(k, otlpStringValue(elem)))
+		}
+		return &otlpcommon.AnyValue{Value: &otlpcommon.AnyValue_KvlistValue{
+			KvlistValue: &otlpcommon.KeyValueList{Values: kvs},
+		}}
+	default:
+		// Types without a natural OTLP mapping (e.g. custom structs) are
+		// JSON-encoded into a string as a best-effort fallback.
+		b, err := json.Marshal(val)
+		if err != nil {
+			return otlpStringValue(fmt.Sprintf("%v", val))
+		}
+		return otlpStringValue(string(b))
+	}
 }
 
 func spanEventArrayAttributeValueToAnyValue(v *spanEventArrayAttributeValue) *otlpcommon.AnyValue {

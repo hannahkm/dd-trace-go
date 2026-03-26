@@ -18,10 +18,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	otlpcommon "go.opentelemetry.io/proto/otlp/common/v1"
 	otlptrace "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/protobuf/proto"
 
 	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
+	"github.com/DataDog/dd-trace-go/v2/internal/version"
 )
 
 // testOTLPServer is a test HTTP server that captures OTLP payloads.
@@ -73,7 +75,7 @@ func newTestOTLPWriter(t *testing.T, srv *testOTLPServer, opts ...StartOption) *
 		config:    cfg,
 		transport: newOTLPTransport(srv.Client(), srv.URL, map[string]string{"Content-Type": "application/x-protobuf"}),
 		resource:  buildResource(cfg.internalConfig),
-		scope:     nil,
+		scope:     &otlpcommon.InstrumentationScope{Name: "dd-trace-go", Version: version.Tag},
 		spans:     make([]*otlptrace.Span, 0),
 		climit:    make(chan struct{}, concurrentConnectionLimit),
 	}
@@ -146,6 +148,12 @@ func TestOTLPWriterFlush(t *testing.T) {
 	rs := tracesData.ResourceSpans
 	require.Equal(t, 1, len(rs))
 	require.Equal(t, 1, len(rs[0].ScopeSpans))
+
+	scope := rs[0].ScopeSpans[0].Scope
+	require.NotNil(t, scope)
+	assert.Equal(t, "dd-trace-go", scope.Name)
+	assert.Equal(t, version.Tag, scope.Version)
+
 	assert.Equal(t, 2, len(rs[0].ScopeSpans[0].Spans))
 }
 
