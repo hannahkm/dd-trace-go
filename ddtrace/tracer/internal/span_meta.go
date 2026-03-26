@@ -17,7 +17,14 @@ import (
 // A typical span carries "language" plus a handful of internal tags
 // (_dd.base_service, runtime-id, etc.). 5 accommodates these without
 // a rehash and matches the pre-refactor initMeta allocation profile.
-const metaMapHint = 5
+const (
+	// expectedEntries should be the count of tags known at construction time.
+	expectedEntries = 5
+	// loadFactor of 4/3 (≈ inverse of the standard 0.75 load factor) provides
+	// ~33% slack so small overestimates don't trigger an immediate rehash.
+	loadFactor  = 4 / 3
+	metaMapHint = expectedEntries * loadFactor
+)
 
 var (
 	_ msgp.Encodable = (*SpanMeta)(nil)
@@ -30,10 +37,8 @@ var (
 // and are excluded from the map m. The msgp codec merges both sources
 // transparently so the wire format is unchanged.
 //
-// Hot paths (setMetaInit, setMetricLocked) use Put for direct flat-map
-// access without promoted-key overhead. Callers that may write promoted
-// keys use Set/Delete or setMetaTagLocked which route to attrs via
-// copy-on-write. Promoted keys never appear in sm.m.
+// Set routes promoted keys to attrs (with copy-on-write) and others to the
+// flat map. Promoted keys never appear in sm.m.
 type SpanMeta struct {
 	m     map[string]string
 	attrs *SpanAttributes
@@ -129,16 +134,6 @@ func (sm SpanMeta) Component() (string, bool) { return sm.attrs.Get(AttrComponen
 // SpanKind returns the value of the "span.kind" promoted attribute.
 func (sm SpanMeta) SpanKind() (string, bool) { return sm.attrs.Get(AttrSpanKind) }
 
-// SetIfPromoted stores key→value in the promoted-attribute store if key is a
-// promoted attribute name (env, version, component, span.kind). Returns true
-// when the key was handled; callers can skip their normal tag-store path.
-func (sm *SpanMeta) SetIfPromoted(key, value string) bool {
-	if !IsPromotedKeyLen(len(key)) {
-		return false
-	}
-	return sm.setPromoted(key, value)
-}
-
 // Range calls fn for each entry in the flat map (sm.m).
 // Promoted attrs live in sm.attrs and are not yielded here.
 // Iteration stops if fn returns false.
@@ -154,17 +149,6 @@ func (sm SpanMeta) Range(fn func(k, v string) bool) {
 // Write methods
 // ---------------------------------------------------------------------------
 
-// Put writes key→value directly to the flat map without promoted-key
-// routing. Inlineable by design — use on paths where the caller has
-// already handled promoted keys (e.g. after SetIfPromoted returned false).
-func (sm *SpanMeta) Put(key, value string) {
-	if sm.m == nil {
-		sm.initMap(key, value)
-		return
-	}
-	sm.m[key] = value
-}
-
 // Set sets key→value, routing promoted keys to attrs (with copy-on-write)
 // and others to the flat map.
 // +checklocksignore — called both at init time (no lock) and under lock.
@@ -179,10 +163,8 @@ func (sm *SpanMeta) Set(key, value string) {
 	sm.m[key] = value
 }
 
-// setPromoted is the slow path for Set and SetIfPromoted when the key might be
-// a promoted attribute. Returns true if the key was handled (set or no-op).
-//
-//go:noinline
+// setPromoted is the slow path for Set when the key might be a promoted
+// attribute. Returns true if the key was handled (set or no-op).
 func (sm *SpanMeta) setPromoted(key, value string) bool {
 	ak, ok := AttrKeyForTag(key)
 	if !ok {
@@ -197,9 +179,6 @@ func (sm *SpanMeta) setPromoted(key, value string) bool {
 }
 
 // initMap allocates the flat map and inserts the first entry.
-// Separated to keep Set's fast path (map already exists) small and inlinable.
-//
-//go:noinline
 func (sm *SpanMeta) initMap(key, value string) {
 	sm.m = make(map[string]string, metaMapHint)
 	sm.m[key] = value
@@ -220,16 +199,16 @@ func (sm *SpanMeta) ensureAttrsLocal() {
 // Delete removes key from both the flat map and (for promoted keys) attrs.
 // +checklocksignore — called both at init time (no lock) and under lock.
 func (sm *SpanMeta) Delete(key string) {
-	delete(sm.m, key)
 	if IsPromotedKeyLen(len(key)) {
-		sm.deleteFromAttrs(key)
+		sm.deleteSlow(key)
+		return
 	}
+	delete(sm.m, key)
 }
 
-// deleteFromAttrs handles the promoted-key side of Delete.
-//
-//go:noinline
-func (sm *SpanMeta) deleteFromAttrs(key string) {
+// deleteSlow handles the promoted-key path for Delete.
+func (sm *SpanMeta) deleteSlow(key string) {
+	delete(sm.m, key)
 	ak, ok := AttrKeyForTag(key)
 	if !ok {
 		return
@@ -246,7 +225,11 @@ func (sm *SpanMeta) deleteFromAttrs(key string) {
 // This must stay in sync with the Defs table in span_attributes.go; the init
 // check below enforces this at program start.
 func IsPromotedKeyLen(n int) bool {
-	return n == 3 || n == 7 || n == 9
+	switch n {
+	case 3, 7, 9:
+		return true
+	}
+	return false
 }
 
 func init() {

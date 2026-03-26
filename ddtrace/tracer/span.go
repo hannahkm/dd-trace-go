@@ -439,7 +439,7 @@ func (s *Span) setTagLocked(key string, value any) {
 			s.pprofCtxActive = pprof.WithLabels(s.pprofCtxActive, pprof.Labels(traceprof.TraceEndpoint, v))
 			pprof.SetGoroutineLabels(s.pprofCtxActive)
 		}
-		s.setMetaTagLocked(key, v)
+		s.setMetaLocked(key, v)
 		return
 	}
 	if v, ok := sharedinternal.ToFloat64(value); ok {
@@ -447,12 +447,12 @@ func (s *Span) setTagLocked(key string, value any) {
 		return
 	}
 	if v, ok := value.(fmt.Stringer); ok {
-		s.setMetaTagLocked(key, safeStringerValue(v, value))
+		s.setMetaLocked(key, safeStringerValue(v, value))
 		return
 	}
 
 	if v, ok := value.([]byte); ok {
-		s.setMetaTagLocked(key, string(v))
+		s.setMetaLocked(key, string(v))
 		return
 	}
 
@@ -469,7 +469,7 @@ func (s *Span) setTagLocked(key string, value any) {
 				if num, ok := sharedinternal.ToFloat64(v.Interface()); ok {
 					s.setMetricLocked(key, num)
 				} else {
-					s.setMetaTagLocked(key, fmt.Sprintf("%v", v))
+					s.setMetaLocked(key, fmt.Sprintf("%v", v))
 				}
 			}
 			return
@@ -496,7 +496,7 @@ func (s *Span) setTagLocked(key string, value any) {
 	}
 
 	// not numeric, not a string, not a fmt.Stringer, not a bool, and not an error
-	s.setMetaTagLocked(key, fmt.Sprint(value))
+	s.setMetaLocked(key, fmt.Sprint(value))
 }
 
 // setSamplingPriority locks the span, then updates the sampling priority.
@@ -720,24 +720,9 @@ func (s *Span) setMeta(key, v string) {
 }
 
 // setMetaLocked sets a string tag. This method assumes the span lock is already held.
-// Promoted keys (env, version, component, span.kind) are written to the flat
-// map via setMetaInit/SetMap — callers that may receive promoted keys should
-// use setMetaTagLocked instead.
 // +checklocks:s.mu
 func (s *Span) setMetaLocked(key, v string) {
 	assert.RWMutexLocked(&s.mu)
-	s.setMetaInit(key, v)
-}
-
-// setMetaTagLocked is like setMetaLocked but routes promoted keys to COW attrs,
-// keeping them out of the tag store. Used by setTagLocked where the key may be
-// any user-supplied string.
-// +checklocks:s.mu
-func (s *Span) setMetaTagLocked(key, v string) {
-	if s.meta.SetIfPromoted(key, v) {
-		delete(s.metrics, key)
-		return
-	}
 	s.setMetaInit(key, v)
 }
 
@@ -755,7 +740,7 @@ func (s *Span) setMetaInit(key, v string) {
 	case ext.SpanType:
 		s.spanType = v
 	default:
-		s.meta.Put(key, v)
+		s.meta.Set(key, v)
 	}
 }
 
