@@ -254,9 +254,9 @@ func TestSpanMetaSetPromotedNoOpWhenPresent(t *testing.T) {
 	}
 }
 
-// BenchmarkMerge measures the allocation cost of Merge() with both tag store
+// BenchmarkMap measures the allocation cost of Map() with both tag store
 // entries and promoted attrs set.
-func BenchmarkMerge(b *testing.B) {
+func BenchmarkMap(b *testing.B) {
 	var a SpanAttributes
 	a.Set(AttrEnv, "prod")
 	a.Set(AttrVersion, "1.2.3")
@@ -272,6 +272,6 @@ func BenchmarkMerge(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		_ = sm.Merge()
+		_ = sm.Map()
 	}
 }

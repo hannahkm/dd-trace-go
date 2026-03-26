@@ -177,7 +177,7 @@ func (c *concentrator) newTracerStatSpan(s *Span, obfuscator *obfuscate.Obfuscat
 		Start:        s.start,
 		Duration:     s.duration,
 		Error:        s.error,
-		Meta:         s.meta.Merge(),
+		Meta:         s.meta.Map(),
 		Metrics:      s.metrics,
 		PeerTags:     c.cfg.agent.load().peerTags,
 		HTTPMethod:   httpMethod,

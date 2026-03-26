@@ -165,8 +165,6 @@ type Span struct {
 	context      *SpanContext `msg:"-"` // span propagation context
 	// +checklocks:mu
 	supportsEvents bool `msg:"-"` // whether the span supports native span events or not
-	// +checklocks:mu
-	supportsLinks bool `msg:"-"` // whether the span supports native span links or not
 
 	// +checklocks:mu
 	finished bool `msg:"-"` // true if the span has been submitted to a tracer. Can only be read/modified if the trace is locked.
@@ -722,7 +720,8 @@ func (s *Span) setMeta(key, v string) {
 }
 
 // setMetaLocked sets a string tag. This method assumes the span lock is already held.
-// Callers that may receive user-supplied keys (including promoted ones) should
+// Promoted keys (env, version, component, span.kind) are written to the flat
+// map via setMetaInit/SetMap — callers that may receive promoted keys should
 // use setMetaTagLocked instead.
 // +checklocks:s.mu
 func (s *Span) setMetaLocked(key, v string) {
@@ -756,7 +755,7 @@ func (s *Span) setMetaInit(key, v string) {
 	case ext.SpanType:
 		s.spanType = v
 	default:
-		s.meta.Set(key, v)
+		s.meta.Put(key, v)
 	}
 }
 
@@ -862,11 +861,6 @@ func (s *Span) AddLink(link SpanLink) {
 func (s *Span) serializeSpanLinksInMeta() {
 	assert.RWMutexLocked(&s.mu)
 	if len(s.spanLinks) == 0 {
-		return
-	}
-	// if span links are natively supported by the encoder, there's nothing to do
-	// as the links will be already included when the span is serialized.
-	if s.supportsLinks {
 		return
 	}
 	spanLinkBytes, err := json.Marshal(s.spanLinks)

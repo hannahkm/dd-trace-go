@@ -6,8 +6,8 @@
 package internal
 
 import (
+	"fmt"
 	"iter"
-	"maps"
 	"strings"
 
 	"github.com/tinylib/msgp/msgp"
@@ -30,13 +30,16 @@ var (
 // and are excluded from the map m. The msgp codec merges both sources
 // transparently so the wire format is unchanged.
 //
-// Hot paths (setMetaInit, setMetricLocked) use SetMap/DeleteMap for direct
-// tag-store access without promoted-key overhead. Callers that may write
-// promoted keys use Set/Delete or setMetaTagLocked which route to attrs via
-// copy-on-write. Promoted keys never appear in sm.m.
+// Hot paths (setMetaInit, setMetricLocked) use Put for direct flat-map
+// access without promoted-key overhead. Callers that may write promoted
+// keys use Set/Delete or setMetaTagLocked which route to attrs via
+// copy-on-write. Promoted keys never appear in sm.m until Map() is
+// called, which copies them into sm.m and sets the inlined flag so that
+// EncodeMsg, Msgsize, All, and Count skip the attrs source.
 type SpanMeta struct {
-	m     map[string]string
-	attrs *SpanAttributes
+	m       map[string]string
+	attrs   *SpanAttributes
+	inlined bool
 }
 
 // NewSpanMeta returns a SpanMeta initialized with shared attrs (used during span creation).
@@ -112,6 +115,11 @@ func (sm SpanMeta) Has(key string) bool {
 	return ok
 }
 
+// Attr returns a promoted attribute value by AttrKey. O(1) array index + bitmask.
+func (sm SpanMeta) Attr(key AttrKey) (string, bool) {
+	return sm.attrs.Get(key)
+}
+
 // Env returns the value of the "env" promoted attribute.
 func (sm SpanMeta) Env() (string, bool) { return sm.attrs.Get(AttrEnv) }
 
@@ -148,6 +156,17 @@ func (sm SpanMeta) Range(fn func(k, v string) bool) {
 // ---------------------------------------------------------------------------
 // Write methods
 // ---------------------------------------------------------------------------
+
+// Put writes key→value directly to the flat map without promoted-key
+// routing. Inlineable by design — use on paths where the caller has
+// already handled promoted keys (e.g. after SetIfPromoted returned false).
+func (sm *SpanMeta) Put(key, value string) {
+	if sm.m == nil {
+		sm.initMap(key, value)
+		return
+	}
+	sm.m[key] = value
+}
 
 // Set sets key→value, routing promoted keys to attrs (with copy-on-write)
 // and others to the flat map.
@@ -245,9 +264,18 @@ func init() {
 // Counting / iteration
 // ---------------------------------------------------------------------------
 
+// attrsNotInM returns the number of promoted attrs not yet present in m.
+// After Map() has inlined them, this returns 0.
+func (sm SpanMeta) attrsNotInM() int {
+	if sm.inlined || sm.attrs == nil {
+		return 0
+	}
+	return sm.attrs.Count()
+}
+
 // Count returns the total number of distinct entries (flat map + promoted attrs).
 func (sm SpanMeta) Count() int {
-	return len(sm.m) + sm.attrs.Count()
+	return len(sm.m) + sm.attrsNotInM()
 }
 
 // AttrCount returns the number of promoted attrs currently set.
@@ -262,27 +290,33 @@ func (sm SpanMeta) SerializableCount() int {
 	return len(sm.m)
 }
 
-// Merge returns a new map containing all flat-map entries plus all promoted
-// attrs. Always allocates — never returns sm.m directly, avoiding races when
-// the result is placed into a pooled struct.
-func (sm SpanMeta) Merge() map[string]string {
-	n := len(sm.m) + sm.attrs.Count()
+// Map returns a map containing all flat-map entries plus all promoted
+// attrs. On the first call it copies promoted attrs into sm.m and sets the
+// inlined flag, so subsequent calls (and EncodeMsg/All/Count) skip the
+// attrs source. Returns sm.m directly — zero allocation after the first
+// call. Must only be called after the span is finished (no concurrent writes).
+func (sm *SpanMeta) Map() map[string]string {
+	n := sm.attrsNotInM()
 	if n == 0 {
-		return nil
+		return sm.m
 	}
-	m := make(map[string]string, n)
-	maps.Copy(m, sm.m)
+	if sm.m == nil {
+		sm.m = make(map[string]string, n)
+	}
 	for _, d := range Defs {
 		if sm.attrs.Has(d.Key) {
-			m[d.Name] = sm.attrs.vals[d.Key]
+			sm.m[d.Name] = sm.attrs.vals[d.Key]
 		}
 	}
-	return m
+	sm.inlined = true
+	return sm.m
 }
 
 // All returns an iterator over all entries. Flat-map entries are yielded first
 // (in unspecified order), followed by promoted attributes in definition order
-// (env, version, component, span.kind). Returning false from yield stops iteration.
+// (env, version, component, span.kind). After Map() has been called, all
+// entries are in sm.m and the attrs section is skipped.
+// Returning false from yield stops iteration.
 func (sm SpanMeta) All() iter.Seq2[string, string] {
 	return func(yield func(string, string) bool) {
 		for k, v := range sm.m {
@@ -290,7 +324,7 @@ func (sm SpanMeta) All() iter.Seq2[string, string] {
 				return
 			}
 		}
-		if sm.attrs == nil {
+		if sm.inlined || sm.attrs == nil {
 			return
 		}
 		for _, d := range Defs {
@@ -313,9 +347,7 @@ func (sm SpanMeta) String() string {
 			b.WriteByte(' ')
 		}
 		first = false
-		b.WriteString(k)
-		b.WriteByte(':')
-		b.WriteString(v)
+		fmt.Fprintf(&b, "%s:%s", k, v)
 	}
 	b.WriteByte(']')
 	return b.String()
@@ -325,10 +357,11 @@ func (sm SpanMeta) String() string {
 // msgp codec
 // ---------------------------------------------------------------------------
 
-// EncodeMsg writes the map header (flat map entries + promoted attrs),
-// then emits all flat map entries followed by all set promoted attrs.
+// EncodeMsg writes the map header (flat map entries + promoted attrs not yet
+// in m), then emits all flat map entries followed by promoted attrs not yet
+// inlined. After Map(), all entries are in sm.m and the attrs loop is skipped.
 func (sm *SpanMeta) EncodeMsg(en *msgp.Writer) error {
-	n := sm.attrs.Count()
+	n := sm.attrsNotInM()
 	if err := en.WriteMapHeader(uint32(len(sm.m) + n)); err != nil {
 		return msgp.WrapError(err, "Meta")
 	}
@@ -395,7 +428,7 @@ func (sm *SpanMeta) Msgsize() int {
 	for k, v := range sm.m {
 		size += msgp.StringPrefixSize + len(k) + msgp.StringPrefixSize + len(v)
 	}
-	if n := sm.attrs.Count(); n > 0 {
+	if n := sm.attrsNotInM(); n > 0 {
 		for _, d := range Defs {
 			if v, ok := sm.attrs.Get(d.Key); ok {
 				size += msgp.StringPrefixSize + len(d.Name) + msgp.StringPrefixSize + len(v)
