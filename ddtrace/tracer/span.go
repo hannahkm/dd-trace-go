@@ -368,8 +368,6 @@ func (s *Span) SetTag(key string, value any) {
 	if s == nil {
 		return
 	}
-	// To avoid dumping the memory address in case value is a pointer, we dereference it.
-	// Any pointer value that is a pointer to a pointer will be dumped as a string.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -400,6 +398,8 @@ func (s *Span) setTagLocked(key string, value any) {
 	if s.finished {
 		return
 	}
+	// To avoid dumping the memory address in case value is a pointer, we dereference it.
+	// Any pointer value that is a pointer to a pointer will be dumped as a string.
 	value = dereference(value)
 	switch key {
 	case ext.Error:
