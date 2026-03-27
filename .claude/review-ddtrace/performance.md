@@ -21,7 +21,7 @@ $ go build -gcflags="-m=2" ./ddtrace/tracer/ | grep encodeField
 # PR:    encodeField[go.shape.string]: cost 801 exceeds budget 80
 ```
 
-The inlining cost of a function affects whether its *callers* can inline it. A function going from cost 60 to cost 90 won't inline differently itself (it was already over 80), but it changes the cost calculation for every call site.
+The inlining cost of a function affects whether its *callers* can inline it. A function going from cost 60 to cost 90 will stop being inlined (it crossed the 80 budget), and this also changes the cost calculation for every call site that previously inlined it.
 
 **Mitigation:** Wrap cold-path code (like error logging) in a `go:noinline`-tagged function so it doesn't inflate the caller's inlining cost:
 
