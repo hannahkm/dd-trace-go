@@ -134,6 +134,9 @@ func (sm SpanMeta) Component() (string, bool) { return sm.attrs.Get(AttrComponen
 // SpanKind returns the value of the "span.kind" promoted attribute.
 func (sm SpanMeta) SpanKind() (string, bool) { return sm.attrs.Get(AttrSpanKind) }
 
+// Language returns the value of the "language" promoted attribute.
+func (sm SpanMeta) Language() (string, bool) { return sm.attrs.Get(AttrLanguage) }
+
 // Range calls fn for each entry in the flat map (sm.m).
 // Promoted attrs live in sm.attrs and are not yielded here.
 // Iteration stops if fn returns false.
@@ -198,12 +201,18 @@ func (sm *SpanMeta) ensureAttrsLocal() {
 
 // Delete removes key from both the flat map and (for promoted keys) attrs.
 // +checklocksignore — called both at init time (no lock) and under lock.
+//
+// The length switch is intentionally duplicated from IsPromotedKeyLen rather
+// than calling it. Inlining IsPromotedKeyLen (cost 11) into Delete raises
+// Delete's budget from 73 to 81, crossing the 80-unit limit and preventing
+// callers from inlining Delete. The direct switch keeps Delete at cost 73.
 func (sm *SpanMeta) Delete(key string) {
-	if IsPromotedKeyLen(len(key)) {
+	switch len(key) {
+	case 3, 7, 8, 9:
 		sm.deleteSlow(key)
-		return
+	default:
+		delete(sm.m, key)
 	}
-	delete(sm.m, key)
 }
 
 // deleteSlow handles the promoted-key path for Delete.
@@ -221,12 +230,12 @@ func (sm *SpanMeta) deleteSlow(key string) {
 }
 
 // IsPromotedKeyLen reports whether n matches the length of any promoted attribute name.
-// Promoted keys: "env"(3), "version"(7), "component"(9), "span.kind"(9).
+// Promoted keys: "env"(3), "version"(7), "language"(8), "component"(9), "span.kind"(9).
 // This must stay in sync with the Defs table in span_attributes.go; the init
 // check below enforces this at program start.
 func IsPromotedKeyLen(n int) bool {
 	switch n {
-	case 3, 7, 9:
+	case 3, 7, 8, 9:
 		return true
 	}
 	return false

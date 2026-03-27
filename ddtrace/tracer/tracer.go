@@ -497,8 +497,13 @@ func newUnstartedTracer(opts ...StartOption) (t *tracer, err error) {
 		logFile:     logFile,
 	}
 	// Build the shared SpanAttributes that every span will start from.
-	// Process-level values (env, version) are set once here;
+	// Process-level values (env, version, language) are set once here;
 	// spans share this pointer and only clone on per-span overrides.
+	// language="go" is the same for every span — pre-populating it here
+	// makes the setMetaInit("language", "go") call in spanStart a COW no-op,
+	// deferring flat-map allocation until a span actually needs it.
+	t.sharedAttrs.Set(traceinternal.AttrLanguage, "go")
+	t.sharedAttrsForMainSvc.Set(traceinternal.AttrLanguage, "go")
 	if env := c.internalConfig.Env(); env != "" {
 		t.sharedAttrs.Set(traceinternal.AttrEnv, env)
 		t.sharedAttrsForMainSvc.Set(traceinternal.AttrEnv, env)
