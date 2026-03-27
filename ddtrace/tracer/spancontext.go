@@ -522,7 +522,8 @@ var samplingPriorityCache = func() [4]*float64 {
 }()
 
 // samplingPriorityPtr returns a *float64 for p without allocating for the
-// standard priority values (ext.PriorityUserReject through ext.PriorityUserKeep).
+// standard priority values (ext.PriorityUserReject through ext.PriorityUserKeep);
+// for any other value it allocates a new one.
 func samplingPriorityPtr(p int) *float64 {
 	if p >= -1 && p <= 2 {
 		return samplingPriorityCache[p+1]
