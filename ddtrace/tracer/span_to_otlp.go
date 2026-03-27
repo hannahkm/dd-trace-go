@@ -87,7 +87,7 @@ func convertSpanLinks(links []SpanLink) []*otlptrace.Span_Link {
 	if len(links) == 0 {
 		return nil
 	}
-	otlpLinks := make([]*otlptrace.Span_Link, 0)
+	otlpLinks := make([]*otlptrace.Span_Link, 0, len(links))
 	for _, link := range links {
 		otlpLinks = append(otlpLinks, &otlptrace.Span_Link{
 			TraceId:    convertTraceID(link.TraceIDHigh, link.TraceID),
@@ -105,7 +105,7 @@ func convertEvents(s *Span) []*otlptrace.Span_Event {
 	if len(s.spanEvents) == 0 {
 		return nil
 	}
-	events := make([]*otlptrace.Span_Event, 0)
+	events := make([]*otlptrace.Span_Event, 0, len(s.spanEvents))
 	for _, event := range s.spanEvents {
 		events = append(events, &otlptrace.Span_Event{
 			Name:         event.Name,
