@@ -15,12 +15,10 @@ import (
 type AttrKey uint8
 
 const (
-	AttrEnv       AttrKey = 0
-	AttrVersion   AttrKey = 1
-	AttrComponent AttrKey = 2
-	AttrSpanKind  AttrKey = 3
-	AttrLanguage  AttrKey = 4
-	numAttrs      AttrKey = 5
+	AttrEnv      AttrKey = 0
+	AttrVersion  AttrKey = 1
+	AttrLanguage AttrKey = 2
+	numAttrs     AttrKey = 3
 
 	// AttrUnknown is returned by AttrKeyForTag when no promoted tag matches.
 	// Its value is intentionally out of range for vals[] so misuse panics immediately.
@@ -31,25 +29,23 @@ const (
 // they index both vals[] and setMask bit positions. If any value drifts (e.g. via
 // iota + reorder), the expression below produces a compile error.
 var (
-	_ = [1]byte{}[AttrEnv]         // AttrEnv must be 0
-	_ = [1]byte{}[AttrVersion-1]   // AttrVersion must be 1
-	_ = [1]byte{}[AttrComponent-2] // AttrComponent must be 2
-	_ = [1]byte{}[AttrSpanKind-3]  // AttrSpanKind must be 3
-	_ = [1]byte{}[AttrLanguage-4]  // AttrLanguage must be 4
+	_ = [1]byte{}[AttrEnv]        // AttrEnv must be 0
+	_ = [1]byte{}[AttrVersion-1]  // AttrVersion must be 1
+	_ = [1]byte{}[AttrLanguage-2] // AttrLanguage must be 2
 )
 
 // SpanAttributes holds the V1-protocol promoted span fields.
 // Zero value = all fields absent.
 // Set(key, "") is distinct from never-Set: the bit is set, the string is "".
 //
-// Layout: 1-byte setMask + 1-byte shared + 6B padding + [5]string (80B) = 88 bytes.
+// Layout: 1-byte setMask + 1-byte readOnly + 6B padding + [3]string (48B) = 56 bytes.
 //
-// When shared is true, the instance is owned by the tracer and must not be
+// When readOnly is true, the instance is owned by the tracer and must not be
 // mutated. Callers must Clone before writing (copy-on-write).
 type SpanAttributes struct {
-	setMask uint8
-	shared  bool
-	vals    [numAttrs]string
+	setMask  uint8
+	readOnly bool
+	vals     [numAttrs]string
 }
 
 // All read methods are nil-safe so callers holding a *SpanAttributes don't
@@ -92,11 +88,11 @@ func (a *SpanAttributes) Count() int {
 	return bits.OnesCount8(a.setMask)
 }
 
-// MarkShared marks this instance as shared (read-only). Clone before mutating.
-func (a *SpanAttributes) MarkShared() { a.shared = true }
+// MarkReadOnly marks this instance as readOnly (read-only). Clone before mutating.
+func (a *SpanAttributes) MarkReadOnly() { a.readOnly = true }
 
-// IsShared reports whether this is a shared instance requiring COW.
-func (a *SpanAttributes) IsShared() bool { return a != nil && a.shared }
+// IsReadOnly reports whether this is a readOnly instance requiring COW.
+func (a *SpanAttributes) IsReadOnly() bool { return a != nil && a.readOnly }
 
 // Reset clears all set attributes, returning the instance to its zero state.
 // It is nil-safe and does not free the underlying memory, making it suitable
@@ -108,13 +104,13 @@ func (a *SpanAttributes) Reset() {
 	*a = SpanAttributes{}
 }
 
-// Clone returns a mutable (non-shared) shallow copy.
+// Clone returns a mutable (non-readOnly) shallow copy.
 func (a *SpanAttributes) Clone() *SpanAttributes {
 	if a == nil {
 		return &SpanAttributes{}
 	}
 	cp := *a
-	cp.shared = false
+	cp.readOnly = false
 	return &cp
 }
 
@@ -128,8 +124,6 @@ type AttrDef struct {
 var Defs = [numAttrs]AttrDef{
 	{AttrEnv, "env"},
 	{AttrVersion, "version"},
-	{AttrComponent, "component"},
-	{AttrSpanKind, "span.kind"},
 	{AttrLanguage, "language"},
 }
 
@@ -160,10 +154,6 @@ func AttrKeyForTag(tag string) (AttrKey, bool) {
 		return AttrEnv, true
 	case "version":
 		return AttrVersion, true
-	case "component":
-		return AttrComponent, true
-	case "span.kind":
-		return AttrSpanKind, true
 	case "language":
 		return AttrLanguage, true
 	}

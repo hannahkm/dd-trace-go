@@ -12,7 +12,7 @@ import (
 
 func TestSpanAttributesZeroValue(t *testing.T) {
 	var a SpanAttributes
-	for _, key := range []AttrKey{AttrEnv, AttrVersion, AttrComponent, AttrSpanKind} {
+	for _, key := range []AttrKey{AttrEnv, AttrVersion, AttrLanguage} {
 		if v, ok := a.Get(key); ok || v != "" {
 			t.Errorf("key %d: expected absent zero value, got (%q, %v)", key, v, ok)
 		}
@@ -26,8 +26,7 @@ func TestSpanAttributesSetAndGet(t *testing.T) {
 	}{
 		{AttrEnv, "prod"},
 		{AttrVersion, "1.2.3"},
-		{AttrComponent, "net/http"},
-		{AttrSpanKind, "server"},
+		{AttrLanguage, "go"},
 	}
 	var a SpanAttributes
 	for _, tt := range tests {
@@ -78,7 +77,7 @@ func TestSpanAttributesIndependentKeys(t *testing.T) {
 	a.Set(AttrEnv, "prod")
 
 	// Other keys must remain absent.
-	for _, key := range []AttrKey{AttrVersion, AttrComponent, AttrSpanKind} {
+	for _, key := range []AttrKey{AttrVersion, AttrLanguage} {
 		if _, ok := a.Get(key); ok {
 			t.Errorf("key %d should be absent after setting only AttrEnv", key)
 		}
@@ -96,8 +95,7 @@ func TestSpanAttributesValUnset(t *testing.T) {
 func TestSpanAttributesForEach(t *testing.T) {
 	var a SpanAttributes
 	a.Set(AttrEnv, "prod")
-	a.Set(AttrSpanKind, "server")
-	// AttrVersion and AttrComponent are NOT set
+	a.Set(AttrVersion, "1.2.3")
 
 	got := maps.Collect(a.All())
 	if len(got) != 2 {
@@ -106,8 +104,8 @@ func TestSpanAttributesForEach(t *testing.T) {
 	if got["env"] != "prod" {
 		t.Errorf("expected env=prod, got %q", got["env"])
 	}
-	if got["span.kind"] != "server" {
-		t.Errorf("expected span.kind=server, got %q", got["span.kind"])
+	if got["version"] != "1.2.3" {
+		t.Errorf("expected version=1.2.3, got %q", got["version"])
 	}
 }
 
@@ -130,8 +128,9 @@ func TestAttrKeyForTag(t *testing.T) {
 	}{
 		{"env", AttrEnv, true},
 		{"version", AttrVersion, true},
-		{"component", AttrComponent, true},
-		{"span.kind", AttrSpanKind, true},
+		{"language", AttrLanguage, true},
+		{"component", AttrUnknown, false},
+		{"span.kind", AttrUnknown, false},
 		{"unknown", AttrUnknown, false},
 		{"", AttrUnknown, false},
 	}
@@ -153,34 +152,31 @@ func BenchmarkSpanAttributesSet(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			a.Set(AttrEnv, "prod")
 			a.Set(AttrVersion, "1.2.3")
-			a.Set(AttrComponent, "net/http")
-			a.Set(AttrSpanKind, "server")
+			a.Set(AttrLanguage, "go")
 		}
 		_ = a
 	})
 
 	b.Run("map", func(b *testing.B) {
-		m := make(map[string]string, 4)
+		m := make(map[string]string, 3)
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			m["env"] = "prod"
 			m["version"] = "1.2.3"
-			m["component"] = "net/http"
-			m["span.kind"] = "server"
+			m["language"] = "go"
 		}
 		_ = m
 	})
 }
 
-// BenchmarkSpanAttributesGet benchmarks reading all four promoted fields.
+// BenchmarkSpanAttributesGet benchmarks reading all promoted fields.
 func BenchmarkSpanAttributesGet(b *testing.B) {
 	b.Run("SpanAttributes", func(b *testing.B) {
 		var a SpanAttributes
 		a.Set(AttrEnv, "prod")
 		a.Set(AttrVersion, "1.2.3")
-		a.Set(AttrComponent, "net/http")
-		a.Set(AttrSpanKind, "server")
+		a.Set(AttrLanguage, "go")
 		b.ReportAllocs()
 		b.ResetTimer()
 		var s string
@@ -188,18 +184,16 @@ func BenchmarkSpanAttributesGet(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			s, ok = a.Get(AttrEnv)
 			s, ok = a.Get(AttrVersion)
-			s, ok = a.Get(AttrComponent)
-			s, ok = a.Get(AttrSpanKind)
+			s, ok = a.Get(AttrLanguage)
 		}
 		_, _ = s, ok
 	})
 
 	b.Run("map", func(b *testing.B) {
 		m := map[string]string{
-			"env":       "prod",
-			"version":   "1.2.3",
-			"component": "net/http",
-			"span.kind": "server",
+			"env":      "prod",
+			"version":  "1.2.3",
+			"language": "go",
 		}
 		b.ReportAllocs()
 		b.ResetTimer()
@@ -208,8 +202,8 @@ func BenchmarkSpanAttributesGet(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			s, ok = m["env"]
 			s, ok = m["version"]
-			s, ok = m["component"]
-			s, ok = m["span.kind"]
+			s, ok = m["env"]
+			s, ok = m["language"]
 		}
 		_, _ = s, ok
 	})
@@ -236,7 +230,7 @@ func TestSpanMetaSetPromotedEmptyString(t *testing.T) {
 func TestSpanMetaSetPromotedNoOpWhenPresent(t *testing.T) {
 	var a SpanAttributes
 	a.Set(AttrEnv, "prod")
-	a.MarkShared()
+	a.MarkReadOnly()
 	sm := NewSpanMeta(&a)
 
 	// Same value: result must still be ("prod", true).
@@ -260,8 +254,7 @@ func BenchmarkMap(b *testing.B) {
 	var a SpanAttributes
 	a.Set(AttrEnv, "prod")
 	a.Set(AttrVersion, "1.2.3")
-	a.Set(AttrComponent, "net/http")
-	a.Set(AttrSpanKind, "server")
+	a.Set(AttrLanguage, "go")
 	sm := NewSpanMeta(&a)
 	sm.Set("key0", "value0")
 	sm.Set("key1", "value1")

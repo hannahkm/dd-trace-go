@@ -46,14 +46,14 @@ var (
 // read-only, so serialization methods (EncodeMsg, Msgsize, Range, etc.) can
 // read it lock-free via the acquire fence in inlined.Load().
 type SpanMeta struct {
-	m       map[string]string
-	attrs   *SpanAttributes
-	inlined bool
+	m             map[string]string
+	promotedAttrs *SpanAttributes
+	inlined       bool
 }
 
-// NewSpanMeta returns a SpanMeta initialized with shared attrs (used during span creation).
-func NewSpanMeta(attrs *SpanAttributes) SpanMeta {
-	return SpanMeta{attrs: attrs}
+// NewSpanMeta returns a SpanMeta initialized with shared promoted attrs (used during span creation).
+func NewSpanMeta(promotedAttrs *SpanAttributes) SpanMeta {
+	return SpanMeta{promotedAttrs: promotedAttrs}
 }
 
 // NewSpanMetaFromMap returns a SpanMeta pre-loaded with a flat map. Intended for test helpers.
@@ -67,15 +67,15 @@ func (sm *SpanMeta) IsZero() bool {
 	if sm.inlined {
 		return false // Finish() wrote entries to sm.m; always non-empty
 	}
-	return len(sm.m) == 0 && sm.attrs.Count() == 0
+	return len(sm.m) == 0 && sm.promotedAttrs.Count() == 0
 }
 
 // ReplaceSharedAttrs replaces the current attrs pointer with next if it
 // currently equals prev. Used by the tracer to upgrade a newly-created span
 // from the base shared attrs to the main-service shared attrs.
 func (sm *SpanMeta) ReplaceSharedAttrs(prev, next *SpanAttributes) {
-	if sm.attrs == prev {
-		sm.attrs = next
+	if sm.promotedAttrs == prev {
+		sm.promotedAttrs = next
 	}
 }
 
@@ -85,8 +85,8 @@ func (sm *SpanMeta) Normalize() {
 	if len(sm.m) == 0 {
 		sm.m = nil
 	}
-	if sm.attrs != nil && sm.attrs.Count() == 0 {
-		sm.attrs = nil
+	if sm.promotedAttrs != nil && sm.promotedAttrs.Count() == 0 {
+		sm.promotedAttrs = nil
 	}
 }
 
@@ -117,7 +117,7 @@ func (sm *SpanMeta) getPromoted(key string) (string, bool, bool) {
 	if !ok {
 		return "", false, false
 	}
-	v, found := sm.attrs.Get(ak)
+	v, found := sm.promotedAttrs.Get(ak)
 	return v, found, true
 }
 
@@ -129,23 +129,17 @@ func (sm *SpanMeta) Has(key string) bool {
 
 // Attr returns a promoted attribute value by AttrKey. O(1) array index + bitmask.
 func (sm *SpanMeta) Attr(key AttrKey) (string, bool) {
-	return sm.attrs.Get(key)
+	return sm.promotedAttrs.Get(key)
 }
 
 // Env returns the value of the "env" promoted attribute.
-func (sm *SpanMeta) Env() (string, bool) { return sm.attrs.Get(AttrEnv) }
+func (sm *SpanMeta) Env() (string, bool) { return sm.promotedAttrs.Get(AttrEnv) }
 
 // Version returns the value of the "version" promoted attribute.
-func (sm *SpanMeta) Version() (string, bool) { return sm.attrs.Get(AttrVersion) }
-
-// Component returns the value of the "component" promoted attribute.
-func (sm *SpanMeta) Component() (string, bool) { return sm.attrs.Get(AttrComponent) }
-
-// SpanKind returns the value of the "span.kind" promoted attribute.
-func (sm *SpanMeta) SpanKind() (string, bool) { return sm.attrs.Get(AttrSpanKind) }
+func (sm *SpanMeta) Version() (string, bool) { return sm.promotedAttrs.Get(AttrVersion) }
 
 // Language returns the value of the "language" promoted attribute.
-func (sm *SpanMeta) Language() (string, bool) { return sm.attrs.Get(AttrLanguage) }
+func (sm *SpanMeta) Language() (string, bool) { return sm.promotedAttrs.Get(AttrLanguage) }
 
 // Range calls fn for each flat-map entry. When Map() has been called,
 // promoted keys in sm.m are skipped so v1 callers don't double-encode them.
@@ -194,11 +188,11 @@ func (sm *SpanMeta) setPromoted(key, value string) bool {
 	if !ok {
 		return false
 	}
-	if sm.attrs != nil && sm.attrs.Has(ak) && sm.attrs.Val(ak) == value {
+	if sm.promotedAttrs != nil && sm.promotedAttrs.Has(ak) && sm.promotedAttrs.Val(ak) == value {
 		return true // no-op: key is present and value already matches
 	}
 	sm.ensureAttrsLocal()
-	sm.attrs.Set(ak, value)
+	sm.promotedAttrs.Set(ak, value)
 	return true
 }
 
@@ -211,12 +205,12 @@ func (sm *SpanMeta) initMap(key, value string) {
 // ensureAttrsLocal guarantees attrs is a mutable, span-local instance.
 // If attrs is nil a fresh one is allocated; if shared, it is cloned.
 func (sm *SpanMeta) ensureAttrsLocal() {
-	if sm.attrs == nil {
-		sm.attrs = new(SpanAttributes)
+	if sm.promotedAttrs == nil {
+		sm.promotedAttrs = new(SpanAttributes)
 		return
 	}
-	if sm.attrs.IsShared() {
-		sm.attrs = sm.attrs.Clone()
+	if sm.promotedAttrs.IsReadOnly() {
+		sm.promotedAttrs = sm.promotedAttrs.Clone()
 	}
 }
 
@@ -229,7 +223,7 @@ func (sm *SpanMeta) ensureAttrsLocal() {
 // callers from inlining Delete. The direct switch keeps Delete at cost 73.
 func (sm *SpanMeta) Delete(key string) {
 	switch len(key) {
-	case 3, 7, 8, 9:
+	case 3, 7, 8:
 		sm.deleteSlow(key)
 	default:
 		delete(sm.m, key)
@@ -243,20 +237,20 @@ func (sm *SpanMeta) deleteSlow(key string) {
 	if !ok {
 		return
 	}
-	if _, isSet := sm.attrs.Get(ak); !isSet {
+	if _, isSet := sm.promotedAttrs.Get(ak); !isSet {
 		return
 	}
 	sm.ensureAttrsLocal()
-	sm.attrs.Unset(ak)
+	sm.promotedAttrs.Unset(ak)
 }
 
 // IsPromotedKeyLen reports whether n matches the length of any promoted attribute name.
-// Promoted keys: "env"(3), "version"(7), "language"(8), "component"(9), "span.kind"(9).
+// Promoted keys: "env"(3), "version"(7), "language"(8).
 // This must stay in sync with the Defs table in span_attributes.go; the init
 // check below enforces this at program start.
 func IsPromotedKeyLen(n int) bool {
 	switch n {
-	case 3, 7, 8, 9:
+	case 3, 7, 8:
 		return true
 	}
 	return false
@@ -276,12 +270,12 @@ func init() {
 
 // Count returns the total number of distinct entries (flat map + promoted attrs).
 func (sm *SpanMeta) Count() int {
-	return len(sm.m) + sm.attrs.Count()
+	return len(sm.m) + sm.promotedAttrs.Count()
 }
 
 // AttrCount returns the number of promoted attrs currently set.
 func (sm *SpanMeta) AttrCount() int {
-	return sm.attrs.Count()
+	return sm.promotedAttrs.Count()
 }
 
 // SerializableCount returns the number of flat-map entries that appear in the
@@ -290,7 +284,7 @@ func (sm *SpanMeta) AttrCount() int {
 // promoted keys are also in sm.m, so they are subtracted from the count.
 func (sm *SpanMeta) SerializableCount() int {
 	if sm.inlined {
-		return len(sm.m) - sm.attrs.Count()
+		return len(sm.m) - sm.promotedAttrs.Count()
 	}
 	return len(sm.m)
 }
@@ -303,14 +297,14 @@ func (sm *SpanMeta) Finish() {
 	if sm.inlined {
 		return
 	}
-	if sm.attrs != nil {
-		if n := sm.attrs.Count(); n > 0 {
+	if sm.promotedAttrs != nil {
+		if n := sm.promotedAttrs.Count(); n > 0 {
 			if sm.m == nil {
 				sm.m = make(map[string]string, n)
 			}
 			for _, d := range Defs {
-				if sm.attrs.Has(d.Key) {
-					sm.m[d.Name] = sm.attrs.vals[d.Key]
+				if sm.promotedAttrs.Has(d.Key) {
+					sm.m[d.Name] = sm.promotedAttrs.vals[d.Key]
 				}
 			}
 		}
@@ -336,12 +330,12 @@ func (sm *SpanMeta) All() iter.Seq2[string, string] {
 				return
 			}
 		}
-		if sm.inlined || sm.attrs == nil {
+		if sm.inlined || sm.promotedAttrs == nil {
 			return
 		}
 		for _, d := range Defs {
-			if sm.attrs.Has(d.Key) {
-				if !yield(d.Name, sm.attrs.vals[d.Key]) {
+			if sm.promotedAttrs.Has(d.Key) {
+				if !yield(d.Name, sm.promotedAttrs.vals[d.Key]) {
 					return
 				}
 			}
@@ -388,7 +382,7 @@ func (sm *SpanMeta) EncodeMsg(en *msgp.Writer) error {
 		}
 		return nil
 	}
-	n := sm.attrs.Count()
+	n := sm.promotedAttrs.Count()
 	if err := en.WriteMapHeader(uint32(len(sm.m) + n)); err != nil {
 		return msgp.WrapError(err, "Meta")
 	}
@@ -408,7 +402,7 @@ func (sm *SpanMeta) EncodeMsg(en *msgp.Writer) error {
 		ok bool
 	)
 	for _, d := range Defs {
-		if v, ok = sm.attrs.Get(d.Key); !ok {
+		if v, ok = sm.promotedAttrs.Get(d.Key); !ok {
 			continue
 		}
 		if err := en.WriteString(d.Name); err != nil {
@@ -460,9 +454,9 @@ func (sm *SpanMeta) Msgsize() int {
 	if sm.inlined {
 		return size
 	}
-	if n := sm.attrs.Count(); n > 0 {
+	if n := sm.promotedAttrs.Count(); n > 0 {
 		for _, d := range Defs {
-			if v, ok := sm.attrs.Get(d.Key); ok {
+			if v, ok := sm.promotedAttrs.Get(d.Key); ok {
 				size += msgp.StringPrefixSize + len(d.Name) + msgp.StringPrefixSize + len(v)
 			}
 		}

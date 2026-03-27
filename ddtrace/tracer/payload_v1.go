@@ -562,7 +562,7 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		// span attributes combine the meta (tags), metrics and meta_struct.
 		// To avoid increased allocations, we serialize attributes immediately without
 		// creating an intermediate map.
-		// Promoted attrs (env, version, component, span.kind) are encoded separately
+		// Promoted attrs (env, version, language) are encoded separately
 		// as fields 13-16 and must not appear in the attributes array.
 		size := span.meta.SerializableCount() + len(span.metrics) + len(span.metaStruct)
 		p.buf = msgp.AppendUint32(p.buf, uint32(9))           // attributes fieldID
@@ -596,8 +596,8 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		var (
 			env, _       = span.meta.Env()
 			version, _   = span.meta.Version()
-			component, _ = span.meta.Component()
-			spanKind, _  = span.meta.SpanKind()
+			component, _ = span.meta.Get(ext.Component)
+			spanKind, _  = span.meta.Get(ext.SpanKind)
 		)
 		p.buf = encodeField(p.buf, fullSetBitmap, 13, env, st)
 		p.buf = encodeField(p.buf, fullSetBitmap, 14, version, st)
@@ -608,8 +608,8 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 }
 
 // encodeMetaEntry is a named callback for SpanMeta.Range. It encodes one
-// meta entry into p.buf using p.st. Promoted keys never enter the tag store
-// so they cannot appear here; they are encoded separately as fields 13-16.
+// meta entry into p.buf using p.st. env/version/language are encoded separately
+// as fields 13-14/language; component and span.kind live in the flat map.
 func (p *payloadV1) encodeMetaEntry(k, v string) bool {
 	p.buf = p.st.serialize(k, p.buf)
 	p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))

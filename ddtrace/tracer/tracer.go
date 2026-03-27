@@ -496,31 +496,34 @@ func newUnstartedTracer(opts ...StartOption) (t *tracer, err error) {
 		dataStreams: dataStreamsProcessor,
 		logFile:     logFile,
 	}
-	// Build the shared SpanAttributes that every span will start from.
-	// Process-level values (env, version, language) are set once here;
-	// spans share this pointer and only clone on per-span overrides.
-	// language="go" is the same for every span — pre-populating it here
-	// makes the setMetaInit("language", "go") call in spanStart a COW no-op,
-	// deferring flat-map allocation until a span actually needs it.
-	t.sharedAttrs.Set(traceinternal.AttrLanguage, "go")
-	t.sharedAttrsForMainSvc.Set(traceinternal.AttrLanguage, "go")
+	buildSharedAttrs(c, &t.sharedAttrs, &t.sharedAttrsForMainSvc)
+	return t, nil
+}
+
+// buildSharedAttrs populates the tracer's two shared SpanAttributes instances
+// with process-level values (language, env, version) and marks them read-only.
+// Every new span starts with a pointer to one of these; the copy-on-write
+// mechanism in SpanAttributes.Clone() creates a span-specific copy only when
+// a per-span override is needed.
+func buildSharedAttrs(c *config, base, mainSvc *traceinternal.SpanAttributes) {
+	// language="go" is the same for every span — pre-populating avoids a
+	// COW clone on the setMetaInit("language", "go") call in spanStart.
+	base.Set(traceinternal.AttrLanguage, "go")
+	mainSvc.Set(traceinternal.AttrLanguage, "go")
 	if env := c.internalConfig.Env(); env != "" {
-		t.sharedAttrs.Set(traceinternal.AttrEnv, env)
-		t.sharedAttrsForMainSvc.Set(traceinternal.AttrEnv, env)
+		base.Set(traceinternal.AttrEnv, env)
+		mainSvc.Set(traceinternal.AttrEnv, env)
 	}
 	if ver := c.internalConfig.Version(); ver != "" {
 		if c.universalVersion {
-			// universalVersion=true: all spans get version via sharedAttrs.
-			t.sharedAttrs.Set(traceinternal.AttrVersion, ver)
+			base.Set(traceinternal.AttrVersion, ver)
 		}
-		// Always pre-populate sharedAttrsForMainSvc with version so that
-		// main-service spans in non-universal mode get a COW no-op rather
-		// than a Clone when StartSpan applies version (see below).
-		t.sharedAttrsForMainSvc.Set(traceinternal.AttrVersion, ver)
+		// Always pre-populate mainSvc with version so that main-service spans
+		// in non-universal mode get a COW no-op instead of a Clone.
+		mainSvc.Set(traceinternal.AttrVersion, ver)
 	}
-	t.sharedAttrs.MarkShared()
-	t.sharedAttrsForMainSvc.MarkShared()
-	return t, nil
+	base.MarkReadOnly()
+	mainSvc.MarkReadOnly()
 }
 
 // defaultAgentInfoPollInterval is the default interval at which the tracer
