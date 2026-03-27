@@ -45,8 +45,6 @@ jobs:
   # NOTE: Only core packages are scanned here. Contrib modules (each with
   # their own go.mod) are scanned in govulncheck-tests, which blocks merges,
   # but contrib vulnerabilities do not appear in GitHub Code Scanning alerts.
-  # TODO: extend SARIF upload to cover contrib modules for full Code Scanning
-  # visibility — requires multi-SARIF upload or a contrib-specific scan script.
   govulncheck-analysis:
     runs-on: ubuntu-latest
     steps:
