@@ -735,6 +735,7 @@ func (s *Span) setMetaInit(key, v string) {
 		s.name = v
 	case ext.ServiceName:
 		s.service = v
+		s.serviceSource = serviceSourceManual
 	case ext.ResourceName:
 		s.resource = v
 	case ext.SpanType:

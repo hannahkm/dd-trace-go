@@ -50,8 +50,9 @@ func TestServiceSource(t *testing.T) {
 
 		span.mu.RLock()
 		defer span.mu.RUnlock()
+		kss, _ := span.meta.Get(ext.KeyServiceSource)
 		assert.Equal(t, "custom-service", span.service)
-		assert.Equal(t, serviceSourceManual, span.meta[ext.KeyServiceSource])
+		assert.Equal(t, serviceSourceManual, kss)
 	})
 
 	t.Run("ServiceOverrideTag", func(t *testing.T) {
@@ -65,8 +66,9 @@ func TestServiceSource(t *testing.T) {
 
 		span.mu.RLock()
 		defer span.mu.RUnlock()
+		kss, _ := span.meta.Get(ext.KeyServiceSource)
 		assert.Equal(t, "my-service", span.service)
-		assert.Equal(t, serviceSourceManual, span.meta[ext.KeyServiceSource])
+		assert.Equal(t, serviceSourceManual, kss)
 	})
 
 	t.Run("ChildInheritsSrvSrcFromParent", func(t *testing.T) {
@@ -148,7 +150,8 @@ func TestServiceSource(t *testing.T) {
 
 		span.mu.RLock()
 		defer span.mu.RUnlock()
+		kss, _ := span.meta.Get(ext.KeyServiceSource)
 		assert.Equal(t, "from-meta-init", span.service)
-		assert.Equal(t, serviceSourceManual, span.meta[ext.KeyServiceSource])
+		assert.Equal(t, serviceSourceManual, kss)
 	})
 }
