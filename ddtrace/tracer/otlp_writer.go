@@ -29,7 +29,7 @@ type otlpTraceWriter struct {
 	resource  *otlpresource.Resource
 	scope     *otlpcommon.InstrumentationScope
 	spans     []*otlptrace.Span // +checklocks:mu
-	buffSize  int               // +checklocks:mu — estimated serialized size in bytes
+	buffSize  int               // +checklocks:mu
 	climit    chan struct{}
 	wg        sync.WaitGroup
 }
