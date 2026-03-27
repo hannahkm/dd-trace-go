@@ -771,6 +771,12 @@ func (t *trace) finishedOneLocked(s *Span) {
 		mtr.FinishSpan(s)
 	}
 
+	// Finalise the span's metadata: inlines promoted attrs into sm.m and sets
+	// inlined=true (atomic release). By the time the writer goroutine reads sm.m
+	// via EncodeMsg/Msgsize/Range, the acquire fence in inlined.Load() ensures
+	// all writes are visible — no further locking is needed on the read side.
+	s.meta.Finish()
+
 	// Full flush: all spans finished
 	if len(t.spans) == t.finished {
 		spans := t.spans
