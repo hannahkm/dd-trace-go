@@ -31,11 +31,11 @@ const (
 // they index both vals[] and setMask bit positions. If any value drifts (e.g. via
 // iota + reorder), the expression below produces a compile error.
 var (
-	_ = [1]byte{}[AttrEnv]          // AttrEnv must be 0
-	_ = [1]byte{}[AttrVersion-1]    // AttrVersion must be 1
-	_ = [1]byte{}[AttrComponent-2]  // AttrComponent must be 2
-	_ = [1]byte{}[AttrSpanKind-3]   // AttrSpanKind must be 3
-	_ = [1]byte{}[AttrLanguage-4]   // AttrLanguage must be 4
+	_ = [1]byte{}[AttrEnv]         // AttrEnv must be 0
+	_ = [1]byte{}[AttrVersion-1]   // AttrVersion must be 1
+	_ = [1]byte{}[AttrComponent-2] // AttrComponent must be 2
+	_ = [1]byte{}[AttrSpanKind-3]  // AttrSpanKind must be 3
+	_ = [1]byte{}[AttrLanguage-4]  // AttrLanguage must be 4
 )
 
 // SpanAttributes holds the V1-protocol promoted span fields.

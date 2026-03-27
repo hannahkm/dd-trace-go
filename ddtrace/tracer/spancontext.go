@@ -858,7 +858,7 @@ func setPeerService(s *Span, tc TracerConf) {
 	} else if isServerless(tc) {
 		// Set peerService only in outbound Lambda requests
 		if isOutboundRequest {
-			if ps := deriveAWSPeerService(s.meta); ps != "" {
+			if ps := deriveAWSPeerService(&s.meta); ps != "" {
 				s.setMetaLocked(ext.PeerService, ps)
 				s.setMetaLocked(keyPeerServiceSource, ext.PeerService)
 			} else {
@@ -908,7 +908,7 @@ The mapping is as follows:
   - s3:          <bucket>.s3.<region>.amazonaws.com (if Bucket param present)
     s3.<region>.amazonaws.com          (otherwise)
 */
-func deriveAWSPeerService(sm traceinternal.SpanMeta) string {
+func deriveAWSPeerService(sm *traceinternal.SpanMeta) string {
 	service, ok := sm.Get(ext.AWSService)
 	if !ok {
 		return ""

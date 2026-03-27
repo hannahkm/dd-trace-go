@@ -931,7 +931,7 @@ func (t *tracer) StartSpan(operationName string, options ...StartSpanOption) *Sp
 	if log.DebugEnabled() {
 		// avoid allocating the ...interface{} argument if debug logging is disabled
 		log.Debug("Started Span: %v, Operation: %s, Resource: %s, Tags: %v, %v", //nolint:gocritic // Debug logging needs full span representation
-			span, span.name, span.resource, span.meta, span.metrics)
+			span, span.name, span.resource, &span.meta, span.metrics)
 	}
 	if t.config.internalConfig.ProfilerHotspotsEnabled() || t.config.internalConfig.ProfilerEndpoints() {
 		t.applyPPROFLabels(span.pprofCtxRestore, span)

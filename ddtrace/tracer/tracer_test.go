@@ -2473,7 +2473,7 @@ func cpspan(s *Span) *Span {
 		spanType: s.spanType,
 		start:    s.start,
 		duration: s.duration,
-		meta:     s.meta,
+		meta:     s.meta, //nolint:govet // copylocks: cpspan copies for comparison only; mutex is never held
 		metrics:  s.metrics,
 		spanID:   s.spanID,
 		traceID:  s.traceID,

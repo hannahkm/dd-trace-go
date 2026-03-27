@@ -1020,7 +1020,7 @@ func (s *Span) finish(finishTime int64) {
 	if log.DebugEnabled() {
 		// avoid allocating the ...interface{} argument if debug logging is disabled
 		log.Debug("Finished Span: %v, Operation: %s, Resource: %s, Tags: %v, %v", //nolint:gocritic // Debug logging needs full span representation
-			s, s.name, s.resource, s.meta, s.metrics)
+			s, s.name, s.resource, &s.meta, s.metrics)
 	}
 	// Call context.finish() which handles trace-level bookkeeping and may modify
 	// this span (to set trace-level tags).

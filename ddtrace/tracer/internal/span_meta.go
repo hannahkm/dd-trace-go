@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/tinylib/msgp/msgp"
+
+	"github.com/DataDog/dd-trace-go/v2/internal/locking"
 )
 
 // metaMapHint is the initial capacity for the flat map m.
@@ -33,15 +35,22 @@ var (
 )
 
 // SpanMeta replaces a plain map[string]string for the Span.meta field.
-// Promoted attributes (env, version, component, span.kind) live in attrs
-// and are excluded from the map m. The msgp codec merges both sources
+// Promoted attributes (env, version, component, span.kind, language) live in
+// attrs and are excluded from the map m. The msgp codec merges both sources
 // transparently so the wire format is unchanged.
 //
 // Set routes promoted keys to attrs (with copy-on-write) and others to the
-// flat map. Promoted keys never appear in sm.m.
+// flat map. Promoted keys never appear in sm.m until Map() is called.
+//
+// Map() inlines promoted attrs into sm.m under mu, then returns sm.m directly
+// (zero allocation on the hot stats path). EncodeMsg, Msgsize, Range,
+// SerializableCount, and IsZero also acquire mu so they see a consistent view
+// of sm.m during concurrent serialization.
 type SpanMeta struct {
-	m     map[string]string
-	attrs *SpanAttributes
+	m       map[string]string
+	attrs   *SpanAttributes
+	mu      locking.Mutex
+	inlined bool
 }
 
 // NewSpanMeta returns a SpanMeta initialized with shared attrs (used during span creation).
@@ -56,7 +65,9 @@ func NewSpanMetaFromMap(m map[string]string) SpanMeta {
 
 // IsZero reports whether the SpanMeta contains no entries (map or promoted).
 // The msgp generator emits z.meta.IsZero() for the omitempty check.
-func (sm SpanMeta) IsZero() bool {
+func (sm *SpanMeta) IsZero() bool {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 	return len(sm.m) == 0 && sm.attrs.Count() == 0
 }
 
@@ -87,7 +98,7 @@ func (sm *SpanMeta) Normalize() {
 // Get returns the value for key. Promoted keys are checked in attrs first
 // (fast array+bitmask path), then the flat map. Non-promoted keys go directly
 // to the flat map.
-func (sm SpanMeta) Get(key string) (string, bool) {
+func (sm *SpanMeta) Get(key string) (string, bool) {
 	if IsPromotedKeyLen(len(key)) {
 		if v, ok, handled := sm.getPromoted(key); handled {
 			return v, ok
@@ -102,7 +113,7 @@ func (sm SpanMeta) Get(key string) (string, bool) {
 // getPromoted is the slow path for Get when the key might be a promoted attribute.
 //
 //go:noinline
-func (sm SpanMeta) getPromoted(key string) (string, bool, bool) {
+func (sm *SpanMeta) getPromoted(key string) (string, bool, bool) {
 	ak, ok := AttrKeyForTag(key)
 	if !ok {
 		return "", false, false
@@ -112,40 +123,53 @@ func (sm SpanMeta) getPromoted(key string) (string, bool, bool) {
 }
 
 // Has reports whether key is present.
-func (sm SpanMeta) Has(key string) bool {
+func (sm *SpanMeta) Has(key string) bool {
 	_, ok := sm.Get(key)
 	return ok
 }
 
 // Attr returns a promoted attribute value by AttrKey. O(1) array index + bitmask.
-func (sm SpanMeta) Attr(key AttrKey) (string, bool) {
+func (sm *SpanMeta) Attr(key AttrKey) (string, bool) {
 	return sm.attrs.Get(key)
 }
 
 // Env returns the value of the "env" promoted attribute.
-func (sm SpanMeta) Env() (string, bool) { return sm.attrs.Get(AttrEnv) }
+func (sm *SpanMeta) Env() (string, bool) { return sm.attrs.Get(AttrEnv) }
 
 // Version returns the value of the "version" promoted attribute.
-func (sm SpanMeta) Version() (string, bool) { return sm.attrs.Get(AttrVersion) }
+func (sm *SpanMeta) Version() (string, bool) { return sm.attrs.Get(AttrVersion) }
 
 // Component returns the value of the "component" promoted attribute.
-func (sm SpanMeta) Component() (string, bool) { return sm.attrs.Get(AttrComponent) }
+func (sm *SpanMeta) Component() (string, bool) { return sm.attrs.Get(AttrComponent) }
 
 // SpanKind returns the value of the "span.kind" promoted attribute.
-func (sm SpanMeta) SpanKind() (string, bool) { return sm.attrs.Get(AttrSpanKind) }
+func (sm *SpanMeta) SpanKind() (string, bool) { return sm.attrs.Get(AttrSpanKind) }
 
 // Language returns the value of the "language" promoted attribute.
-func (sm SpanMeta) Language() (string, bool) { return sm.attrs.Get(AttrLanguage) }
+func (sm *SpanMeta) Language() (string, bool) { return sm.attrs.Get(AttrLanguage) }
 
-// Range calls fn for each entry in the flat map (sm.m).
-// Promoted attrs live in sm.attrs and are not yielded here.
-// Iteration stops if fn returns false.
-func (sm SpanMeta) Range(fn func(k, v string) bool) {
+// Range calls fn for each entry in the flat map (sm.m), skipping any promoted
+// keys that were inlined into sm.m by a previous Map() call. Promoted attrs
+// live in sm.attrs and are not yielded here (or in v1 they are encoded as
+// dedicated fields 13-16). Iteration stops if fn returns false.
+func (sm *SpanMeta) Range(fn func(k, v string) bool) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 	for k, v := range sm.m {
+		if sm.inlined && isPromotedKey(k) {
+			continue
+		}
 		if !fn(k, v) {
 			return
 		}
 	}
+}
+
+// isPromotedKey reports whether k is an exact promoted attribute name.
+// Only called on the hot path when inlined=true, so the extra check is rare.
+func isPromotedKey(k string) bool {
+	_, ok := AttrKeyForTag(k)
+	return ok
 }
 
 // ---------------------------------------------------------------------------
@@ -254,46 +278,57 @@ func init() {
 // ---------------------------------------------------------------------------
 
 // Count returns the total number of distinct entries (flat map + promoted attrs).
-func (sm SpanMeta) Count() int {
+func (sm *SpanMeta) Count() int {
 	return len(sm.m) + sm.attrs.Count()
 }
 
 // AttrCount returns the number of promoted attrs currently set.
-func (sm SpanMeta) AttrCount() int {
+func (sm *SpanMeta) AttrCount() int {
 	return sm.attrs.Count()
 }
 
 // SerializableCount returns the number of flat-map entries that appear in the
 // serialized attributes array. Promoted attrs are encoded as dedicated fields
-// in the v1 protocol and must not be double-counted.
-func (sm SpanMeta) SerializableCount() int {
+// in the v1 protocol and must not be double-counted. When Map() has been called,
+// promoted keys are also in sm.m, so they are subtracted from the count.
+func (sm *SpanMeta) SerializableCount() int {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	if sm.inlined {
+		return len(sm.m) - sm.attrs.Count()
+	}
 	return len(sm.m)
 }
 
-// Map returns a new map containing all flat-map entries plus all promoted
-// attrs. Always allocates — never returns sm.m directly, avoiding races
-// when the result outlives the span's serialization window.
-func (sm SpanMeta) Map() map[string]string {
-	n := len(sm.m) + sm.attrs.Count()
-	if n == 0 {
-		return nil
-	}
-	m := make(map[string]string, n)
-	for k, v := range sm.m {
-		m[k] = v
-	}
-	for _, d := range Defs {
-		if sm.attrs.Has(d.Key) {
-			m[d.Name] = sm.attrs.vals[d.Key]
+// Map inlines all promoted attrs into sm.m on first call, then returns sm.m
+// directly — zero allocation on subsequent calls. Both Map and the serialization
+// methods (EncodeMsg, Msgsize, Range, SerializableCount, IsZero) acquire mu so
+// they observe a consistent view of sm.m during concurrent access.
+func (sm *SpanMeta) Map() map[string]string {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	if !sm.inlined {
+		if sm.attrs != nil {
+			if n := sm.attrs.Count(); n > 0 {
+				if sm.m == nil {
+					sm.m = make(map[string]string, n)
+				}
+				for _, d := range Defs {
+					if sm.attrs.Has(d.Key) {
+						sm.m[d.Name] = sm.attrs.vals[d.Key]
+					}
+				}
+			}
 		}
+		sm.inlined = true
 	}
-	return m
+	return sm.m
 }
 
 // All returns an iterator over all entries. Flat-map entries are yielded first
 // (in unspecified order), followed by promoted attributes in definition order
 // (env, version, component, span.kind). Returning false from yield stops iteration.
-func (sm SpanMeta) All() iter.Seq2[string, string] {
+func (sm *SpanMeta) All() iter.Seq2[string, string] {
 	return func(yield func(string, string) bool) {
 		for k, v := range sm.m {
 			if !yield(k, v) {
@@ -314,7 +349,7 @@ func (sm SpanMeta) All() iter.Seq2[string, string] {
 }
 
 // String returns a merged map representation (m + promoted attrs) for debug logging.
-func (sm SpanMeta) String() string {
+func (sm *SpanMeta) String() string {
 	var b strings.Builder
 	b.WriteString("map[")
 	first := true
@@ -333,9 +368,27 @@ func (sm SpanMeta) String() string {
 // msgp codec
 // ---------------------------------------------------------------------------
 
-// EncodeMsg writes the map header (flat map entries + promoted attrs),
-// then emits all flat map entries followed by all set promoted attrs.
+// EncodeMsg writes the map header and entries. When Map() has already been
+// called (inlined=true), sm.m contains all entries and attrs is skipped to
+// avoid double-encoding. Otherwise the flat map and promoted attrs are
+// combined as normal.
 func (sm *SpanMeta) EncodeMsg(en *msgp.Writer) error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	if sm.inlined {
+		if err := en.WriteMapHeader(uint32(len(sm.m))); err != nil {
+			return msgp.WrapError(err, "Meta")
+		}
+		for k, v := range sm.m {
+			if err := en.WriteString(k); err != nil {
+				return msgp.WrapError(err, "Meta")
+			}
+			if err := en.WriteString(v); err != nil {
+				return msgp.WrapError(err, "Meta", k)
+			}
+		}
+		return nil
+	}
 	n := sm.attrs.Count()
 	if err := en.WriteMapHeader(uint32(len(sm.m) + n)); err != nil {
 		return msgp.WrapError(err, "Meta")
@@ -397,11 +450,18 @@ func (sm *SpanMeta) DecodeMsg(dc *msgp.Reader) error {
 	return nil
 }
 
-// Msgsize returns an upper bound estimate of the serialized size.
+// Msgsize returns an upper bound estimate of the serialized size. When Map()
+// has already been called (inlined=true), sm.m contains all entries so attrs
+// is not separately sized to avoid double-counting.
 func (sm *SpanMeta) Msgsize() int {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 	size := msgp.MapHeaderSize
 	for k, v := range sm.m {
 		size += msgp.StringPrefixSize + len(k) + msgp.StringPrefixSize + len(v)
+	}
+	if sm.inlined {
+		return size
 	}
 	if n := sm.attrs.Count(); n > 0 {
 		for _, d := range Defs {
