@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/internal/tracerstats"
+	traceinternal "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal"
 	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
 	"github.com/DataDog/dd-trace-go/v2/internal/globalconfig"
@@ -2473,7 +2474,7 @@ func cpspan(s *Span) *Span {
 		spanType: s.spanType,
 		start:    s.start,
 		duration: s.duration,
-		meta:     s.meta, //nolint:govet // copylocks: cpspan copies for comparison only; mutex is never held
+		meta:     traceinternal.NewSpanMetaFromMap(s.meta.Map()), // flatten to plain map for comparison
 		metrics:  s.metrics,
 		spanID:   s.spanID,
 		traceID:  s.traceID,

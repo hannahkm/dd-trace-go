@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+	"sync/atomic"
 
 	"github.com/tinylib/msgp/msgp"
 
@@ -50,7 +51,7 @@ type SpanMeta struct {
 	m       map[string]string
 	attrs   *SpanAttributes
 	mu      locking.Mutex
-	inlined bool
+	inlined atomic.Bool
 }
 
 // NewSpanMeta returns a SpanMeta initialized with shared attrs (used during span creation).
@@ -66,6 +67,9 @@ func NewSpanMetaFromMap(m map[string]string) SpanMeta {
 // IsZero reports whether the SpanMeta contains no entries (map or promoted).
 // The msgp generator emits z.meta.IsZero() for the omitempty check.
 func (sm *SpanMeta) IsZero() bool {
+	if sm.inlined.Load() {
+		return false // Map() wrote entries to sm.m; always non-empty
+	}
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	return len(sm.m) == 0 && sm.attrs.Count() == 0
@@ -148,15 +152,26 @@ func (sm *SpanMeta) SpanKind() (string, bool) { return sm.attrs.Get(AttrSpanKind
 // Language returns the value of the "language" promoted attribute.
 func (sm *SpanMeta) Language() (string, bool) { return sm.attrs.Get(AttrLanguage) }
 
-// Range calls fn for each entry in the flat map (sm.m), skipping any promoted
-// keys that were inlined into sm.m by a previous Map() call. Promoted attrs
-// live in sm.attrs and are not yielded here (or in v1 they are encoded as
-// dedicated fields 13-16). Iteration stops if fn returns false.
+// Range calls fn for each flat-map entry. When Map() has been called,
+// promoted keys in sm.m are skipped so v1 callers don't double-encode them.
+// Iteration stops if fn returns false.
 func (sm *SpanMeta) Range(fn func(k, v string) bool) {
+	if sm.inlined.Load() { // fast path: sm.m is finalized, no concurrent writes
+		for k, v := range sm.m {
+			if isPromotedKey(k) {
+				continue
+			}
+			if !fn(k, v) {
+				return
+			}
+		}
+		return
+	}
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
+	inlined := sm.inlined.Load() // re-read under lock: Map() may have run while waiting
 	for k, v := range sm.m {
-		if sm.inlined && isPromotedKey(k) {
+		if inlined && isPromotedKey(k) {
 			continue
 		}
 		if !fn(k, v) {
@@ -292,9 +307,12 @@ func (sm *SpanMeta) AttrCount() int {
 // in the v1 protocol and must not be double-counted. When Map() has been called,
 // promoted keys are also in sm.m, so they are subtracted from the count.
 func (sm *SpanMeta) SerializableCount() int {
+	if sm.inlined.Load() { // fast path: sm.m is finalized, no concurrent writes
+		return len(sm.m) - sm.attrs.Count()
+	}
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	if sm.inlined {
+	if sm.inlined.Load() {
 		return len(sm.m) - sm.attrs.Count()
 	}
 	return len(sm.m)
@@ -305,9 +323,12 @@ func (sm *SpanMeta) SerializableCount() int {
 // methods (EncodeMsg, Msgsize, Range, SerializableCount, IsZero) acquire mu so
 // they observe a consistent view of sm.m during concurrent access.
 func (sm *SpanMeta) Map() map[string]string {
+	if sm.inlined.Load() { // fast path: already inlined, no lock needed
+		return sm.m
+	}
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	if !sm.inlined {
+	if !sm.inlined.Load() { // double-check under lock
 		if sm.attrs != nil {
 			if n := sm.attrs.Count(); n > 0 {
 				if sm.m == nil {
@@ -320,22 +341,34 @@ func (sm *SpanMeta) Map() map[string]string {
 				}
 			}
 		}
-		sm.inlined = true
+		sm.inlined.Store(true) // release: all prior writes to sm.m are now visible
 	}
 	return sm.m
 }
 
 // All returns an iterator over all entries. Flat-map entries are yielded first
-// (in unspecified order), followed by promoted attributes in definition order
-// (env, version, component, span.kind). Returning false from yield stops iteration.
+// (in unspecified order), followed by promoted attributes. When Map() has been
+// called, all entries are already in sm.m and the attrs loop is skipped.
+// Returning false from yield stops iteration.
 func (sm *SpanMeta) All() iter.Seq2[string, string] {
 	return func(yield func(string, string) bool) {
+		if sm.inlined.Load() { // fast path: sm.m is finalized, no lock needed
+			for k, v := range sm.m {
+				if !yield(k, v) {
+					return
+				}
+			}
+			return
+		}
+		sm.mu.Lock()
+		defer sm.mu.Unlock()
+		inlined := sm.inlined.Load() // re-read under lock: Map() may have run while we waited
 		for k, v := range sm.m {
 			if !yield(k, v) {
 				return
 			}
 		}
-		if sm.attrs == nil {
+		if inlined || sm.attrs == nil {
 			return
 		}
 		for _, d := range Defs {
@@ -373,9 +406,23 @@ func (sm *SpanMeta) String() string {
 // avoid double-encoding. Otherwise the flat map and promoted attrs are
 // combined as normal.
 func (sm *SpanMeta) EncodeMsg(en *msgp.Writer) error {
+	if sm.inlined.Load() { // fast path: sm.m has everything, no lock needed
+		if err := en.WriteMapHeader(uint32(len(sm.m))); err != nil {
+			return msgp.WrapError(err, "Meta")
+		}
+		for k, v := range sm.m {
+			if err := en.WriteString(k); err != nil {
+				return msgp.WrapError(err, "Meta")
+			}
+			if err := en.WriteString(v); err != nil {
+				return msgp.WrapError(err, "Meta", k)
+			}
+		}
+		return nil
+	}
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	if sm.inlined {
+	if sm.inlined.Load() { // double-check: Map() may have run while waiting
 		if err := en.WriteMapHeader(uint32(len(sm.m))); err != nil {
 			return msgp.WrapError(err, "Meta")
 		}
@@ -454,13 +501,20 @@ func (sm *SpanMeta) DecodeMsg(dc *msgp.Reader) error {
 // has already been called (inlined=true), sm.m contains all entries so attrs
 // is not separately sized to avoid double-counting.
 func (sm *SpanMeta) Msgsize() int {
+	if sm.inlined.Load() { // fast path: sm.m has everything, no lock needed
+		size := msgp.MapHeaderSize
+		for k, v := range sm.m {
+			size += msgp.StringPrefixSize + len(k) + msgp.StringPrefixSize + len(v)
+		}
+		return size
+	}
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	size := msgp.MapHeaderSize
 	for k, v := range sm.m {
 		size += msgp.StringPrefixSize + len(k) + msgp.StringPrefixSize + len(v)
 	}
-	if sm.inlined {
+	if sm.inlined.Load() { // double-check under lock
 		return size
 	}
 	if n := sm.attrs.Count(); n > 0 {
