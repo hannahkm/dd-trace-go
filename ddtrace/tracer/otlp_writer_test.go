@@ -342,5 +342,3 @@ func TestOTLPWriterConcurrency(t *testing.T) {
 	}
 	assert.Equal(t, numAdders*spansPerAdder, totalSpans)
 }
-
-// TODO: Add benchmark tests.

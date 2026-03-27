@@ -16,6 +16,8 @@ import (
 	otlpcommon "go.opentelemetry.io/proto/otlp/common/v1"
 	otlptrace "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/DataDog/dd-trace-go/v2/internal/version"
 )
 
 func newBenchOTLPWriter(b *testing.B) *otlpTraceWriter {
@@ -30,6 +32,7 @@ func newBenchOTLPWriter(b *testing.B) *otlpTraceWriter {
 		config:    cfg,
 		transport: newOTLPTransport(srv.Client(), srv.URL, map[string]string{"Content-Type": "application/x-protobuf"}),
 		resource:  buildResource(cfg.internalConfig),
+		scope:     &otlpcommon.InstrumentationScope{Name: "dd-trace-go", Version: version.Tag},
 		spans:     make([]*otlptrace.Span, 0),
 		climit:    make(chan struct{}, concurrentConnectionLimit),
 	}
