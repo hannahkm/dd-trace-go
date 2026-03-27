@@ -32,4 +32,5 @@ coverage-*.txt
 /.vscode
 /.claude/*
 !/.claude/commands/
+!/.claude/review-ddtrace/
 !/.claude/settings.json
