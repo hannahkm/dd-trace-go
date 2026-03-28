@@ -24,10 +24,10 @@ var _ openfeature.StateHandler = (*DatadogProvider)(nil)
 
 // Sentinel errors for error classification
 var (
-	errFlagNotFound       = errors.New("flag not found")
-	errTypeMismatch       = errors.New("type mismatch")
-	errParseError         = errors.New("parse error")
-	errNoConfiguration    = errors.New("no configuration loaded")
+	errFlagNotFound        = errors.New("flag not found")
+	errTypeMismatch        = errors.New("type mismatch")
+	errParseError          = errors.New("parse error")
+	errNoConfiguration     = errors.New("no configuration loaded")
 	errTargetingKeyMissing = errors.New("targeting key missing")
 )
 
