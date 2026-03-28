@@ -7,6 +7,7 @@ package openfeature
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -367,7 +368,10 @@ func TestEvaluateShard(t *testing.T) {
 			"targetingKey": targetingKey,
 		}
 
-		result := evaluateShard(shard, context)
+		result, err := evaluateShard(shard, context)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if !result {
 			t.Errorf("expected shard to match when range includes computed shard %d", actualShard)
 		}
@@ -399,7 +403,10 @@ func TestEvaluateShard(t *testing.T) {
 			"targetingKey": targetingKey,
 		}
 
-		result := evaluateShard(shard, context)
+		result, err := evaluateShard(shard, context)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if result {
 			t.Errorf("expected shard not to match when range excludes computed shard")
 		}
@@ -415,9 +422,12 @@ func TestEvaluateShard(t *testing.T) {
 		}
 		context := map[string]any{}
 
-		result := evaluateShard(shard, context)
+		result, err := evaluateShard(shard, context)
 		if result {
 			t.Errorf("expected shard not to match when no targeting key present")
+		}
+		if !errors.Is(err, errTargetingKeyMissing) {
+			t.Errorf("expected errTargetingKeyMissing, got %v", err)
 		}
 	})
 
@@ -433,7 +443,10 @@ func TestEvaluateShard(t *testing.T) {
 			"targetingKey": "any-user",
 		}
 
-		result := evaluateShard(shard, context)
+		result, err := evaluateShard(shard, context)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if !result {
 			t.Errorf("expected shard to match when range covers all shards")
 		}
@@ -573,7 +586,10 @@ func TestEvaluateAllocation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			split, matched := evaluateAllocation(tt.allocation, tt.context, tt.currentTime)
+			split, matched, err := evaluateAllocation(tt.allocation, tt.context, tt.currentTime)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if matched != tt.expectMatch {
 				t.Errorf("expected match=%v, got match=%v", tt.expectMatch, matched)
 			}
@@ -690,4 +706,121 @@ func TestEvaluateFlag_JSONFixtures(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEvaluateFlag_NullTargetingKey(t *testing.T) {
+	t.Run("static flag succeeds without targeting key", func(t *testing.T) {
+		f := &flag{
+			Enabled:       true,
+			VariationType: valueTypeString,
+			Variations: map[string]*variant{
+				"on": {Key: "on", Value: "on-value"},
+			},
+			Allocations: []*allocation{
+				{
+					Key:   "alloc1",
+					Rules: []*rule{},
+					Splits: []*split{
+						{
+							VariationKey: "on",
+							Shards:       []*shard{},
+						},
+					},
+				},
+			},
+		}
+		ctx := map[string]any{} // NO targetingKey
+		result := evaluateFlag(f, "default", ctx)
+		if result.Value != "on-value" {
+			t.Errorf("expected value %q, got %v", "on-value", result.Value)
+		}
+		if result.Reason != of.StaticReason {
+			t.Errorf("expected reason %q, got %q", of.StaticReason, result.Reason)
+		}
+		if result.Error != nil {
+			t.Errorf("expected no error, got %v", result.Error)
+		}
+	})
+
+	t.Run("sharded flag errors without targeting key", func(t *testing.T) {
+		f := &flag{
+			Enabled:       true,
+			VariationType: valueTypeString,
+			Variations: map[string]*variant{
+				"on": {Key: "on", Value: "on-value"},
+			},
+			Allocations: []*allocation{
+				{
+					Key:   "alloc1",
+					Rules: []*rule{},
+					Splits: []*split{
+						{
+							VariationKey: "on",
+							Shards: []*shard{
+								{
+									Salt:        "test-salt",
+									Ranges:      []*shardRange{{Start: 0, End: 10000}},
+									TotalShards: 10000,
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		ctx := map[string]any{} // NO targetingKey
+		result := evaluateFlag(f, "default", ctx)
+		if result.Value != "default" {
+			t.Errorf("expected value %q, got %v", "default", result.Value)
+		}
+		if result.Reason != of.ErrorReason {
+			t.Errorf("expected reason %q, got %q", of.ErrorReason, result.Reason)
+		}
+		if !errors.Is(result.Error, errTargetingKeyMissing) {
+			t.Errorf("expected errTargetingKeyMissing, got %v", result.Error)
+		}
+	})
+
+	t.Run("rule-matched flag succeeds without targeting key", func(t *testing.T) {
+		f := &flag{
+			Enabled:       true,
+			VariationType: valueTypeString,
+			Variations: map[string]*variant{
+				"on": {Key: "on", Value: "on-value"},
+			},
+			Allocations: []*allocation{
+				{
+					Key: "alloc1",
+					Rules: []*rule{
+						{
+							Conditions: []*condition{
+								{
+									Operator:  operatorOneOf,
+									Attribute: "country",
+									Value:     []string{"US"},
+								},
+							},
+						},
+					},
+					Splits: []*split{
+						{
+							VariationKey: "on",
+							Shards:       []*shard{},
+						},
+					},
+				},
+			},
+		}
+		ctx := map[string]any{"country": "US"} // NO targetingKey, but has country for rule match
+		result := evaluateFlag(f, "default", ctx)
+		if result.Value != "on-value" {
+			t.Errorf("expected value %q, got %v", "on-value", result.Value)
+		}
+		if result.Reason != of.TargetingMatchReason {
+			t.Errorf("expected reason %q, got %q", of.TargetingMatchReason, result.Reason)
+		}
+		if result.Error != nil {
+			t.Errorf("expected no error, got %v", result.Error)
+		}
+	})
 }
