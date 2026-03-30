@@ -570,24 +570,25 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 
 		// span attributes combine the meta (tags), metrics and meta_struct
 		// To avoid increased allocations, we serialize attributes immediately without
-		// creating an intermediate map.
-		size := len(span.meta) + len(span.metrics) + len(span.metaStruct)
-		if _, ok := span.meta["_dd.span_links"]; ok {
-			size--
-		}
-		p.buf = msgp.AppendUint32(p.buf, uint32(9))           // attributes fieldID
-		p.buf = msgp.AppendArrayHeader(p.buf, uint32(size)*3) // number of attributes
+		// creating an intermediate map. We also write a placeholder for the array header
+		// and write the actual count after writing all attributes
+		p.buf = msgp.AppendUint32(p.buf, uint32(9)) // attributes fieldID
+		off := len(p.buf)
+		count := 0
+		p.buf = append(p.buf, msgpackArray32, 0, 0, 0, 0)
 		for k, v := range span.meta {
 			// Span links are serialized separately in the payload, so
 			// we skip them here to avoid duplication.
 			if k == "_dd.span_links" {
 				continue
 			}
+			count++
 			p.buf = st.serialize(k, p.buf)
 			p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))
 			p.buf = st.serialize(v, p.buf)
 		}
 		for k, v := range span.metrics {
+			count++
 			p.buf = st.serialize(k, p.buf)
 			p.buf = msgp.AppendUint32(p.buf, uint32(FloatValueType))
 			p.buf = msgp.AppendFloat64(p.buf, v)
@@ -599,10 +600,17 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 				log.Warn("failed to serialize meta_struct value for key %s: %s", k, err.Error())
 				scratch, _ = msgp.AppendIntf(nil, []byte(serializationFailed))
 			}
+			count++
 			p.buf = st.serialize(k, p.buf)
 			p.buf = msgp.AppendUint32(p.buf, uint32(BytesValueType))
 			p.buf = msgp.AppendBytes(p.buf, scratch)
 		}
+
+		elementCount := uint32(count) * 3
+		p.buf[off+1] = byte(elementCount >> 24)
+		p.buf[off+2] = byte(elementCount >> 16)
+		p.buf[off+3] = byte(elementCount >> 8)
+		p.buf[off+4] = byte(elementCount)
 
 		p.buf = encodeField(p.buf, fullSetBitmap, 10, span.spanType, st)
 		p.encodeSpanLinks(fullSetBitmap, 11, span.spanLinks, st)
