@@ -22,6 +22,7 @@ import (
 	otlptrace "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/dd-trace-go/v2/internal"
 	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
 	"github.com/DataDog/dd-trace-go/v2/internal/version"
 )
@@ -341,4 +342,30 @@ func TestOTLPWriterConcurrency(t *testing.T) {
 		}
 	}
 	assert.Equal(t, numAdders*spansPerAdder, totalSpans)
+}
+
+// TestOTLPWriterDoesNotReuseAgentHTTPClient verifies that the OTLP writer
+// creates its own HTTP client rather than reusing c.httpClient, which may
+// have a UDS dialer configured for the Datadog agent.
+func TestOTLPWriterDoesNotReuseAgentHTTPClient(t *testing.T) {
+	srv := newTestOTLPServer()
+	defer srv.Close()
+
+	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", srv.URL)
+
+	cfg, err := newTestConfig(func(c *config) {
+		// Simulate a UDS-based agent: set c.httpClient to a UDS client
+		// pointing at a non-existent socket. If the OTLP writer reuses
+		// this client, its requests will fail.
+		c.httpClient = internal.UDSClient("/tmp/nonexistent-agent.sock", 5*time.Second)
+		c.ddTransport = &simpleTransport{}
+	})
+	require.NoError(t, err)
+
+	w := newOTLPTraceWriter(cfg)
+
+	w.add([]*Span{newBasicSpan("uds-regression-test")})
+	w.stop()
+
+	assert.Equal(t, 1, srv.requestCount(), "OTLP writer should reach TCP server, not the UDS agent socket")
 }
