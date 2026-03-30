@@ -12,7 +12,7 @@ require (
 	github.com/DataDog/dd-trace-go/contrib/cloud.google.com/go/pubsub.v2/v2 v2.7.1
 	github.com/DataDog/dd-trace-go/contrib/confluentinc/confluent-kafka-go/kafka.v2/v2 v2.7.1
 	github.com/DataDog/dd-trace-go/contrib/confluentinc/confluent-kafka-go/kafka/v2 v2.7.1
-	github.com/DataDog/dd-trace-go/contrib/database/sql/v2 v2.9.0-dev
+	github.com/DataDog/dd-trace-go/contrib/database/sql/v2 v2.7.1
 	github.com/DataDog/dd-trace-go/contrib/elastic/go-elasticsearch.v6/v2 v2.7.1
 	github.com/DataDog/dd-trace-go/contrib/gin-gonic/gin/v2 v2.7.1
 	github.com/DataDog/dd-trace-go/contrib/go-chi/chi.v5/v2 v2.7.1
@@ -36,7 +36,7 @@ require (
 	github.com/DataDog/dd-trace-go/contrib/k8s.io/client-go/v2 v2.7.1
 	github.com/DataDog/dd-trace-go/contrib/labstack/echo.v4/v2 v2.7.1
 	github.com/DataDog/dd-trace-go/contrib/log/slog/v2 v2.7.1
-	github.com/DataDog/dd-trace-go/contrib/net/http/v2 v2.9.0-dev
+	github.com/DataDog/dd-trace-go/contrib/net/http/v2 v2.7.1
 	github.com/DataDog/dd-trace-go/contrib/redis/go-redis.v9/v2 v2.7.1
 	github.com/DataDog/dd-trace-go/contrib/redis/rueidis/v2 v2.7.1
 	github.com/DataDog/dd-trace-go/contrib/rs/zerolog/v2 v2.7.1
@@ -45,7 +45,7 @@ require (
 	github.com/DataDog/dd-trace-go/contrib/twitchtv/twirp/v2 v2.7.1
 	github.com/DataDog/dd-trace-go/contrib/valkey-io/valkey-go/v2 v2.7.1
 	github.com/DataDog/dd-trace-go/contrib/valyala/fasthttp/v2 v2.7.1
-	github.com/DataDog/dd-trace-go/v2 v2.9.0-dev
+	github.com/DataDog/dd-trace-go/v2 v2.7.1
 	github.com/DataDog/orchestrion v1.6.0
 )
 
