@@ -576,11 +576,25 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		off := len(p.buf)
 		count := 0
 		p.buf = append(p.buf, msgpackArray32, 0, 0, 0, 0)
+		env, version, component, spanKind := "", "", "", ""
 		for k, v := range span.meta {
 			// Span links are serialized separately in the payload, so
 			// we skip them here to avoid duplication.
 			if k == "_dd.span_links" {
 				continue
+			}
+			// Grab common attributes early to avoid map lookups later on.
+			if k == ext.Environment {
+				env = v
+			}
+			if k == ext.Version {
+				version = v
+			}
+			if k == ext.Component {
+				component = v
+			}
+			if k == ext.SpanKind {
+				spanKind = v
 			}
 			count++
 			p.buf = st.serialize(k, p.buf)
@@ -615,17 +629,9 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		p.buf = encodeField(p.buf, fullSetBitmap, 10, span.spanType, st)
 		p.encodeSpanLinks(fullSetBitmap, 11, span.spanLinks, st)
 		p.encodeSpanEvents(fullSetBitmap, 12, span.spanEvents, st)
-
-		env := span.meta[ext.Environment]
 		p.buf = encodeField(p.buf, fullSetBitmap, 13, env, st)
-
-		version := span.meta[ext.Version]
 		p.buf = encodeField(p.buf, fullSetBitmap, 14, version, st)
-
-		component := span.meta[ext.Component]
 		p.buf = encodeField(p.buf, fullSetBitmap, 15, component, st)
-
-		spanKind := span.meta[ext.SpanKind]
 		p.buf = encodeField(p.buf, fullSetBitmap, 16, getSpanKindValue(spanKind), st)
 	}
 	return true, nil
