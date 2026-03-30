@@ -114,19 +114,17 @@ Reviewers push back on global variables that make test isolation or restart beha
 ### Global state must reset on tracer restart
 This repo supports `tracer.Start()` -> `tracer.Stop()` -> `tracer.Start()` cycles. Any global state that is set during `Start()` must be cleaned up or reset during `Stop()`, or the second `Start()` will operate on stale values.
 
-**When reviewing code that uses global flags, `sync.Once`, or package-level variables, actively check:** does `Stop()` reset this state? If not, a restart cycle will silently reuse the old values. This was flagged on multiple PRs — for example, a `subscribed` flag that was set during `Start()` but never cleared in `Stop()`, causing the second `Start()` to skip re-subscribing because it thought the subscription was still active.
+**When reviewing code that uses global flags, `sync.Once`, or package-level variables, actively check:** does `Stop()` reset this state? If not, a restart cycle will silently reuse old values.
 
-Common variants of this bug:
+Common variants:
 - A `sync.Once` guarding initialization: won't re-run after restart because `Once` is consumed
-- A boolean flag like `initialized` or `subscribed`: if not reset in `Stop()`, the next `Start()` skips init
-- A cached value (e.g., an env var read once): if the env var changed between stop and start, the stale value persists
+- A boolean flag like `initialized`: if not reset in `Stop()`, the next `Start()` skips init
+- A cached value (e.g., an env var read once): if the value changed between stop and start, the stale value persists
 
 Also: `sync.Once` consumes the once even on failure. If initialization can fail, subsequent calls return nil without retrying.
 
 ### Map iteration order nondeterminism
-Go map iteration order is randomized. When behavior depends on which key is visited first, results become nondeterministic. A P2 finding flagged this pattern: `setTags` iterates `StartSpanConfig.Tags` (a Go map), so when both `ext.ServiceName` and `ext.KeyServiceSource` are present, whichever key is visited last wins — making `_dd.svc_src` nondeterministic.
-
-When code iterates a map and writes state based on specific keys, check whether the final state depends on iteration order. If it does, process the order-sensitive keys explicitly rather than relying on map iteration.
+Go map iteration order is randomized. When code iterates a map and writes state based on specific keys, check whether the final state depends on iteration order. If it does, process the order-sensitive keys explicitly rather than relying on map iteration.
 
 ## Race-prone patterns in this repo
 

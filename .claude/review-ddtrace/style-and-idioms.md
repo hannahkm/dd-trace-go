@@ -4,29 +4,22 @@ dd-trace-go-specific patterns reviewers consistently enforce. General Go convent
 
 ## Happy path left-aligned (highest frequency)
 
-This is the most common single piece of review feedback. The principle: error/edge-case handling should return early, keeping the main logic at the left margin.
+Error/edge-case handling should return early, keeping the main logic at the left margin.
 
 ```go
-// Reviewers flag this pattern:
+// Bad:
 if cond {
     doMainWork()
 } else {
     return err
 }
 
-// Preferred:
+// Good:
 if !cond {
     return err
 }
 doMainWork()
 ```
-
-Real examples from reviews:
-- Negating a condition to return early instead of wrapping 10+ lines in an if block
-- Converting `if dsm && brokerAddr` nesting into `if !dsm || len(brokerAddrs) == 0 { return }`
-- Flattening nested error handling in URL parsing
-
-A specific variant: "not a blocker, but a specific behavior for a specific key is not what I'd call the happy path." Key-specific branches (like `if key == keyDecisionMaker`) should be in normal `if` blocks, not positioned as the happy path.
 
 ## Naming conventions
 
@@ -64,7 +57,7 @@ Specific patterns:
 - If a constant already exists in `ext`, `instrumentation`, or elsewhere in the repo, use it rather than defining a new one
 
 ### Bit flags and magic numbers
-Name bitmap values and numeric constants. "Let's name these magic bitmap numbers" is a direct quote from a review.
+Name bitmap values and numeric constants.
 
 ## Comments and documentation
 
@@ -87,33 +80,31 @@ agentInfoPollInterval time.Duration
 ```
 
 ### Comments for hooks and callbacks
-When implementing interface methods that serve as hooks (like franz-go's `OnProduceBatchWritten`, `OnFetchBatchRead`), add a comment explaining when the hook is called and what it does — these aren't obvious to someone reading the code later.
+When implementing interface methods that serve as hooks or callbacks, add a comment explaining when the hook is called and what it does — these aren't obvious to someone reading the code later.
 
 ## Avoid unnecessary aliases and indirection
 
-Reviewers push back on type aliases and function wrappers that don't add value:
+Don't create type aliases or function wrappers that don't add value:
 
 ```go
-// Flagged: "you love to create these aliases and I hate them"
+// Bad:
 type myAlias = somePackage.Type
-
-// Also flagged: wrapping a function just to rename it
 func doThing() { somePackage.DoThing() }
-```
 
-Only create aliases when there's a genuine need (avoiding import cycles, providing a cleaner public API). If a one-liner wrapper exists solely to adapt a type at a single call site, consider inlining the call instead.
+// Only alias when genuinely needed (import cycles, cleaner public API)
+```
 
 ## Avoid `init()` functions
 
-`init()` is unpopular in Go code in this repo. Reviewers ask to replace it with named helper functions called from variable initialization:
+Avoid `init()` in this repo. Use named helper functions called from variable initialization instead:
 
 ```go
-// Flagged: "init() is very unpopular for go"
+// Bad:
 func init() {
     cfg.rootSessionID = computeSessionID()
 }
 
-// Preferred: explicit helper
+// Good:
 var cfg = &config{
     rootSessionID: computeRootSessionID(),
 }
