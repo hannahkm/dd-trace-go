@@ -1,0 +1,11 @@
+{
+  "eval_id": 4,
+  "eval_name": "session-id-init",
+  "prompt": "Review PR #4574 in DataDog/dd-trace-go. It adds stable session identifier headers to telemetry.",
+  "assertions": [
+    {"id": "avoid-init", "text": "Flags use of init() function and suggests using a helper function instead"},
+    {"id": "no-os-setenv", "text": "Questions or flags direct use of os.Setenv to propagate config (should use internal APIs instead)"},
+    {"id": "extract-helper", "text": "Suggests extracting the session ID computation into a named helper function"},
+    {"id": "env-var-convention", "text": "Notes that env var access should go through internal/env, not raw os package functions"}
+  ]
+}

@@ -1,0 +1,6 @@
+{"eval_id":5,"variant":"without_skill","expectations":[
+  {"text":"Named constants for schemes/protocols","passed":true,"evidence":"Nit: overly broad exported constants"},
+  {"text":"Happy-path alignment","passed":false,"evidence":"Not mentioned"},
+  {"text":"Extract helper function","passed":true,"evidence":"Should-fix: AgentURLFromEnv logic duplicated"},
+  {"text":"Confusing boolean condition","passed":false,"evidence":"Not explicitly flagged"}
+]}

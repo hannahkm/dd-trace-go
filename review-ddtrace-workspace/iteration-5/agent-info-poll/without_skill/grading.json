@@ -1,0 +1,6 @@
+{"eval_id": 2, "variant": "without_skill", "expectations": [
+  {"text": "Flags that the /info polling HTTP request should be cancellable during tracer shutdown", "passed": true, "evidence": "Blocking #1 flags that the goroutine can leak if fetchAgentFeatures blocks and recommends context.WithTimeout. Should fix #1 explicitly says 'No timeout on the /info HTTP request' and recommends context.WithTimeout to bound each poll attempt."},
+  {"text": "Notes that the function is too long and suggests extracting parts into helpers", "passed": false, "evidence": "The review does not flag any function as too long or suggest extracting helpers for function length reasons."},
+  {"text": "Questions whether cached telemetry/agent config values can become outdated", "passed": true, "evidence": "Should fix #3 flags that the concentrator reads peerTags on every span via atomic load and suggests caching. Blocking #2 discusses the inconsistency between static/dynamic field treatment and questions which fields should be dynamic."},
+  {"text": "Notes that comments should not reference specific file names that may move", "passed": false, "evidence": "The review does not flag any comments referencing specific file names."}
+]}

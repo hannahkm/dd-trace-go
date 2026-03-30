@@ -1,0 +1,74 @@
+{
+  "eval_id": 3,
+  "variant": "with_skill",
+  "expectations": [
+    {
+      "text": "Flags that golden_generator.go is in the production v2fix package despite being test-only infrastructure — it should be a _test.go file to avoid adding the testing package as a production dependency",
+      "passed": true,
+      "evidence": "Review section '[Design - Low] golden_generator.go ships in the production package rather than a test file' states: 'golden_generator.go is in package v2fix (not package v2fix_test or a _test.go file), even though it is only used from test code via runWithSuggestedFixesUpdate. This means the testing package is an import of the production v2fix package.' Both the structural concern (production package) and the dependency consequence (testing package import) are explicitly named."
+    },
+    {
+      "text": "Flags that TestFalsePositives does not cover the four new analyzers (ChildOfStartChild, AppSecLoginEvents, DeprecatedWithPrioritySampling, DeprecatedWithHTTPRoundTripper)",
+      "passed": true,
+      "evidence": "Review section '[Testing - Medium] TestFalsePositives does not include the new analyzers (ChildOfStartChild, AppSecLoginEvents, etc.)' explicitly names all four new analyzers and states they are not included in the false-positive test suite."
+    },
+    {
+      "text": "Notes that v2ContribModulePaths is a manually maintained hardcoded list that can silently drift from the actual contrib/ directory structure",
+      "passed": true,
+      "evidence": "Review section '[Design - Low] v2ContribModulePaths is a manually maintained list' states: 'This is a reasonable trade-off for now, but the list will become stale as new contrib packages are added.' The silent-drift concern is captured, and the review recommends a follow-up issue or linking to the instrumentation package."
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "output_chars": 6247,
+    "transcript_chars": null
+  },
+  "timing": null,
+  "claims": [
+    {
+      "claim": "golden_generator.go imports the testing package as a production dependency",
+      "type": "factual",
+      "verified": true,
+      "evidence": "The review states 'This means the testing package is an import of the production v2fix package,' which is accurate given golden_generator.go is in package v2fix and uses testing.T."
+    },
+    {
+      "claim": "The four new analyzers are absent from TestFalsePositives",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Both this review and the without_skill review independently confirm this gap with consistent specificity, naming all four analyzers."
+    },
+    {
+      "claim": "v2ContribModulePaths will become stale as new contrib packages are added",
+      "type": "quality",
+      "verified": true,
+      "evidence": "The review correctly identifies the manual maintenance burden; this is consistent with the hardcoded list in known_change.go."
+    },
+    {
+      "claim": "The Clone() interface method is correct but increases maintenance surface",
+      "type": "quality",
+      "verified": true,
+      "evidence": "The review's '[Design - Medium] Clone() pattern adds boilerplate without enforcing correct implementation' section correctly identifies that the compiler won't enforce that future implementers copy fields in Clone, and suggests the alternative of resetting state in eval."
+    }
+  ],
+  "user_notes_summary": null,
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Flags that golden_generator.go is in the production v2fix package despite being test-only infrastructure — it should be a _test.go file to avoid adding the testing package as a production dependency",
+        "reason": "A review that merely said 'consider moving to _test.go for organization' without mentioning the testing package dependency would also satisfy this assertion. The assertion is appropriately specific but would benefit from requiring the review to explicitly call out the testing package as the problematic import — not just the structural concern."
+      },
+      {
+        "reason": "No assertion covers correctness findings that distinguish a deep review from a shallow one. The with_skill review finds the HasChildOfOption callee-nil fallthrough bug and the contextHandler value-receiver bug fix — these are high-signal findings worth asserting on."
+      },
+      {
+        "reason": "No assertion covers the runWithSuggestedFixesUpdate golden-file overwrite on failure issue (found by without_skill but not with_skill). This is a genuine correctness concern that would make a useful discriminating assertion."
+      }
+    ],
+    "overall": "All three assertions are substantive and require reading the actual code. The with_skill review passes all three cleanly with direct, specific evidence. The assertions would benefit from one correctness finding to ensure the review doesn't just catch structural/test-coverage observations while missing correctness issues."
+  }
+}

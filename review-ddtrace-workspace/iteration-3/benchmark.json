@@ -1,0 +1,107 @@
+{
+  "metadata": {
+    "skill_name": "review-ddtrace",
+    "skill_path": "/Users/brian.marks/go/src/github.com/DataDog/dd-trace-go-review-skill/.claude/commands/review-ddtrace.md",
+    "timestamp": "2026-03-27T19:30:00Z",
+    "evals_run": [1, 2, 3],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1, "eval_name": "kafka-cluster-id-contrib", "configuration": "with_skill", "run_number": 1,
+      "result": { "pass_rate": 0.50, "passed": 3, "failed": 3, "total": 6, "time_seconds": 123.9, "tokens": 68546, "errors": 0 },
+      "expectations": [
+        {"text": "Flags SetClusterID as exported", "passed": false, "evidence": "Not flagged in this run"},
+        {"text": "Notes duplicated logic", "passed": true, "evidence": "Should-fix #5"},
+        {"text": "Recognizes async Close pattern", "passed": true, "evidence": "Validated"},
+        {"text": "Questions 2s blocking timeout", "passed": false, "evidence": "Magic number flagged, blocking not questioned"},
+        {"text": "Notes context.Canceled noise", "passed": true, "evidence": "Should-fix #6"},
+        {"text": "Happy-path alignment", "passed": false, "evidence": "Not flagged"}
+      ]
+    },
+    {
+      "eval_id": 1, "eval_name": "kafka-cluster-id-contrib", "configuration": "without_skill", "run_number": 1,
+      "result": { "pass_rate": 0.33, "passed": 2, "failed": 4, "total": 6, "time_seconds": 234.6, "tokens": 80890, "errors": 0 },
+      "expectations": [
+        {"text": "Flags SetClusterID as exported", "passed": false, "evidence": "Not mentioned"},
+        {"text": "Notes duplicated logic", "passed": true, "evidence": "Nit #5"},
+        {"text": "Recognizes async Close pattern", "passed": true, "evidence": "Implicitly validated"},
+        {"text": "Questions 2s blocking timeout", "passed": false, "evidence": "Not questioned"},
+        {"text": "Notes context.Canceled noise", "passed": false, "evidence": "Not mentioned"},
+        {"text": "Happy-path alignment", "passed": false, "evidence": "Not mentioned"}
+      ]
+    },
+    {
+      "eval_id": 2, "eval_name": "span-attributes-core", "configuration": "with_skill", "run_number": 1,
+      "result": { "pass_rate": 0.80, "passed": 4, "failed": 1, "total": 5, "time_seconds": 159.7, "tokens": 101678, "errors": 0 },
+      "expectations": [
+        {"text": "Encapsulate behind methods", "passed": false, "evidence": "Not flagged as design principle"},
+        {"text": "CI visibility concurrency issue", "passed": true, "evidence": "Should-fix: SetTag no longer updates Content.Meta"},
+        {"text": "Happy-path alignment", "passed": true, "evidence": "Should-fix: DecodeMsg"},
+        {"text": "Magic strings", "passed": true, "evidence": "Should-fix: 'm' constant"},
+        {"text": "Stale docs", "passed": true, "evidence": "Blocking #1: component/span.kind not promoted"}
+      ]
+    },
+    {
+      "eval_id": 2, "eval_name": "span-attributes-core", "configuration": "without_skill", "run_number": 1,
+      "result": { "pass_rate": 0.60, "passed": 3, "failed": 2, "total": 5, "time_seconds": 149.4, "tokens": 93524, "errors": 0 },
+      "expectations": [
+        {"text": "Encapsulate behind methods", "passed": false, "evidence": "Not flagged"},
+        {"text": "CI visibility concurrency issue", "passed": true, "evidence": "Should-fix #5"},
+        {"text": "Happy-path alignment", "passed": false, "evidence": "Not mentioned"},
+        {"text": "Magic strings", "passed": true, "evidence": "Nit #12"},
+        {"text": "Stale docs", "passed": true, "evidence": "Blocking #1"}
+      ]
+    },
+    {
+      "eval_id": 3, "eval_name": "openfeature-rc-subscription", "configuration": "with_skill", "run_number": 1,
+      "result": { "pass_rate": 0.67, "passed": 4, "failed": 2, "total": 6, "time_seconds": 138.5, "tokens": 57684, "errors": 0 },
+      "expectations": [
+        {"text": "Callbacks under lock", "passed": true, "evidence": "Blocking #1"},
+        {"text": "Restart state not reset", "passed": true, "evidence": "Blocking #2"},
+        {"text": "internal.BoolEnv convention", "passed": false, "evidence": "Hedged — said it delegates to env.Lookup"},
+        {"text": "Test helpers in prod", "passed": true, "evidence": "Should-fix #4"},
+        {"text": "Duplicate constant", "passed": true, "evidence": "Should-fix #3: duplicated magic string"},
+        {"text": "Goleak ignore broadening", "passed": false, "evidence": "Not in fetched diff"}
+      ]
+    },
+    {
+      "eval_id": 3, "eval_name": "openfeature-rc-subscription", "configuration": "without_skill", "run_number": 1,
+      "result": { "pass_rate": 0.50, "passed": 3, "failed": 3, "total": 6, "time_seconds": 146.8, "tokens": 65257, "errors": 0 },
+      "expectations": [
+        {"text": "Callbacks under lock", "passed": true, "evidence": "Blocking #1"},
+        {"text": "Restart state not reset", "passed": true, "evidence": "Should-fix #1: stale buffered config"},
+        {"text": "internal.BoolEnv convention", "passed": false, "evidence": "Not mentioned"},
+        {"text": "Test helpers in prod", "passed": true, "evidence": "Nit"},
+        {"text": "Duplicate constant", "passed": false, "evidence": "Not mentioned"},
+        {"text": "Goleak ignore broadening", "passed": false, "evidence": "Not mentioned"}
+      ]
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {"mean": 0.66, "stddev": 0.12, "min": 0.50, "max": 0.80},
+      "time_seconds": {"mean": 140.7, "stddev": 14.6, "min": 123.9, "max": 159.7},
+      "tokens": {"mean": 75969, "stddev": 18600, "min": 57684, "max": 101678}
+    },
+    "without_skill": {
+      "pass_rate": {"mean": 0.48, "stddev": 0.11, "min": 0.33, "max": 0.60},
+      "time_seconds": {"mean": 176.9, "stddev": 39.6, "min": 146.8, "max": 234.6},
+      "tokens": {"mean": 79890, "stddev": 11600, "min": 65257, "max": 93524}
+    },
+    "delta": {
+      "pass_rate": "+0.18",
+      "time_seconds": "-36.2",
+      "tokens": "-3921"
+    }
+  },
+  "notes": [
+    "With-skill pass rate stable at 66% (same as iter 2). Baseline improved from 37% to 48% — baselines are getting better at these specific PRs with repeated runs (run-to-run variance).",
+    "Eval 3 baseline caught callbacks-under-lock as Blocking this time (was nit in iter 1, should-fix in iter 2). This is natural variance — the skill's advantage is *consistency* in catching it every time at the right severity.",
+    "Eval 3 with-skill now catches duplicate constant (should-fix #3) — new from the 'named constants' guidance being internalized with the broader checklist.",
+    "Eval 2 with-skill remains at 80% — consistent across iter 2 and 3. The 'encapsulate behind methods' assertion is the stubborn holdout.",
+    "Eval 1 with-skill dropped from 67% to 50% — the exported-setter assertion failed this run (variance). Over 3 iterations it passes 2/3 times with-skill, 0/3 baseline.",
+    "The skill continues to be faster (141s vs 177s mean) — focused guidance reduces exploration.",
+    "Discriminating assertions across all 3 iterations: happy-path (3/3 skill, 0/3 baseline), context.Canceled noise (3/3 skill, 0/3 baseline), restart-state (2/3 skill, 1/3 baseline), duplicate constant (1/3 skill, 0/3 baseline)."
+  ]
+}

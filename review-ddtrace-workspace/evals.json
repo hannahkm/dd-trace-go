@@ -1,0 +1,29 @@
+{
+  "skill_name": "review-ddtrace",
+  "evals": [
+    {
+      "id": 1,
+      "name": "kafka-cluster-id-contrib",
+      "prompt": "Review PR #4470 in DataDog/dd-trace-go. It adds async Kafka cluster ID fetching to the confluent-kafka-go integration for Data Streams Monitoring.",
+      "expected_output": "Should flag: SetClusterID being exported (WithX convention issue), potential for blocking on close, context.Canceled logging noise, duplicated logic between kafka.v2 and kafka packages, happy path alignment opportunities. Should reference contrib-specific patterns.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 2,
+      "name": "span-attributes-core",
+      "prompt": "Review PR #4538 in DataDog/dd-trace-go. It promotes span fields (env, version, language) out of the meta map into a typed SpanAttributes struct for the V1 protocol.",
+      "expected_output": "Should flag: naming choices (ReadOnly vs Shared was the actual review), encapsulation of internal details (sharedAttrs leaking to mocktracer), potential concurrency implications of the COW pattern, internal package naming. Should reference concurrency and style guides.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 3,
+      "name": "openfeature-rc-subscription",
+      "prompt": "Review PR #4495 in DataDog/dd-trace-go. It adds a Remote Config subscription bridge between the tracer and the OpenFeature provider for FFE_FLAGS.",
+      "expected_output": "Should flag: callbacks invoked under mutex (forwardingCallback and AttachCallback both hold rcState.Lock while calling cb), sync.Once-like subscribed flag not resetting on tracer restart, use of internal.BoolEnv instead of internal/env, test helpers in non-test files, goleak ignore broadening. Should reference concurrency guide.",
+      "files": [],
+      "assertions": []
+    }
+  ]
+}

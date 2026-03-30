@@ -1,0 +1,5 @@
+{"eval_id":9,"eval_name":"agents-md-docs","prompt":"Review PR #4507 in DataDog/dd-trace-go. It adds AGENTS.md files with AI assistant coding guidelines at the repo root, contrib/, and ddtrace/ levels, plus a Code quality section in CONTRIBUTING.md.","assertions":[
+  {"id":"close-lifecycle-wrong","text":"Flags that the Close() example in CONTRIBUTING.md has the logic backwards — Close() should cancel background async work, not block waiting for it to finish"},
+  {"id":"unexported-setter","text":"Flags that SetClusterID should be unexported (use an unexported setter like setClusterID) since it's internal plumbing, not a user-facing option"},
+  {"id":"concurrency-stress-tests","text":"Notes that the AGENTS.md guidance on concurrency should include a recommendation to add stress tests (e.g., with -race or -count=100) when introducing new concurrency logic"}
+]}

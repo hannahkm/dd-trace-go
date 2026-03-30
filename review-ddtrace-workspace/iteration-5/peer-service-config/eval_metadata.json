@@ -1,0 +1,5 @@
+{"eval_id":5,"eval_name":"peer-service-config","prompt":"Review PR #4483 in DataDog/dd-trace-go. It migrates peer service config to internal/config.","assertions":[
+  {"id":"hot-path-lock","text":"Flags that TracerConf() acquires a lock per span, creating contention in setPeerService"},
+  {"id":"unused-api","text":"Notes APIs introduced that have no call sites yet"},
+  {"id":"config-in-loadconfig","text":"Notes that config loading should be in loadConfig, not scattered in option.go"}
+]}

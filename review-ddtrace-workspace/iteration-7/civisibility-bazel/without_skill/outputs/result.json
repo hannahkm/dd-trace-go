@@ -1,0 +1,26 @@
+{
+  "eval_id": 5,
+  "eval_name": "civisibility-bazel",
+  "configuration": "without_skill",
+  "assertions": [
+    {
+      "id": "function-aliases",
+      "score": 1.0,
+      "reasoning": "The review explicitly flagged the pattern of package-level function variable aliases (var uploadRepositoryChangesFunc = uploadRepositoryChanges, var getProviderTagsFunc = getProviderTags, etc.) as unnecessary indirection that pollutes package-level state and adds maintenance cost without value. The review recommended either restructuring tests to avoid the seam or using an interface instead."
+    },
+    {
+      "id": "early-return-bazel",
+      "score": 0.5,
+      "reasoning": "The review discussed the skippable tests behavior in manifest mode (items 2 and 5), noting the dual-layer redundancy where both the net-layer GetSkippableTests returns empty AND the integration layer sets TestsSkipping=false. However, the review did not specifically frame this as 'skippable tests should return empty immediately rather than falling through to HTTP calls' — it noted the early return exists and is correct, but focused more on the redundancy and test coverage gap rather than flagging a missing early return. Partial credit because the topic was addressed but the specific concern about falling through to HTTP was not the framing used."
+    },
+    {
+      "id": "test-coverage-gap",
+      "score": 0.5,
+      "reasoning": "The review in item 5 noted that the integration-layer path where TestsSkipping=false is enforced lacks a test that explicitly verifies GetSkippableTests is never invoked, and that the settings layer regression would not be caught. The review also noted in item 2 that the skippable test 'TestSkippableApiRequestFromManifestModeIgnoresCache' creates valid cache data and asserts it is ignored, questioning whether this test makes sense. However, the review did not clearly state that the Bazel mode gating in skippable.go itself has no test coverage — in fact it acknowledged the test exists. The assertion appears to be about the test covering a scenario that doesn't make sense (testing that a cache is ignored, which is the expected behavior). Partial credit because the concern was touched on but not precisely identified."
+    }
+  ],
+  "passed": 1,
+  "partial": 2,
+  "failed": 0,
+  "pass_rate": 0.67
+}

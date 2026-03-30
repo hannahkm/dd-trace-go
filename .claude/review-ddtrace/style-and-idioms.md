@@ -1,6 +1,6 @@
 # Style and Idioms Reference
 
-Patterns that dd-trace-go reviewers consistently enforce across all packages. These come from 3 months of real review feedback.
+dd-trace-go-specific patterns reviewers consistently enforce. General Go conventions (naming, formatting, error handling) are covered by [Effective Go](https://go.dev/doc/effective_go) — this file focuses on what's specific to this repo.
 
 ## Happy path left-aligned (highest frequency)
 
@@ -39,16 +39,8 @@ LogsOTelEnabled() // not LogsOtelEnabled()
 ```
 
 ### Function/method naming
-- Use Go style for unexported helpers: `processTelemetry` not `process_Telemetry`
-- Test functions: `TestResolveDogstatsdAddr` not `Test_resolveDogstatsdAddr`
-- Prefer descriptive names over generic ones: `getRateLocked` tells you more than `getRate2`
-- If a function returns a single value, the name should hint at the return: `defaultServiceName` not `getServiceConfig`
-
-### Naming things clearly
-Reviewers push back when names don't convey intent:
-- "Shared" is unclear — `ReadOnly` better expresses the impact (`IsReadOnly`, `MarkReadOnly`)
-- Don't name things after implementation details — name them after what they mean to callers
-- If a field's role isn't obvious from context, the name should compensate (e.g., `sharedAttrs` or `promotedAttrs` instead of just `attrs`)
+- Prefer `getRateLocked` over `getRate2` — the suffix should convey intent (in this case, that the lock must be held)
+- Functions that expect to be called with a lock already held should be named `*Locked` (e.g., `getRateLocked`) so the contract is visible at call sites
 
 ## Constants and magic values
 
@@ -74,37 +66,6 @@ Specific patterns:
 ### Bit flags and magic numbers
 Name bitmap values and numeric constants. "Let's name these magic bitmap numbers" is a direct quote from a review.
 
-## Avoid unnecessary aliases and indirection
-
-Reviewers push back on type aliases and function aliases that don't add value:
-
-```go
-// Flagged: "you love to create these aliases and I hate them"
-type myAlias = somePackage.Type
-
-// Also flagged: wrapping a function just to rename it
-func doThing() { somePackage.DoThing() }
-```
-
-Only create aliases when there's a genuine need (avoiding import cycles, providing a cleaner public API).
-
-## Import grouping
-
-Follow the standard Go convention with groups separated by blank lines:
-1. Standard library
-2. Third-party packages
-3. Datadog packages (`github.com/DataDog/...`)
-
-Reviewers consistently suggest corrections when imports aren't grouped this way.
-
-## Use standard library when available
-
-Prefer standard library or `golang.org/x` functions over hand-rolled equivalents:
-- `slices.Contains` instead of a custom `contains` helper
-- `slices.SortStableFunc` instead of implementing `sort.Interface`
-- `cmp.Or` for defaulting values
-- `for range b.N` instead of `for i := 0; i < b.N; i++` (Go 1.22+)
-
 ## Comments and documentation
 
 ### Godoc accuracy
@@ -127,22 +88,6 @@ agentInfoPollInterval time.Duration
 
 ### Comments for hooks and callbacks
 When implementing interface methods that serve as hooks (like franz-go's `OnProduceBatchWritten`, `OnFetchBatchRead`), add a comment explaining when the hook is called and what it does — these aren't obvious to someone reading the code later.
-
-## Code organization
-
-### Function length
-If a function is getting long (reviewers flag this as "too many lines in an already long function"), extract focused helper functions. Good candidates:
-- Building a struct with complex initialization logic
-- Parsing/validation sequences
-- Repeated conditional blocks
-
-### File organization
-- Put types/functions in the file where they logically belong. Don't create a `record.go` for functions that should be in `tracing.go`.
-- If a file grows too large, split along domain boundaries, not arbitrarily.
-- Test helpers that mutate global state should be in `_test.go` files or build-tagged files, not shipped in production code.
-
-### Don't combine unrelated getters
-If two values are always fetched independently, don't bundle them into one function. `getSpanID()` and `getResource()` are better as separate methods than a combined `getSpanIDAndResource()`.
 
 ## Avoid unnecessary aliases and indirection
 

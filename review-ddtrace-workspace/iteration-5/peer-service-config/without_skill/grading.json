@@ -1,0 +1,5 @@
+{"eval_id": 5, "variant": "without_skill", "expectations": [
+  {"text": "Flags that TracerConf() acquires a lock per span, creating contention in setPeerService", "passed": true, "evidence": "Blocking #2 flags that 'PeerServiceMapping method is bound to Config receiver but stored as a function in TracerConf -- closure captures a mutable receiver' and explains that every call goes through RLock/RUnlock, meaning TracerConf is not a snapshot but reflects current state, creating per-span lock acquisition."},
+  {"text": "Notes APIs introduced that have no call sites yet", "passed": false, "evidence": "The review does not flag any unused new APIs with no call sites."},
+  {"text": "Notes that config loading should be in loadConfig, not scattered in option.go", "passed": false, "evidence": "The review does not flag config loading being scattered vs centralized in loadConfig."}
+]}

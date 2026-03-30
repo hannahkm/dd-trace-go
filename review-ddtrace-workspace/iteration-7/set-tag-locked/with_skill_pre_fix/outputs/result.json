@@ -1,0 +1,26 @@
+{
+  "eval_id": 7,
+  "eval_name": "set-tag-locked",
+  "configuration": "with_skill_pre_fix",
+  "assertions": [
+    {
+      "id": "benchmark-required",
+      "score": 0.5,
+      "reasoning": "The review engaged with the benchmarks in the PR (discussing the held-lock-throughout structure and its implications), but did not independently flag that benchmarks are required for hot-path changes. The PR already included benchmarks, so the review analyzed their quality rather than flagging their absence. The performance.md guidance was applied (discussing the benchmark approach) but not in the specific form of 'flag this requirement' — it acknowledged the benchmark existed and critiqued its methodology."
+    },
+    {
+      "id": "assert-rwmutex-locked",
+      "score": 1.0,
+      "reasoning": "The review explicitly identified and confirmed the presence of assert.RWMutexLocked(&s.mu) in setTagLocked. It initially questioned whether it was present, then re-read the diff carefully and confirmed it was correctly included. The review referenced the internal/locking/assert pattern from the concurrency guidance and noted the call documents the lock-held contract and catches violations at runtime. Full credit for identifying and discussing this pattern."
+    },
+    {
+      "id": "lock-routing-bug",
+      "score": 0.0,
+      "reasoning": "The review did not flag the issue about setTagInit (or any analogous function) routing boolean/error values to setTagBoolLocked/setTagErrorLocked without holding span.mu. The function 'setTagInit' does not exist in the current codebase or the diff, and the review did not identify any scenario where the routing to type-specific locked helpers could occur outside the protection of the lock. The concern about Tag(ext.ManualKeep, true) corrupting span state was not raised."
+    }
+  ],
+  "passed": 1,
+  "partial": 1,
+  "failed": 1,
+  "pass_rate": 0.50
+}

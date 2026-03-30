@@ -1,0 +1,7 @@
+{"eval_id":1,"variant":"without_skill","expectations":[
+  {"text":"Flags SetClusterID as exported","passed":false,"evidence":"Not mentioned"},
+  {"text":"Notes duplicated logic","passed":true,"evidence":"Should-fix #6"},
+  {"text":"Suggests atomic.Value","passed":false,"evidence":"Not mentioned"},
+  {"text":"Notes context.Canceled noise","passed":false,"evidence":"Mentions fragile check but not noise suppression"},
+  {"text":"Warn describes impact","passed":false,"evidence":"Not mentioned"}
+]}

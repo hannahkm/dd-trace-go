@@ -68,8 +68,6 @@ if buffered != nil {
 }
 ```
 
-This was flagged in multiple PRs (Remote Config subscription, OpenFeature forwarding callback).
-
 ## Atomic operations
 
 ### Prefer atomic.Value for write-once fields
@@ -94,12 +92,13 @@ Similar to `checklocks`, use annotations for fields accessed atomically.
 Appending to a shared slice is a race condition even if it looks safe:
 
 ```go
-// Bug: r.config.spanOpts is shared across concurrent requests
-// Appending can mutate the underlying array when it has spare capacity
+// Bug: r.config.spanOpts is shared across concurrent requests.
+// If the underlying array has spare capacity, append writes into it directly,
+// corrupting reads happening concurrently on other goroutines.
 options := append(r.config.spanOpts, tracer.ServiceName(serviceName))
 ```
 
-This was flagged as P1 in a contrib PR. Always copy before appending:
+Always allocate a fresh slice before appending per-request values:
 
 ```go
 options := make([]tracer.StartSpanOption, len(r.config.spanOpts), len(r.config.spanOpts)+1)
@@ -110,11 +109,7 @@ options = append(options, tracer.ServiceName(serviceName))
 ## Global state
 
 ### Avoid adding global state
-Reviewers push back on global variables, especially `sync.Once` guarding global booleans:
-
-> "This is okay for now, however, this will be problematic when we try to parallelize the test runs. We should avoid adding global state like this if it is possible."
-
-When you need process-level config, prefer passing it through struct fields or function parameters.
+Reviewers push back on global variables that make test isolation or restart behavior difficult. When you need process-level config, prefer passing it through struct fields or function parameters.
 
 ### Global state must reset on tracer restart
 This repo supports `tracer.Start()` -> `tracer.Stop()` -> `tracer.Start()` cycles. Any global state that is set during `Start()` must be cleaned up or reset during `Stop()`, or the second `Start()` will operate on stale values.
@@ -127,13 +122,6 @@ Common variants of this bug:
 - A cached value (e.g., an env var read once): if the env var changed between stop and start, the stale value persists
 
 Also: `sync.Once` consumes the once even on failure. If initialization can fail, subsequent calls return nil without retrying.
-
-### Stale cached values that become outdated
-Beyond the restart problem, reviewers question any value that is read once and cached indefinitely. When reviewing code that caches config, agent features, or other dynamic state, ask: "Can this change after initial load? If the agent configuration changes later, will this cached value become stale?"
-
-Real examples:
-- `telemetryConfig.AgentURL` loaded once from `c.agent` — but agent features are polled periodically and the URL could change
-- A `sync.Once`-guarded `safe.directory` path computed from the first working directory — breaks if the process changes directories
 
 ### Map iteration order nondeterminism
 Go map iteration order is randomized. When behavior depends on which key is visited first, results become nondeterministic. A P2 finding flagged this pattern: `setTags` iterates `StartSpanConfig.Tags` (a Go map), so when both `ext.ServiceName` and `ext.KeyServiceSource` are present, whichever key is visited last wins — making `_dd.svc_src` nondeterministic.
@@ -153,17 +141,3 @@ When the trace lock is released to acquire a span lock (lock ordering), recheck 
 ### time.Time fields
 `time.Time` is not safe for concurrent read/write. Fields like `lastFlushedAt` that are read from a worker goroutine and written from `Flush()` need synchronization.
 
-## HTTP clients and shutdown
-
-When a goroutine does HTTP polling (like `/info` discovery), use `http.NewRequestWithContext` tied to a cancellation signal so it doesn't block shutdown:
-
-```go
-// Bad: blocks shutdown until HTTP timeout
-resp, err := httpClient.Get(url)
-
-// Good: respects stop signal
-req, _ := http.NewRequestWithContext(stopCtx, "GET", url, nil)
-resp, err := httpClient.Do(req)
-```
-
-This was flagged because the polling goroutine is part of `t.wg`, and `Stop()` waits for the waitgroup — a slow/hanging HTTP request delays shutdown by the full timeout (10s default, 45s in CI visibility mode).

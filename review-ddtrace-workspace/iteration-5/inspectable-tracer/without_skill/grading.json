@@ -1,0 +1,5 @@
+{"eval_id": 4, "variant": "without_skill", "expectations": [
+  {"text": "Flags the hard cast to *agentTraceWriter that will panic with non-agent writers", "passed": false, "evidence": "The review does not flag the type assertion to *agentTraceWriter as a panic risk. It mentions the flushHandler bypasses production flush logic (Blocking #2) but does not specifically call out the hard cast to *agentTraceWriter."},
+  {"text": "Notes that the inspectable tracer skips startup hooks that Start() would run (like AppSec)", "passed": false, "evidence": "The review mentions bootstrapInspectableTracer sets global state without synchronization guards (Should fix #1) but does not specifically note that startup hooks like AppSec are skipped compared to what Start() would run. It does not discuss the lifecycle mismatch."},
+  {"text": "Flags FlushSync blocking forever when LLMObs is not running (unbuffered channel with no reader)", "passed": false, "evidence": "The review does not mention FlushSync blocking or unbuffered channel issues with LLMObs."}
+]}

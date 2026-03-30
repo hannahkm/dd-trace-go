@@ -1,0 +1,6 @@
+{"eval_id":4,"variant":"without_skill","expectations":[
+  {"text":"Flags init() and suggests helper","passed":false,"evidence":"Not flagged"},
+  {"text":"Questions os.Setenv for config propagation","passed":false,"evidence":"Not questioned — actually suggested os.Getenv is more appropriate than env.Get here"},
+  {"text":"Suggests extracting session ID helper","passed":false,"evidence":"Not suggested"},
+  {"text":"Env var through internal/env","passed":false,"evidence":"Actually argued against using internal/env for this case"}
+]}

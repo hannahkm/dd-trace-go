@@ -1,0 +1,12 @@
+{
+  "eval_id": 1,
+  "eval_name": "kafka-cluster-id-contrib",
+  "prompt": "Review PR #4470 in DataDog/dd-trace-go. It adds async Kafka cluster ID fetching to the confluent-kafka-go integration for Data Streams Monitoring.",
+  "assertions": [
+    {"id": "exported-setter", "text": "Flags SetClusterID as exported when it should be unexported (internal-only function using public naming)"},
+    {"id": "duplicated-logic", "text": "Notes startClusterIDFetch is duplicated across kafka.v2 and kafka packages"},
+    {"id": "atomic-value", "text": "Suggests atomic.Value instead of sync.RWMutex for the write-once clusterID field"},
+    {"id": "context-canceled-noise", "text": "Notes that context.Canceled (or DeadlineExceeded) from expected shutdown/timeout should not produce warning logs"},
+    {"id": "warn-describes-impact", "text": "Flags that the warn message should describe what the user loses (missing cluster_id in DSM)"}
+  ]
+}

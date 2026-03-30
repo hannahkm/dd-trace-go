@@ -1,0 +1,5 @@
+{"eval_id":8,"eval_name":"ibm-sarama-dsm","prompt":"Review PR #4486 in DataDog/dd-trace-go. It adds kafka_cluster_id to IBM/sarama integration.","assertions":[
+  {"id":"consistency","text":"Questions why a different concurrency primitive is used vs the existing kafka implementation"},
+  {"id":"extract-helper","text":"Suggests extracting shared cache logic into its own function"},
+  {"id":"withx-internal","text":"Flags WithClusterID or similar exported option that is only used internally"}
+]}

@@ -1,0 +1,12 @@
+{
+  "eval_id": 6,
+  "eval_name": "dsm-transactions",
+  "prompt": "Review PR #4468 in DataDog/dd-trace-go. It adds manual transaction checkpoint tracking for Data Streams Monitoring.",
+  "assertions": [
+    {"id": "missing-concurrency", "text": "Flags missing concurrency protection (mutex/lock) on shared state"},
+    {"id": "avoid-alloc", "text": "Suggests avoiding unnecessary byte slice allocation (append directly to destination)"},
+    {"id": "naming-scope", "text": "Questions the naming — TrackTransaction is too generic for a DSM-specific function"},
+    {"id": "missing-tests", "text": "Notes missing tests for new data structures or critical paths"},
+    {"id": "api-naming", "text": "Flags that the public API name should be more specific (e.g., TrackDataStreamsTransaction)"}
+  ]
+}

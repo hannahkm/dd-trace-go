@@ -1,0 +1,37 @@
+{
+  "eval_id": 1,
+  "eval_name": "kafka-cluster-id-contrib",
+  "prompt": "Review PR #4470 in DataDog/dd-trace-go. It adds async Kafka cluster ID fetching to the confluent-kafka-go integration for Data Streams Monitoring.",
+  "assertions": [
+    {
+      "id": "exported-setter",
+      "text": "Flags SetClusterID as exported when it should be unexported (WithX/exported naming is for user-facing APIs)",
+      "category": "api-design"
+    },
+    {
+      "id": "duplicated-logic",
+      "text": "Notes duplicated logic between kafka.v2/kafka.go and kafka/kafka.go (startClusterIDFetch is copy-pasted)",
+      "category": "code-organization"
+    },
+    {
+      "id": "async-close-pattern",
+      "text": "Recognizes and validates the async work cancellation on Close pattern",
+      "category": "contrib-pattern"
+    },
+    {
+      "id": "blocking-timeout",
+      "text": "Questions whether 2s blocking timeout is appropriate for an observability library",
+      "category": "contrib-pattern"
+    },
+    {
+      "id": "context-canceled-noise",
+      "text": "Notes that context.Canceled errors from shutdown should not produce warning logs",
+      "category": "error-handling"
+    },
+    {
+      "id": "happy-path-alignment",
+      "text": "Identifies happy-path alignment opportunity in the WrapProducer/WrapConsumer DSM blocks",
+      "category": "style"
+    }
+  ]
+}

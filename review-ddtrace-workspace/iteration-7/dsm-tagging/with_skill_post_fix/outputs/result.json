@@ -1,0 +1,26 @@
+{
+  "eval_id": 3,
+  "eval_name": "dsm-tagging",
+  "configuration": "with_skill_post_fix",
+  "assertions": [
+    {
+      "id": "dsm-gate-on-processor",
+      "score": 1.0,
+      "reasoning": "The review explicitly flagged this as a Blocking issue: tagActiveSpan is called unconditionally before checking processor availability, so spans are tagged with DSM metadata even when DSM is disabled. The review provided the corrected code pattern (gate tagActiveSpan inside the processor nil-check)."
+    },
+    {
+      "id": "transaction-id-truncation",
+      "score": 1.0,
+      "reasoning": "The review explicitly flagged this as a Blocking issue: the raw transactionID is written to the span via SetTag without truncation, while the processor side truncates to 255 bytes. This creates a mismatch between what the trace UI shows and what DSM records for IDs longer than 255 bytes."
+    },
+    {
+      "id": "dedup-logic",
+      "score": 1.0,
+      "reasoning": "The review explicitly flagged this as a Should Fix: both Processor.TrackTransaction and Processor.TrackTransactionAt delegate to the private trackTransactionAt helper rather than having one call the other. The review suggested eliminating the private helper by having TrackTransaction call TrackTransactionAt directly, matching the dedup-with-timestamp-variants pattern."
+    }
+  ],
+  "passed": 3,
+  "partial": 0,
+  "failed": 0,
+  "pass_rate": 1.0
+}

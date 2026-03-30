@@ -1,0 +1,26 @@
+{
+  "eval_id": 6,
+  "eval_name": "goroutine-leak-profiler",
+  "configuration": "with_skill_pre_fix",
+  "assertions": [
+    {
+      "id": "overhead-analysis",
+      "score": 1.0,
+      "reasoning": "The review explicitly flags in point #1 that the GOLF algorithm increases STW pause times and that the PR lacks overhead analysis before enabling the profile unconditionally. It directly references the performance reference docs and states benchmarks or references are needed to show the STW impact is acceptable."
+    },
+    {
+      "id": "concurrent-profile-ordering",
+      "score": 1.0,
+      "reasoning": "The review explicitly identifies the concurrent collection ordering issue in point #2, explaining that the goroutine leak profiler waits for a GC cycle and that this causes the heap profile to reflect the previous GC cycle's data rather than the current state when both are collected concurrently."
+    },
+    {
+      "id": "opt-out-future",
+      "score": 1.0,
+      "reasoning": "The review explicitly raises the lack of an opt-out mechanism in point #3, noting that if the profile type is later enabled by default users will have no way to disable it. It also calls out that triggering an extra GC cycle per profiling period is a meaningful overhead impact and asks whether there is a plan to add an opt-out option in the future."
+    }
+  ],
+  "passed": 3,
+  "partial": 0,
+  "failed": 0,
+  "pass_rate": 1.00
+}

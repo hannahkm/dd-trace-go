@@ -1,0 +1,11 @@
+{
+  "eval_id": 3, "variant": "with_skill",
+  "expectations": [
+    {"text": "Flags callbacks invoked under lock", "passed": true, "evidence": "Blocking #1: both AttachCallback and forwardingCallback flagged"},
+    {"text": "Notes rcState not resetting on tracer restart", "passed": true, "evidence": "Blocking #2: rcState global never reset on tracer Stop()"},
+    {"text": "Flags internal.BoolEnv instead of internal/env", "passed": false, "evidence": "Finding #8 mentions it but hedges, saying it 'delegates to env.Lookup internally' — still not a clear flag"},
+    {"text": "Flags test helpers in non-test files", "passed": true, "evidence": "Should-fix #4: test helpers exported in production code"},
+    {"text": "Notes duplicate constant definition", "passed": true, "evidence": "Should-fix #3: duplicated magic string for DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED"},
+    {"text": "Flags broadened goleak ignore", "passed": false, "evidence": "Not mentioned — likely not in the fetched diff"}
+  ]
+}

@@ -1,0 +1,127 @@
+{
+  "metadata": {
+    "skill_name": "review-ddtrace",
+    "timestamp": "2026-03-27T20:30:00Z",
+    "evals_run": [1, 2, 3, 4, 5, 6],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {"eval_id":1,"eval_name":"kafka-cluster-id-contrib","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":1.0,"passed":5,"failed":0,"total":5,"time_seconds":162.0,"tokens":63848,"errors":0},
+     "expectations":[
+       {"text":"Flags SetClusterID as exported","passed":true,"evidence":"Should-fix #6"},
+       {"text":"Notes duplicated logic","passed":true,"evidence":"Nit"},
+       {"text":"Suggests atomic.Value","passed":true,"evidence":"Should-fix #5"},
+       {"text":"Notes context.Canceled noise","passed":true,"evidence":"Blocking #2"},
+       {"text":"Warn describes impact","passed":true,"evidence":"Should-fix #3"}]},
+    {"eval_id":1,"eval_name":"kafka-cluster-id-contrib","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.2,"passed":1,"failed":4,"total":5,"time_seconds":136.0,"tokens":73368,"errors":0},
+     "expectations":[
+       {"text":"Flags SetClusterID as exported","passed":false,"evidence":"Not mentioned"},
+       {"text":"Notes duplicated logic","passed":true,"evidence":"Should-fix #6"},
+       {"text":"Suggests atomic.Value","passed":false,"evidence":"Not mentioned"},
+       {"text":"Notes context.Canceled noise","passed":false,"evidence":"Fragile check noted but not noise"},
+       {"text":"Warn describes impact","passed":false,"evidence":"Not mentioned"}]},
+    {"eval_id":2,"eval_name":"span-attributes-core","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":1.0,"passed":5,"failed":0,"total":5,"time_seconds":186.2,"tokens":103333,"errors":0},
+     "expectations":[
+       {"text":"CI visibility race","passed":true,"evidence":"Blocking #3"},
+       {"text":"Happy-path alignment","passed":true,"evidence":"Should-fix: DecodeMsg"},
+       {"text":"Magic strings","passed":true,"evidence":"Nit: 'm'"},
+       {"text":"Stale docs","passed":true,"evidence":"Blocking #1"},
+       {"text":"init() function","passed":true,"evidence":"Should-fix: repo convention"}]},
+    {"eval_id":2,"eval_name":"span-attributes-core","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.6,"passed":3,"failed":2,"total":5,"time_seconds":206.4,"tokens":100100,"errors":0},
+     "expectations":[
+       {"text":"CI visibility race","passed":true,"evidence":"Blocking #2/#3"},
+       {"text":"Happy-path alignment","passed":false,"evidence":"Not mentioned"},
+       {"text":"Magic strings","passed":true,"evidence":"Nit: 'm'"},
+       {"text":"Stale docs","passed":true,"evidence":"Should-fix"},
+       {"text":"init() function","passed":false,"evidence":"Not flagged"}]},
+    {"eval_id":3,"eval_name":"openfeature-rc-subscription","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":1.0,"passed":5,"failed":0,"total":5,"time_seconds":130.7,"tokens":55526,"errors":0},
+     "expectations":[
+       {"text":"Callbacks under lock","passed":true,"evidence":"Blocking #1"},
+       {"text":"Restart state not reset","passed":true,"evidence":"Blocking #2"},
+       {"text":"Test helpers in prod","passed":true,"evidence":"Should-fix #5"},
+       {"text":"Duplicate constant","passed":true,"evidence":"Should-fix #4"},
+       {"text":"Error msg impact","passed":true,"evidence":"Should-fix #6"}]},
+    {"eval_id":3,"eval_name":"openfeature-rc-subscription","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.6,"passed":3,"failed":2,"total":5,"time_seconds":136.9,"tokens":51357,"errors":0},
+     "expectations":[
+       {"text":"Callbacks under lock","passed":true,"evidence":"Should-fix #4/#5"},
+       {"text":"Restart state not reset","passed":true,"evidence":"Blocking #1"},
+       {"text":"Test helpers in prod","passed":true,"evidence":"Should-fix #6"},
+       {"text":"Duplicate constant","passed":false,"evidence":"Not mentioned"},
+       {"text":"Error msg impact","passed":false,"evidence":"Not mentioned"}]},
+    {"eval_id":4,"eval_name":"session-id-init","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":0.25,"passed":1,"failed":3,"total":4,"time_seconds":134.1,"tokens":48466,"errors":0},
+     "expectations":[
+       {"text":"Flags init() and suggests helper","passed":false,"evidence":"Not flagged — PR may already use helper"},
+       {"text":"Questions os.Setenv","passed":true,"evidence":"Blocking #1: error silently discarded"},
+       {"text":"Suggests extracting session ID helper","passed":false,"evidence":"Not suggested"},
+       {"text":"Env var through internal/env","passed":false,"evidence":"Not flagged"}]},
+    {"eval_id":4,"eval_name":"session-id-init","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.0,"passed":0,"failed":4,"total":4,"time_seconds":128.5,"tokens":52795,"errors":0},
+     "expectations":[
+       {"text":"Flags init() and suggests helper","passed":false,"evidence":"Not flagged"},
+       {"text":"Questions os.Setenv","passed":false,"evidence":"Argued os.Getenv is more appropriate"},
+       {"text":"Suggests extracting session ID helper","passed":false,"evidence":"Not suggested"},
+       {"text":"Env var through internal/env","passed":false,"evidence":"Argued against using internal/env"}]},
+    {"eval_id":5,"eval_name":"config-migration","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":0.75,"passed":3,"failed":1,"total":4,"time_seconds":213.7,"tokens":79109,"errors":0},
+     "expectations":[
+       {"text":"Named constants","passed":true,"evidence":"Nit: premature export of constants"},
+       {"text":"Happy-path alignment","passed":true,"evidence":"Should-fix #4"},
+       {"text":"Extract helper","passed":true,"evidence":"Should-fix #2: duplicates AgentURLFromEnv"},
+       {"text":"Confusing condition","passed":false,"evidence":"Not explicitly flagged"}]},
+    {"eval_id":5,"eval_name":"config-migration","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.5,"passed":2,"failed":2,"total":4,"time_seconds":236.8,"tokens":71988,"errors":0},
+     "expectations":[
+       {"text":"Named constants","passed":true,"evidence":"Nit: overly broad exported constants"},
+       {"text":"Happy-path alignment","passed":false,"evidence":"Not mentioned"},
+       {"text":"Extract helper","passed":true,"evidence":"Should-fix: duplicated logic"},
+       {"text":"Confusing condition","passed":false,"evidence":"Not flagged"}]},
+    {"eval_id":6,"eval_name":"dsm-transactions","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":0.0,"passed":0,"failed":5,"total":5,"time_seconds":111.8,"tokens":62709,"errors":0},
+     "expectations":[
+       {"text":"Missing concurrency protection","passed":false,"evidence":"Flagged shared slice but as defensive copy, not missing mutex"},
+       {"text":"Avoid unnecessary alloc","passed":false,"evidence":"Not flagged"},
+       {"text":"Naming too generic","passed":false,"evidence":"Not flagged"},
+       {"text":"Missing tests","passed":false,"evidence":"Not explicitly flagged"},
+       {"text":"API naming more specific","passed":false,"evidence":"Not flagged"}]},
+    {"eval_id":6,"eval_name":"dsm-transactions","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.2,"passed":1,"failed":4,"total":5,"time_seconds":146.0,"tokens":68010,"errors":0},
+     "expectations":[
+       {"text":"Missing concurrency protection","passed":true,"evidence":"Blocking #1: shared by reference"},
+       {"text":"Avoid unnecessary alloc","passed":false,"evidence":"Not flagged"},
+       {"text":"Naming too generic","passed":false,"evidence":"Not flagged"},
+       {"text":"Missing tests","passed":false,"evidence":"Not flagged"},
+       {"text":"API naming more specific","passed":false,"evidence":"Not flagged"}]}
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {"mean": 0.67, "stddev": 0.37, "min": 0.0, "max": 1.0},
+      "time_seconds": {"mean": 156.4, "stddev": 34.5, "min": 111.8, "max": 213.7},
+      "tokens": {"mean": 68832, "stddev": 18500, "min": 48466, "max": 103333}
+    },
+    "without_skill": {
+      "pass_rate": {"mean": 0.35, "stddev": 0.23, "min": 0.0, "max": 0.6},
+      "time_seconds": {"mean": 165.1, "stddev": 43.7, "min": 128.5, "max": 236.8},
+      "tokens": {"mean": 69603, "stddev": 17200, "min": 51357, "max": 100100}
+    },
+    "delta": {
+      "pass_rate": "+0.32",
+      "time_seconds": "-8.7",
+      "tokens": "-771"
+    }
+  },
+  "notes": [
+    "Evals 1-3 (original PRs with revised assertions): with-skill scores 100%/100%/100% vs baseline 20%/60%/60%. The skill perfectly catches all intended patterns on familiar PRs.",
+    "Eval 4 (session-id-init): Poor assertions — the PR doesn't actually use init() (it was addressed in the PR already), and the env var pattern is genuinely ambiguous. Both configs scored low. This eval needs rethinking.",
+    "Eval 5 (config-migration): with-skill 75% vs baseline 50%. Happy-path alignment is the discriminator — consistently caught by skill, missed by baseline.",
+    "Eval 6 (dsm-transactions): Bad assertions — the specific patterns (naming, alloc, missing tests) were too prescriptive about exactly what reviewers said, rather than patterns the skill teaches. The skill found different but valid issues (silent 1MiB cap, stale encodedKeys).",
+    "Overall: 67% with-skill vs 35% baseline (+32pp delta). On the 3 original PRs, skill is at 100%. The new PRs need better assertions — eval 4 and 6 drag the average down.",
+    "Discriminating patterns across 6 PRs: happy-path (4/4 skill, 0/4 baseline), error-msg-impact (2/2 skill, 0/2 baseline), exported-setter (1/1), atomic.Value (1/1), init()-convention (1/1), duplicate-constant (1/1), context-canceled-noise (1/1)."
+  ]
+}

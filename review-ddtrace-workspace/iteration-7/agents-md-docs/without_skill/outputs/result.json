@@ -1,0 +1,26 @@
+{
+  "eval_id": 9,
+  "eval_name": "agents-md-docs",
+  "configuration": "without_skill",
+  "assertions": [
+    {
+      "id": "close-lifecycle-wrong",
+      "score": 0.5,
+      "reasoning": "The review raised concerns about the Close() lifecycle description being ambiguous and potentially misleading, noting it could lead to goroutine leaks. However, the review did not precisely identify that the logic is backwards — specifically that Close() should cancel background async work rather than block waiting for it. The review approached it from the opposite angle (concerned about no-join/goroutine-leak), touching the topic without nailing the specific directional error described in the assertion."
+    },
+    {
+      "id": "unexported-setter",
+      "score": 0.0,
+      "reasoning": "The review noted that the 'Good' examples in both CONTRIBUTING.md and contrib/AGENTS.md already correctly use setClusterID (unexported), and described this as consistent. The review did not flag any issue with an exported SetClusterID anywhere in the PR, nor did it raise a concern that the documentation guidance around unexported setters needed improvement. The assertion's specific concern was not identified."
+    },
+    {
+      "id": "concurrency-stress-tests",
+      "score": 1.0,
+      "reasoning": "The review explicitly identified that the root AGENTS.md concurrency testing bullet ('When introducing concurrency logic, add tests to stress test the code') is too vague and provides no actionable guidance. It specifically called out the missing -race flag, -count=N patterns, and GOMAXPROCS as things an AI agent would need to know. This was flagged both in the root AGENTS.md section and in the ddtrace/AGENTS.md section."
+    }
+  ],
+  "passed": 1,
+  "partial": 1,
+  "failed": 1,
+  "pass_rate": 0.50
+}

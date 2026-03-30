@@ -1,0 +1,5 @@
+{"eval_id":4,"eval_name":"orchestrion-graphql","prompt":"Review PR #4528 in DataDog/dd-trace-go. It fixes Orchestrion instrumentation for graphql-go and gqlgen integrations, adding support for context-like arguments in orchestrion.yml.","assertions":[
+  {"id":"nil-interface-cast","text":"Flags that ArgumentThatImplements 'context.Context' path may receive nil arguments before the interface cast, causing a nil pointer dereference"},
+  {"id":"ctx-redeclaration","text":"Notes context variable shadowing or redeclaration — declaring a new ctx that shadows the parameter can cause unexpected behavior"},
+  {"id":"unrelated-bundled-change","text":"Flags that the PR bundles an unrelated change to a different graphql integration (graphql-go/graphql vs 99designs/gqlgen) that should be in a separate PR"}
+]}

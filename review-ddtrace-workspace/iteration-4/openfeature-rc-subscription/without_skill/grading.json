@@ -1,0 +1,7 @@
+{"eval_id":3,"variant":"without_skill","expectations":[
+  {"text":"Callbacks under lock","passed":true,"evidence":"Should-fix #4 and #5"},
+  {"text":"Restart state not reset","passed":true,"evidence":"Blocking #1: shutdown never detaches callback"},
+  {"text":"Test helpers in prod","passed":true,"evidence":"Should-fix #6"},
+  {"text":"Duplicate constant","passed":false,"evidence":"Not mentioned"},
+  {"text":"Error msg impact","passed":false,"evidence":"Not mentioned"}
+]}

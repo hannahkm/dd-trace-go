@@ -1,0 +1,11 @@
+{
+  "eval_id": 2,
+  "variant": "with_skill",
+  "expectations": [
+    {"text": "Notes SpanMeta/SpanAttributes consumers should access data through methods", "passed": false, "evidence": "Not explicitly flagged as a design concern"},
+    {"text": "Flags CI visibility SetTag/Finish concurrency issue", "passed": true, "evidence": "Blocking #4: ciVisibilityEvent.SetTag drops meta synchronization"},
+    {"text": "Identifies happy-path alignment opportunity", "passed": true, "evidence": "Should-fix: happy-path alignment in abandonedspans.go"},
+    {"text": "Flags hardcoded magic strings that should use named constants", "passed": true, "evidence": "Should-fix: magic string 'm' replacing named constant"},
+    {"text": "Notes stale docs/comments referencing fields not actually promoted", "passed": true, "evidence": "Blocking #1: stale documentation claiming 4 promoted fields when only 3 exist"}
+  ]
+}

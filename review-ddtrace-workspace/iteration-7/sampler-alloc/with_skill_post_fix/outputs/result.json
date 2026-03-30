@@ -1,0 +1,26 @@
+{
+  "eval_id": 1,
+  "eval_name": "sampler-alloc",
+  "configuration": "with_skill_post_fix",
+  "assertions": [
+    {
+      "id": "benchmark-required",
+      "score": 1.0,
+      "reasoning": "The review explicitly flagged that the PR description includes benchmark numbers but the old-format path is not benchmarkable from the committed test file — there is no benchmark of the 'g' format to independently verify the before numbers. The review recommended structuring the benchmark so both before/after are reproducible from the code."
+    },
+    {
+      "id": "fmt-sprintf-hot-path",
+      "score": 0.5,
+      "reasoning": "The review discussed the hot-path allocation concern and validated the strconv.AppendFloat approach, but did not explicitly name fmt.Sprintf as the anti-pattern being avoided. Since the diff itself does not use fmt.Sprintf (the original used strconv.FormatFloat), the review touched on the broader concern (allocation-free string building in hot paths) without specifically calling out fmt.Sprintf by name."
+    },
+    {
+      "id": "allocation-count-verify",
+      "score": 1.0,
+      "reasoning": "The review explicitly discussed allocs/op in the context of sampling as a hot path that runs per sampled span. It noted that the 0 allocs/op claim is central to the PR, raised the concern that the benchmark's tight loop may not reflect actual call-site escape behavior, and recommended verifying with escape analysis (go build -gcflags=-m=2) at the call site."
+    }
+  ],
+  "passed": 2,
+  "partial": 1,
+  "failed": 0,
+  "pass_rate": 0.83
+}

@@ -1,0 +1,54 @@
+{
+  "eval_id": 5,
+  "variant": "with_skill",
+  "expectations": [
+    {
+      "text": "Flags that mprotect(PROT_READ) is missing — the previous implementation made the mapping read-only after writing, but the new code omits this, leaving the mapping writable",
+      "passed": true,
+      "evidence": "P1 finding 'Mapping contents written before Mprotect but existingMappingBytes assigned without mprotect on update path' explicitly states: 'createOtelProcessContextMapping does not call unix.Mprotect(mappingBytes, unix.PROT_READ) after writing the content, unlike the old implementation (internal/otelcontextmapping_linux.go lines 633–637 in the deleted file). The new implementation omits the mprotect step entirely... If not, it is a regression.'"
+    },
+    {
+      "text": "Flags that the proto.Marshal error is silently discarded with _, potentially publishing a corrupted or empty payload without the caller knowing",
+      "passed": true,
+      "evidence": "P2 finding 'Silently ignoring proto.Marshal error' quotes 'b, _ := proto.Marshal(pc)' from otelprocesscontext.go:58, and states 'proto.Marshal can return an error for invalid messages... ignoring errors is bad practice. The error should be propagated', providing a corrected code snippet that returns the error."
+    },
+    {
+      "text": "Flags that package-level state (existingMappingBytes, publisherPID) is read and written without mutex protection, creating a data race on concurrent calls",
+      "passed": true,
+      "evidence": "P2 finding 'Package-level mutable state is not safe for concurrent use' at otelcontextmapping_linux.go:870–874 explicitly names both variables: 'existingMappingBytes and publisherPID are package-level variables written and read without any synchronization. If CreateOtelProcessContextMapping is called concurrently (e.g., during tracer reconfiguration), there is a data race.'"
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": null,
+  "timing": null,
+  "claims": [
+    {
+      "claim": "The new code omits mprotect entirely, unlike the v1 implementation",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Review cites the deleted file lines 633-637 as the old implementation that called Mprotect, contrasting with the new code that omits it entirely."
+    },
+    {
+      "claim": "proto.Marshal is called with blank identifier error discard at otelprocesscontext.go:58",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Review quotes the exact code snippet and provides file/line reference."
+    },
+    {
+      "claim": "existingMappingBytes and publisherPID are package-level variables without synchronization",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Review specifically notes the update path that reads existingMappingBytes[0] directly makes the race worse than the old code."
+    }
+  ],
+  "user_notes_summary": null,
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "All three assertions are well-targeted and discriminating — each requires the reviewer to identify a specific code-level issue. All three were caught by the with_skill review. No obvious gaps in the assertions."
+  }
+}

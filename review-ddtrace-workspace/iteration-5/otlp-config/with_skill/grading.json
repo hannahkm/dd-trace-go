@@ -1,0 +1,5 @@
+{"eval_id": 10, "variant": "with_skill", "expectations": [
+  {"text": "Flags debugging leftover or unnecessary code that should be removed", "passed": false, "evidence": "The review does not flag any debugging leftover or unnecessary code that should be removed."},
+  {"text": "Notes a godoc comment that doesn't accurately describe the function's behavior", "passed": true, "evidence": "Should fix #6 explicitly flags that 'parseMapString now requires a delimiter parameter but the comment says prioritizes the Datadog delimiter (:) over the OTel delimiter (=)' and notes the comment is misleading because 'the function does not prioritize anything; it uses whatever delimiter is passed.'"},
+  {"text": "Questions whether input validation should happen earlier in the call chain", "passed": false, "evidence": "The review does not question whether input validation should happen earlier in the call chain. It discusses URL validation and protocol handling but not the placement of validation in the call chain."}
+]}

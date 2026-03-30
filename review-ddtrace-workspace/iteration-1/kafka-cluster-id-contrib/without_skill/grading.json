@@ -1,0 +1,36 @@
+{
+  "eval_id": 1,
+  "variant": "without_skill",
+  "expectations": [
+    {
+      "text": "Flags SetClusterID as exported when it should be unexported",
+      "passed": false,
+      "evidence": "Never mentions the exported setter convention or that SetClusterID/ClusterID should be unexported"
+    },
+    {
+      "text": "Notes duplicated logic between kafka.v2 and kafka packages",
+      "passed": true,
+      "evidence": "Finding #2 identifies code duplication and suggests extracting to shared kafkatrace package"
+    },
+    {
+      "text": "Recognizes and validates the async work cancellation on Close pattern",
+      "passed": true,
+      "evidence": "Summary acknowledges 'non-blocking and cancellable on Close()'"
+    },
+    {
+      "text": "Questions whether 2s blocking timeout is appropriate for an observability library",
+      "passed": false,
+      "evidence": "Does not question whether a 2s synchronous timeout is acceptable in an observability library"
+    },
+    {
+      "text": "Notes that context.Canceled errors from shutdown should not produce warning logs",
+      "passed": false,
+      "evidence": "Finding #4 discusses context disambiguation but does not frame it as 'suppress noise on expected shutdown'"
+    },
+    {
+      "text": "Identifies happy-path alignment opportunity in WrapProducer/WrapConsumer",
+      "passed": false,
+      "evidence": "Not mentioned"
+    }
+  ]
+}

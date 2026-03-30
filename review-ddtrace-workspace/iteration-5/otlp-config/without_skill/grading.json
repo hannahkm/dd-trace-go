@@ -1,0 +1,5 @@
+{"eval_id": 10, "variant": "without_skill", "expectations": [
+  {"text": "Flags debugging leftover or unnecessary code that should be removed", "passed": false, "evidence": "The review does not flag any debugging leftover or unnecessary code that should be removed."},
+  {"text": "Notes a godoc comment that doesn't accurately describe the function's behavior", "passed": false, "evidence": "The review does not flag any inaccurate godoc comments. It discusses function behavior and URL resolution but does not identify misleading godoc comments."},
+  {"text": "Questions whether input validation should happen earlier in the call chain", "passed": false, "evidence": "The review does not question whether input validation should happen earlier in the call chain."}
+]}

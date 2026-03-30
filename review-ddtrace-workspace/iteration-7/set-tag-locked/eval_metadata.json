@@ -1,0 +1,5 @@
+{"eval_id":7,"eval_name":"set-tag-locked","prompt":"Review PR #4425 in DataDog/dd-trace-go. It refactors SetTag by extracting setTagLocked (which asserts the mutex is locked) and setTags (for bulk tag setting during span construction) to avoid redundant lock acquisitions in StartSpan.","assertions":[
+  {"id":"benchmark-required","text":"Flags that hot-path changes to SetTag require benchmark comparisons before/after — this is called on every span creation"},
+  {"id":"assert-rwmutex-locked","text":"Notes that setTagLocked should use assert.RWMutexLocked from internal/locking/assert to document the lock-held contract and catch violations at runtime"},
+  {"id":"lock-routing-bug","text":"Flags that setTagInit routes boolean/error values to setTagBoolLocked/setTagErrorLocked without holding span.mu, which could panic or corrupt span state for inputs like Tag(ext.ManualKeep, true)"}
+]}

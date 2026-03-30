@@ -1,0 +1,11 @@
+{
+  "eval_id": 1, "variant": "with_skill",
+  "expectations": [
+    {"text": "Flags SetClusterID as exported when it should be unexported", "passed": false, "evidence": "Not explicitly flagged in this run — mentioned double-lock and atomic.Value but not the export convention"},
+    {"text": "Notes duplicated logic between kafka.v2 and kafka packages", "passed": true, "evidence": "Should-fix #5: startClusterIDFetch duplicated identically"},
+    {"text": "Recognizes async work cancellation on Close pattern", "passed": true, "evidence": "Validated in diff understanding"},
+    {"text": "Questions whether 2s blocking timeout is appropriate", "passed": false, "evidence": "Flags as magic number needing constant but doesn't question blocking acceptability"},
+    {"text": "Notes context.Canceled should not produce warning logs", "passed": true, "evidence": "Should-fix #6: cancellation check should also handle DeadlineExceeded"},
+    {"text": "Identifies happy-path alignment opportunity", "passed": false, "evidence": "Not flagged"}
+  ]
+}

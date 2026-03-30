@@ -1,0 +1,26 @@
+{
+  "eval_id": 6,
+  "eval_name": "goroutine-leak-profiler",
+  "configuration": "without_skill",
+  "assertions": [
+    {
+      "id": "overhead-analysis",
+      "score": 1.0,
+      "reasoning": "Review explicitly mentions the GOLF algorithm, STW (stop-the-world) pause times, and directly asks whether the overhead has been benchmarked before enabling unconditionally. It flags GC triggering as a concern and asks about latency impact on production workloads."
+    },
+    {
+      "id": "concurrent-profile-ordering",
+      "score": 1.0,
+      "reasoning": "Review has a dedicated section (point 9) on 'interaction with concurrent profiling' that explicitly states the goroutine leak profiler 'waits for a GC to complete' and this 'could cause the heap profile snapshot to reflect a different (older) GC cycle than expected, introducing a subtle temporal inconsistency between the two profiles.' This directly identifies the ordering issue described in the assertion."
+    },
+    {
+      "id": "opt-out-future",
+      "score": 1.0,
+      "reasoning": "Review explicitly discusses the lack of opt-out mechanism (point 2), notes that 'if Go 1.27 or later promotes this to non-experimental, the lack of opt-out could surprise users,' and suggests an internal env-var escape hatch. It also separately questions GC-triggering overhead. The assertion accepts either the opt-out plan concern or questioning the extra-GC overhead — both are present."
+    }
+  ],
+  "passed": 3,
+  "partial": 0,
+  "failed": 0,
+  "pass_rate": 1.00
+}

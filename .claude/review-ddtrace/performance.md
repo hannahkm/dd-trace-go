@@ -13,24 +13,7 @@ Run `go test -bench` before and after, and include the comparison in your PR des
 
 ## Inlining cost awareness
 
-The Go compiler has a limited inlining budget (cost 80). Changes to frequently-called functions can push them past the budget, preventing inlining and degrading performance. Reviewers check this:
-
-```
-$ go build -gcflags="-m=2" ./ddtrace/tracer/ | grep encodeField
-# main:  encodeField[go.shape.string]: cost 667 exceeds budget 80
-# PR:    encodeField[go.shape.string]: cost 801 exceeds budget 80
-```
-
-The inlining cost of a function affects whether its *callers* can inline it. A function going from cost 60 to cost 90 will stop being inlined (it crossed the 80 budget), and this also changes the cost calculation for every call site that previously inlined it.
-
-**Mitigation:** Wrap cold-path code (like error logging) in a `go:noinline`-tagged function so it doesn't inflate the caller's inlining cost:
-
-```go
-//go:noinline
-func warnUnsupportedFieldValue(fieldID uint32) {
-    log.Warn("failed to serialize unsupported fieldValue type for field %d", fieldID)
-}
-```
+On hot-path functions in `ddtrace/tracer/`, reviewers sometimes verify inlining with `go build -gcflags="-m=2"`. If a change grows a function past the compiler's inlining budget, wrap cold-path code (like error logging) in a `//go:noinline` helper to keep the hot caller inlineable.
 
 ## Avoid allocations in hot paths
 
@@ -102,6 +85,3 @@ Reference relevant research (papers, benchmarks) when introducing profile types 
 ### Concurrent profile capture ordering
 Be aware of how profile types interact when captured concurrently. For example, a goroutine leak profile that waits for a GC cycle will cause the heap profile to reflect the *previous* cycle's data, not the current one.
 
-## Don't block shutdown
-
-Polling goroutines that do HTTP requests (like `/info` discovery) must respect cancellation signals. An HTTP request that hangs during shutdown blocks the entire `Stop()` call for the full timeout (10s default). Use `http.NewRequestWithContext` with a stop-aware context.

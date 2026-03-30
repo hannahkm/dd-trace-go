@@ -1,0 +1,5 @@
+{"eval_id":4,"eval_name":"tracer-restart-state","prompt":"Review PR #4548 in DataDog/dd-trace-go. It reads a config value (128-bit trace ID generation) into spancontext.go at initialization time.","assertions":[
+  {"id":"restart-state-not-reset","text":"Flags that the config value is cached at initialization but will not be refreshed if the tracer is stopped and restarted — subsequent tracer instances will use the stale cached value"},
+  {"id":"init-in-newconfig","text":"Suggests or flags that initialization of cached config values belongs in the newConfig or tracer Start path, not at package init, to ensure restart picks up the latest env var value"},
+  {"id":"os-getenv-vs-internal-env","text":"Notes whether the config reading uses os.Getenv / internal.BoolEnv directly vs the proper internal/env pipeline — direct env reads bypass validation and hot-reload"}
+]}

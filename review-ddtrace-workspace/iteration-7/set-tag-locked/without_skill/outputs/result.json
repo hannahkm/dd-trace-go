@@ -1,0 +1,26 @@
+{
+  "eval_id": 7,
+  "eval_name": "set-tag-locked",
+  "configuration": "without_skill",
+  "assertions": [
+    {
+      "id": "benchmark-required",
+      "score": 0.5,
+      "reasoning": "The review discusses benchmark quality and representativeness, noting that the microbenchmark may be overly optimistic and suggesting a more representative benchmark measuring setTags with varying map sizes. However, the review does not 'flag that benchmarks are required before merging' — rather, it acknowledges that benchmarks exist but critiques their methodology. This touches on the benchmark topic but from a different angle (quality vs. presence)."
+    },
+    {
+      "id": "assert-rwmutex-locked",
+      "score": 0.5,
+      "reasoning": "The review explicitly notes that 'assert.RWMutexLocked(&s.mu) in setTagLocked is correct' and identifies it as using the right pattern from internal/locking/assert. However, the assertion expects the review to recommend adding this (as a gap to fill), whereas the review treats it as already present and correct. The review does mention and recognize the assert call but frames it as praise rather than a recommendation."
+    },
+    {
+      "id": "lock-routing-bug",
+      "score": 0.0,
+      "reasoning": "The review does not identify the specific bug where setTagInit (or the equivalent routing code) dispatches to setTagBoolLocked/setTagErrorLocked without holding span.mu. The review notes a different concern about panic safety (no defer on unlock in setTags) but does not flag the lock-routing issue for inputs like ext.ManualKeep with a boolean value being routed through a code path without the lock held."
+    }
+  ],
+  "passed": 0,
+  "partial": 2,
+  "failed": 1,
+  "pass_rate": 0.33
+}

@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "span-attributes-core",
+  "prompt": "Review PR #4538 in DataDog/dd-trace-go. It promotes span fields out of the meta map into a typed SpanAttributes struct.",
+  "assertions": [
+    {"id": "ci-visibility-race", "text": "Flags the CI visibility SetTag/Finish path as having a concurrency issue"},
+    {"id": "happy-path-alignment", "text": "Identifies at least one happy-path alignment opportunity in the changed code"},
+    {"id": "magic-strings", "text": "Flags hardcoded string literals (like 'm') that should use named constants"},
+    {"id": "stale-docs", "text": "Notes stale PR description, comments, or test names referencing fields not actually promoted"},
+    {"id": "init-function", "text": "Flags use of init() function where a helper function called from variable initialization is preferred"}
+  ]
+}

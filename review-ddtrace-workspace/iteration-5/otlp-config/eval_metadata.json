@@ -1,0 +1,5 @@
+{"eval_id":10,"eval_name":"otlp-config","prompt":"Review PR #4583 in DataDog/dd-trace-go. It adds OTLP trace export configuration support.","assertions":[
+  {"id":"debug-leftover","text":"Flags debugging leftover or unnecessary code that should be removed"},
+  {"id":"godoc-accuracy","text":"Notes a godoc comment that doesn't accurately describe the function's behavior"},
+  {"id":"validate-early","text":"Questions whether input validation should happen earlier in the call chain"}
+]}

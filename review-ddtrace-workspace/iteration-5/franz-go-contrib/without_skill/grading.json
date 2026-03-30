@@ -1,0 +1,6 @@
+{"eval_id": 1, "variant": "without_skill", "expectations": [
+  {"text": "Flags returning a custom *Client wrapper type instead of using the library's native hook mechanism", "passed": false, "evidence": "The review does not flag the custom *Client wrapper type as an issue. It mentions the wrapper exists in the summary but does not raise it as a concern in any blocking/should-fix section."},
+  {"text": "Notes that hook methods (OnProduceBatchWritten, etc.) need comments explaining when they fire", "passed": false, "evidence": "The review does not mention that hook methods need comments explaining when they fire."},
+  {"text": "Notes duplicated or copy-pasted logic that should be shared or documented as intentional", "passed": false, "evidence": "The review does not flag any duplicated or copy-pasted logic."},
+  {"text": "Flags missing documentation on interfaces, types, or functions explaining why they exist", "passed": false, "evidence": "The review does not flag missing documentation on interfaces, types, or functions. It mentions some comment issues (blank import comment, copyright) but not missing documentation on why things exist."}
+]}

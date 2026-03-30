@@ -1,0 +1,6 @@
+{"eval_id":1,"eval_name":"franz-go-contrib","prompt":"Review PR #4250 in DataDog/dd-trace-go. It adds a twmb/franz-go Kafka integration.","assertions":[
+  {"id":"no-wrapper-type","text":"Flags returning a custom *Client wrapper type instead of using the library's native hook mechanism"},
+  {"id":"add-hook-comments","text":"Notes that hook methods (OnProduceBatchWritten, etc.) need comments explaining when they fire"},
+  {"id":"extract-helper-or-dedup","text":"Notes duplicated or copy-pasted logic that should be shared or documented as intentional"},
+  {"id":"documentation-why","text":"Flags missing documentation on interfaces, types, or functions explaining why they exist"}
+]}

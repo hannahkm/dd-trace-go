@@ -1,0 +1,26 @@
+{
+  "eval_id": 9,
+  "eval_name": "agents-md-docs",
+  "configuration": "with_skill_pre_fix",
+  "assertions": [
+    {
+      "id": "close-lifecycle-wrong",
+      "score": 1.0,
+      "reasoning": "The review explicitly flags that the Close() guidance could lead an AI to implement Close() as blocking (waiting for the goroutine) rather than cancelling the background work and returning immediately. It identifies the conceptual inversion — Close() should signal cancellation, not block — and recommends adding a concrete Close() implementation example."
+    },
+    {
+      "id": "unexported-setter",
+      "score": 1.0,
+      "reasoning": "The review explicitly flags that an exported SetClusterID would incorrectly add internal plumbing to the public API surface, and recommends the guidance explicitly state that such setters must be unexported. It directly calls out that 'SetClusterID (exported) would incorrectly add it to the public API surface.'"
+    },
+    {
+      "id": "concurrency-stress-tests",
+      "score": 1.0,
+      "reasoning": "The review explicitly identifies that the AGENTS.md concurrency guidance ('When introducing concurrency logic, add tests to stress test the code') is too vague and should name concrete flags: -race and -count=100. It calls this a 'Should fix' and drafts specific improved wording."
+    }
+  ],
+  "passed": 3,
+  "partial": 0,
+  "failed": 0,
+  "pass_rate": 1.0
+}

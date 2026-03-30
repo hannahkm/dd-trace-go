@@ -1,0 +1,174 @@
+{
+  "metadata": {
+    "skill_name": "review-ddtrace",
+    "skill_path": "/Users/brian.marks/go/src/github.com/DataDog/dd-trace-go-review-skill/.claude/commands/review-ddtrace.md",
+    "timestamp": "2026-03-27T17:30:00Z",
+    "evals_run": [1, 2, 3],
+    "runs_per_configuration": 1
+  },
+
+  "runs": [
+    {
+      "eval_id": 1,
+      "eval_name": "kafka-cluster-id-contrib",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.67,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 125.2,
+        "tokens": 58517,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Flags SetClusterID as exported when it should be unexported", "passed": true, "evidence": "Finding #3 explicitly calls out SetClusterID and ClusterID being exported but only used internally"},
+        {"text": "Notes duplicated logic between kafka.v2 and kafka packages", "passed": true, "evidence": "Finding #8 identifies startClusterIDFetch as copy-pasted identically"},
+        {"text": "Recognizes async work cancellation on Close pattern", "passed": true, "evidence": "Summary validates the pattern as non-blocking and cancellable"},
+        {"text": "Questions whether 2s blocking timeout is appropriate", "passed": false, "evidence": "Flags magic number but does not question whether blocking is acceptable for observability"},
+        {"text": "Notes context.Canceled should not produce warning logs", "passed": true, "evidence": "Finding #2 analyzes the distinction between timeout and shutdown cancel"},
+        {"text": "Identifies happy-path alignment opportunity", "passed": false, "evidence": "Not flagged; DSM check was already refactored to early-return style in the diff"}
+      ]
+    },
+    {
+      "eval_id": 1,
+      "eval_name": "kafka-cluster-id-contrib",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.33,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 213.0,
+        "tokens": 59866,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Flags SetClusterID as exported when it should be unexported", "passed": false, "evidence": "Never mentions the exported setter convention"},
+        {"text": "Notes duplicated logic between kafka.v2 and kafka packages", "passed": true, "evidence": "Finding #2 identifies code duplication"},
+        {"text": "Recognizes async work cancellation on Close pattern", "passed": true, "evidence": "Summary acknowledges cancellable on Close"},
+        {"text": "Questions whether 2s blocking timeout is appropriate", "passed": false, "evidence": "Not questioned"},
+        {"text": "Notes context.Canceled should not produce warning logs", "passed": false, "evidence": "Discusses context disambiguation but not shutdown noise suppression"},
+        {"text": "Identifies happy-path alignment opportunity", "passed": false, "evidence": "Not mentioned"}
+      ]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "span-attributes-core",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 180.4,
+        "tokens": 102205,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Questions ReadOnly vs Shared naming", "passed": false, "evidence": "Code already uses ReadOnly; naming tradeoff not discussed"},
+        {"text": "Notes attrs field name doesn't convey role", "passed": false, "evidence": "Not flagged"},
+        {"text": "Flags sharedAttrs leaking to mocktracer via go:linkname", "passed": false, "evidence": "Notes go:linkname change but not as abstraction leak"},
+        {"text": "Suggests extracting shared-attrs building helper", "passed": false, "evidence": "Not suggested"},
+        {"text": "Notes SpanMeta consumers should use methods not fields", "passed": false, "evidence": "Not flagged"}
+      ]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "span-attributes-core",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.20,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 239.7,
+        "tokens": 104262,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Questions ReadOnly vs Shared naming", "passed": false, "evidence": "Not mentioned"},
+        {"text": "Notes attrs field name doesn't convey role", "passed": false, "evidence": "Not mentioned"},
+        {"text": "Flags sharedAttrs leaking to mocktracer via go:linkname", "passed": true, "evidence": "Finding #4 flags unsafe.Pointer go:linkname as blocking"},
+        {"text": "Suggests extracting shared-attrs building helper", "passed": false, "evidence": "Not suggested"},
+        {"text": "Notes SpanMeta consumers should use methods not fields", "passed": false, "evidence": "Not flagged"}
+      ]
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "openfeature-rc-subscription",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.33,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 140.6,
+        "tokens": 51721,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Flags callbacks invoked under lock risking deadlocks", "passed": true, "evidence": "Findings #1, #2, #3 detail callbacks under lock with fix suggestions"},
+        {"text": "Notes rcState.subscribed not resetting on tracer restart", "passed": false, "evidence": "Review praises the restart detection as correct — opposite of human reviewer feedback"},
+        {"text": "Flags internal.BoolEnv instead of internal/env", "passed": false, "evidence": "Review incorrectly states internal.BoolEnv goes through proper channel"},
+        {"text": "Flags test helpers in non-test files", "passed": true, "evidence": "Finding #4 flags ResetForTest in testing.go"},
+        {"text": "Notes duplicate constant definition", "passed": false, "evidence": "Not mentioned"},
+        {"text": "Flags broadened goleak ignore", "passed": false, "evidence": "Not mentioned"}
+      ]
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "openfeature-rc-subscription",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.17,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 137.7,
+        "tokens": 51461,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Flags callbacks invoked under lock risking deadlocks", "passed": false, "evidence": "Nit #12 mentions it but classifies as documentation concern, not blocking"},
+        {"text": "Notes rcState.subscribed not resetting on tracer restart", "passed": false, "evidence": "Not mentioned"},
+        {"text": "Flags internal.BoolEnv instead of internal/env", "passed": false, "evidence": "Not mentioned"},
+        {"text": "Flags test helpers in non-test files", "passed": true, "evidence": "Finding #6 flags exported test helpers"},
+        {"text": "Notes duplicate constant definition", "passed": false, "evidence": "Not mentioned"},
+        {"text": "Flags broadened goleak ignore", "passed": false, "evidence": "Not mentioned"}
+      ]
+    }
+  ],
+
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {"mean": 0.33, "stddev": 0.27, "min": 0.0, "max": 0.67},
+      "time_seconds": {"mean": 148.7, "stddev": 22.7, "min": 125.2, "max": 180.4},
+      "tokens": {"mean": 70814, "stddev": 22364, "min": 51721, "max": 102205}
+    },
+    "without_skill": {
+      "pass_rate": {"mean": 0.23, "stddev": 0.07, "min": 0.17, "max": 0.33},
+      "time_seconds": {"mean": 196.8, "stddev": 42.6, "min": 137.7, "max": 239.7},
+      "tokens": {"mean": 71863, "stddev": 23188, "min": 51461, "max": 104262}
+    },
+    "delta": {
+      "pass_rate": "+0.10",
+      "time_seconds": "-48.1",
+      "tokens": "-1049"
+    }
+  },
+
+  "notes": [
+    "Eval 2 (span-attributes) assertions are too specific to naming preferences from an earlier PR revision — both configs scored near zero. These assertions should be revised to test detectable patterns rather than subjective naming choices.",
+    "Eval 1 (kafka contrib) shows the clearest skill advantage: 67% vs 33% pass rate. The skill caught exported-setter convention and context.Canceled noise — both repo-specific patterns.",
+    "Eval 3 (openfeature RC) shows the skill's biggest win: callbacks-under-lock was caught as blocking (matching human reviewers exactly), while baseline classified it as a nit. However, the skill incorrectly praised internal.BoolEnv usage.",
+    "With-skill runs were faster on average (149s vs 197s) while using similar token counts — the skill provides focused guidance that reduces exploration time.",
+    "The 'test helpers in prod files' assertion passes in both configs — this is a general Go best practice, not skill-specific."
+  ]
+}

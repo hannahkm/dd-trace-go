@@ -1,0 +1,12 @@
+{
+  "eval_id": 3,
+  "eval_name": "openfeature-rc-subscription",
+  "prompt": "Review PR #4495 in DataDog/dd-trace-go. It adds an RC subscription bridge between the tracer and the OpenFeature provider.",
+  "assertions": [
+    {"id": "callbacks-under-lock", "text": "Flags that forwardingCallback and/or AttachCallback invoke external callbacks while holding rcState.Lock"},
+    {"id": "restart-stale-state", "text": "Notes that rcState is not reset when the tracer stops and restarts"},
+    {"id": "test-helpers-in-prod", "text": "Flags ResetForTest or similar test helpers in non-test files"},
+    {"id": "duplicate-constant", "text": "Notes duplicated FFE product name or env var string across packages"},
+    {"id": "error-msg-impact", "text": "Flags that error/warn messages should describe impact (what the user loses)"}
+  ]
+}

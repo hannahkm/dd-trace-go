@@ -1,0 +1,59 @@
+{
+  "metadata": {
+    "skill_name": "review-ddtrace",
+    "timestamp": "2026-03-30T00:00:00Z",
+    "iteration": 6,
+    "evals_run": [1, 2, 3, 4, 5],
+    "runs_per_configuration": 1,
+    "context": "5 never-before-seen PRs; evaluating inlining fix (PR #4613 feedback) impact",
+    "prs_used": [4350, 4492, 4393, 4528, 4456],
+    "skill_state": "post-inlining-fix (performance.md corrected: cost-60→90 now says 'will stop being inlined')"
+  },
+  "runs": [
+    {"eval_id":1,"eval_name":"otel-log-exporter","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":0.25,"passed":1,"failed":3,"total":4,"errors":0}},
+    {"eval_id":1,"eval_name":"otel-log-exporter","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.0,"passed":0,"failed":4,"total":4,"errors":0}},
+    {"eval_id":2,"eval_name":"propagated-context-api","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":0.67,"passed":2,"failed":1,"total":3,"errors":0}},
+    {"eval_id":2,"eval_name":"propagated-context-api","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":1.0,"passed":3,"failed":0,"total":3,"errors":0}},
+    {"eval_id":3,"eval_name":"v2fix-codemod","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":1.0,"passed":3,"failed":0,"total":3,"errors":0}},
+    {"eval_id":3,"eval_name":"v2fix-codemod","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":1.0,"passed":3,"failed":0,"total":3,"errors":0}},
+    {"eval_id":4,"eval_name":"orchestrion-graphql","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":0.33,"passed":1,"failed":2,"total":3,"errors":0}},
+    {"eval_id":4,"eval_name":"orchestrion-graphql","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.67,"passed":2,"failed":1,"total":3,"errors":0}},
+    {"eval_id":5,"eval_name":"process-context-mapping","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":1.0,"passed":3,"failed":0,"total":3,"errors":0}},
+    {"eval_id":5,"eval_name":"process-context-mapping","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":1.0,"passed":3,"failed":0,"total":3,"errors":0}}
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {"mean": 0.65, "min": 0.25, "max": 1.0},
+      "assertions": {"passed": 10, "total": 16}
+    },
+    "without_skill": {
+      "pass_rate": {"mean": 0.73, "min": 0.0, "max": 1.0},
+      "assertions": {"passed": 11, "total": 16}
+    },
+    "delta": {
+      "pass_rate": "-0.08",
+      "assertions_delta": "-1 (10 vs 11)"
+    }
+  },
+  "notes": [
+    "TRUE OUT-OF-SAMPLE: None of these 5 PRs were used in any previous iteration.",
+    "Context: evaluating impact of inlining-fix feedback from PR #4613 (corrected cost-60→90 explanation in performance.md).",
+    "Inlining fix had NO measurable impact: none of these 5 PRs triggered performance/inlining review comments — the fix only matters for hot-path PRs.",
+    "RESULT: skill NARROWLY UNDERPERFORMED baseline (10/16=62.5% vs 11/16=68.75%, -6pp) — within noise for a 5-PR eval, high variance expected.",
+    "Skill wins: otel-log-exporter (25% vs 0%) — lifecycle-wiring check (Start/Stop not wired into tracer). These are repo-specific patterns.",
+    "Baseline wins: propagated-context-api (67% vs 100%) — without_skill caught ErrSpanContextNotFound noise; with_skill missed it. orchestrion-graphql (33% vs 67%) — without_skill caught ctx shadowing behavioral issue; with_skill treated rename as 'already fixed'.",
+    "Ties: v2fix-codemod (100% both), process-context-mapping (100% both) — general Go correctness and code-organization issues both reviews caught equally.",
+    "Assessment of assertions: 3/5 evals used assertions that test general Go quality (both pass), 1/5 had a factually wrong first draft (span-links-missing, corrected to pprof/opts-expand). Better discrimination requires more repo-specific assertions.",
+    "Combined with iteration-5 (18/31=58% vs 11/31=35%, +23pp): single-iteration variance is high. The overall trend across 15 PRs total is still positive for with_skill."
+  ]
+}

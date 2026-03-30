@@ -1,0 +1,26 @@
+{
+  "eval_id": 9,
+  "eval_name": "agents-md-docs",
+  "configuration": "with_skill_post_fix",
+  "assertions": [
+    {
+      "id": "close-lifecycle-wrong",
+      "score": 1.0,
+      "reasoning": "The review explicitly flagged this under Blocking, identifying that both CONTRIBUTING.md and contrib/AGENTS.md have the Close() lifecycle description backwards. The review explained that the guidance conflates 'cancel async work' with 'unblock Close()' and that the real requirement is to prevent background goroutines from accessing a closed resource after Close() returns — not merely to keep Close() non-blocking."
+    },
+    {
+      "id": "unexported-setter",
+      "score": 0.5,
+      "reasoning": "The review raised the issue of unexported setters under 'Should Fix', noting that the documentation fails to explicitly warn against exporting as SetClusterID and that contributors might create a public method. However, the review framed it as a gap in documentation explicitness rather than directly flagging that SetClusterID (exported) would be wrong and setClusterID (unexported) is the correct form. The core concern was touched but not precisely identified as a concrete naming correctness issue."
+    },
+    {
+      "id": "concurrency-stress-tests",
+      "score": 1.0,
+      "reasoning": "The review explicitly noted under 'Should Fix' that the AGENTS.md concurrency guidance mentions stress testing but lacks actionable specifics, and called out -race and -count=100/-count=1000 as the standard mechanisms. It also flagged the same gap in contrib/AGENTS.md separately. The assertion's core concern — that AGENTS.md should recommend -race and high-iteration runs — was directly addressed."
+    }
+  ],
+  "passed": 2,
+  "partial": 1,
+  "failed": 0,
+  "pass_rate": 0.83
+}

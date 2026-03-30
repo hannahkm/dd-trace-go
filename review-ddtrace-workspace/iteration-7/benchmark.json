@@ -1,0 +1,121 @@
+{
+  "metadata": {
+    "skill_name": "review-ddtrace",
+    "timestamp": "2026-03-30T00:00:00Z",
+    "iteration": 7,
+    "evals_run": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    "runs_per_configuration": 1,
+    "context": "3-way comparison (baseline / pre-fix / post-fix) evaluating hannahkm's style-and-idioms.md cleanup (removed Effective Go duplicates, trimmed to dd-trace-go-specific patterns only). 10 new PRs covering all skill domains.",
+    "prs_used": [4603, 4408, 4499, 4548, 4503, 4420, 4425, 4560, 4507, 4436],
+    "configurations": {
+      "without_skill": "Baseline — no reference docs, review as an experienced Go engineer",
+      "with_skill_pre_fix": "Pre-fix skill — reference docs before hannahkm's style-and-idioms.md cleanup (206-line version)",
+      "with_skill_post_fix": "Post-fix skill — reference docs after hannahkm's cleanup (151-line version, Effective Go duplicates removed)"
+    },
+    "grading_scale": "pass=1.0, partial=0.5, fail=0.0 per assertion; pass_rate=(passed + 0.5*partial)/total"
+  },
+  "runs": [
+    {"eval_id":1,"eval_name":"sampler-alloc","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.50,"passed":1,"partial":1,"failed":1,"total":3,"errors":0}},
+    {"eval_id":1,"eval_name":"sampler-alloc","configuration":"with_skill_pre_fix","run_number":1,
+     "result":{"pass_rate":0.83,"passed":2,"partial":1,"failed":0,"total":3,"errors":0}},
+    {"eval_id":1,"eval_name":"sampler-alloc","configuration":"with_skill_post_fix","run_number":1,
+     "result":{"pass_rate":0.83,"passed":2,"partial":1,"failed":0,"total":3,"errors":0}},
+
+    {"eval_id":2,"eval_name":"span-checklocks","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.50,"passed":1,"partial":1,"failed":1,"total":3,"errors":0}},
+    {"eval_id":2,"eval_name":"span-checklocks","configuration":"with_skill_pre_fix","run_number":1,
+     "result":{"pass_rate":1.00,"passed":3,"partial":0,"failed":0,"total":3,"errors":0}},
+    {"eval_id":2,"eval_name":"span-checklocks","configuration":"with_skill_post_fix","run_number":1,
+     "result":{"pass_rate":0.67,"passed":2,"partial":0,"failed":1,"total":3,"errors":0}},
+
+    {"eval_id":3,"eval_name":"dsm-tagging","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.83,"passed":2,"partial":1,"failed":0,"total":3,"errors":0}},
+    {"eval_id":3,"eval_name":"dsm-tagging","configuration":"with_skill_pre_fix","run_number":1,
+     "result":{"pass_rate":0.83,"passed":2,"partial":1,"failed":0,"total":3,"errors":0}},
+    {"eval_id":3,"eval_name":"dsm-tagging","configuration":"with_skill_post_fix","run_number":1,
+     "result":{"pass_rate":1.00,"passed":3,"partial":0,"failed":0,"total":3,"errors":0}},
+
+    {"eval_id":4,"eval_name":"tracer-restart-state","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":1.00,"passed":3,"partial":0,"failed":0,"total":3,"errors":0}},
+    {"eval_id":4,"eval_name":"tracer-restart-state","configuration":"with_skill_pre_fix","run_number":1,
+     "result":{"pass_rate":0.83,"passed":2,"partial":1,"failed":0,"total":3,"errors":0}},
+    {"eval_id":4,"eval_name":"tracer-restart-state","configuration":"with_skill_post_fix","run_number":1,
+     "result":{"pass_rate":0.67,"passed":1,"partial":2,"failed":0,"total":3,"errors":0}},
+
+    {"eval_id":5,"eval_name":"civisibility-bazel","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.67,"passed":1,"partial":2,"failed":0,"total":3,"errors":0}},
+    {"eval_id":5,"eval_name":"civisibility-bazel","configuration":"with_skill_pre_fix","run_number":1,
+     "result":{"pass_rate":0.83,"passed":2,"partial":1,"failed":0,"total":3,"errors":0}},
+    {"eval_id":5,"eval_name":"civisibility-bazel","configuration":"with_skill_post_fix","run_number":1,
+     "result":{"pass_rate":1.00,"passed":3,"partial":0,"failed":0,"total":3,"errors":0}},
+
+    {"eval_id":6,"eval_name":"goroutine-leak-profiler","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":1.00,"passed":3,"partial":0,"failed":0,"total":3,"errors":0}},
+    {"eval_id":6,"eval_name":"goroutine-leak-profiler","configuration":"with_skill_pre_fix","run_number":1,
+     "result":{"pass_rate":1.00,"passed":3,"partial":0,"failed":0,"total":3,"errors":0}},
+    {"eval_id":6,"eval_name":"goroutine-leak-profiler","configuration":"with_skill_post_fix","run_number":1,
+     "result":{"pass_rate":1.00,"passed":3,"partial":0,"failed":0,"total":3,"errors":0}},
+
+    {"eval_id":7,"eval_name":"set-tag-locked","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.33,"passed":0,"partial":2,"failed":1,"total":3,"errors":0}},
+    {"eval_id":7,"eval_name":"set-tag-locked","configuration":"with_skill_pre_fix","run_number":1,
+     "result":{"pass_rate":0.50,"passed":1,"partial":1,"failed":1,"total":3,"errors":0}},
+    {"eval_id":7,"eval_name":"set-tag-locked","configuration":"with_skill_post_fix","run_number":1,
+     "result":{"pass_rate":0.50,"passed":1,"partial":1,"failed":1,"total":3,"errors":0}},
+
+    {"eval_id":8,"eval_name":"sarama-dsm-cluster-id","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.83,"passed":2,"partial":1,"failed":0,"total":3,"errors":0}},
+    {"eval_id":8,"eval_name":"sarama-dsm-cluster-id","configuration":"with_skill_pre_fix","run_number":1,
+     "result":{"pass_rate":0.83,"passed":2,"partial":1,"failed":0,"total":3,"errors":0}},
+    {"eval_id":8,"eval_name":"sarama-dsm-cluster-id","configuration":"with_skill_post_fix","run_number":1,
+     "result":{"pass_rate":1.00,"passed":3,"partial":0,"failed":0,"total":3,"errors":0}},
+
+    {"eval_id":9,"eval_name":"agents-md-docs","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.50,"passed":1,"partial":1,"failed":1,"total":3,"errors":0}},
+    {"eval_id":9,"eval_name":"agents-md-docs","configuration":"with_skill_pre_fix","run_number":1,
+     "result":{"pass_rate":1.00,"passed":3,"partial":0,"failed":0,"total":3,"errors":0}},
+    {"eval_id":9,"eval_name":"agents-md-docs","configuration":"with_skill_post_fix","run_number":1,
+     "result":{"pass_rate":0.83,"passed":2,"partial":1,"failed":0,"total":3,"errors":0}},
+
+    {"eval_id":10,"eval_name":"profiler-fake-backend","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.83,"passed":2,"partial":1,"failed":0,"total":3,"errors":0}},
+    {"eval_id":10,"eval_name":"profiler-fake-backend","configuration":"with_skill_pre_fix","run_number":1,
+     "result":{"pass_rate":0.83,"passed":2,"partial":1,"failed":0,"total":3,"errors":0}},
+    {"eval_id":10,"eval_name":"profiler-fake-backend","configuration":"with_skill_post_fix","run_number":1,
+     "result":{"pass_rate":0.83,"passed":2,"partial":1,"failed":0,"total":3,"errors":0}}
+  ],
+  "run_summary": {
+    "without_skill": {
+      "pass_rate": {"mean": 0.699, "min": 0.33, "max": 1.0},
+      "assertions": {"passed_full": 16, "partial": 10, "failed": 4, "total": 30,
+                     "effective_score": 21.0, "effective_rate": 0.70}
+    },
+    "with_skill_pre_fix": {
+      "pass_rate": {"mean": 0.848, "min": 0.50, "max": 1.0},
+      "assertions": {"passed_full": 22, "partial": 7, "failed": 1, "total": 30,
+                     "effective_score": 25.5, "effective_rate": 0.85}
+    },
+    "with_skill_post_fix": {
+      "pass_rate": {"mean": 0.833, "min": 0.50, "max": 1.0},
+      "assertions": {"passed_full": 22, "partial": 6, "failed": 2, "total": 30,
+                     "effective_score": 25.0, "effective_rate": 0.833}
+    },
+    "deltas": {
+      "skill_vs_baseline_pre_fix": "+0.149 mean pass_rate, +4.5 effective assertions (70%→85%)",
+      "skill_vs_baseline_post_fix": "+0.134 mean pass_rate, +4.0 effective assertions (70%→83%)",
+      "post_fix_vs_pre_fix": "-0.015 mean pass_rate, -0.5 effective assertions (85%→83%)"
+    }
+  },
+  "notes": [
+    "TRUE OUT-OF-SAMPLE: All 10 PRs are new — none used in any previous iteration.",
+    "3-WAY COMPARISON: This is the first iteration with baseline / pre-fix / post-fix comparison. The goal was to measure hannahkm's style-and-idioms.md cleanup (removing sections that duplicate Effective Go content).",
+    "MAIN FINDING: Both skill variants substantially outperform baseline (+15pp effective rate). Post-fix and pre-fix are essentially tied (25.0 vs 25.5 effective assertions, -1.7pp) — within single-run noise.",
+    "INTERPRETATION OF HANNAHKM'S CHANGES: The style-and-idioms.md cleanup (removing import grouping, std library preference, code organization, duplicate aliases section, function length guidance) had no measurable negative effect. Post-fix is within noise of pre-fix. The trimmed file focuses on dd-trace-go-specific patterns and is arguably higher signal-to-noise.",
+    "BASELINE WINS (4 PRs): tracer-restart (1.00 vs 0.83/0.67), goroutine-leak (1.00 all), profiler-fake-backend (0.83 all). goroutine-leak and profiler-fake-backend are 3-way ties, not baseline wins. tracer-restart is anomalous — baseline got all 3 init()/restart/env-pipeline assertions while both skill variants degraded to 0.83/0.67. The 'Avoid init()' guidance in style-and-idioms.md may have caused over-focus on the naming convention rather than the restart-correctness concern. Or this is run-to-run variance.",
+    "SKILL WIN PATTERNS: The clearest skill wins are on repo-specific DSM patterns (dsm-tagging 0.83→1.00 post-fix), contrib integration consistency (sarama-dsm 0.83→1.00 post-fix), and style aliases anti-pattern (civisibility-bazel 0.67→1.00 post-fix). These are precisely the issues that general Go expertise would miss.",
+    "HARD ASSERTIONS: set-tag-locked scored low (0.33/0.50/0.50) across all configurations. The lock-routing-bug assertion (setTagInit routes booleans/errors without holding span.mu) was missed by all three — this requires detailed code reading that went beyond what any of the reviews performed. This is a hard assertion that only the most thorough review would catch.",
+    "span-checklocks: pre-fix 1.00 vs post-fix 0.67. Post-fix dropped the 'inlining-annotation-impact' assertion. The inlining guidance lives in performance.md (unchanged), but the shorter style-and-idioms.md may have caused less exploration of adjacent reference files.",
+    "ASSESSMENT: hannahkm's changes are safe — no regression in skill effectiveness. The cleaned-up style-and-idioms.md is tighter and more actionable. Combined baseline comparison across both skill variants: 25.25/30 effective assertions vs 21.0/30 for baseline (+4.25, +14pp). This is a strong, consistent signal."
+  ]
+}

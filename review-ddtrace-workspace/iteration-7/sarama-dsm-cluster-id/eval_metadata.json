@@ -1,0 +1,5 @@
+{"eval_id":8,"eval_name":"sarama-dsm-cluster-id","prompt":"Review PR #4560 in DataDog/dd-trace-go. It adds kafka_cluster_id to DSM spans in IBM/sarama and Shopify/sarama integrations by fetching cluster ID via a metadata request, following the confluent-kafka-go pattern.","assertions":[
+  {"id":"happy-path-guard","text":"Flags that the DSM condition guard (dataStreamsEnabled && len(brokerAddrs) > 0) should use early return — negate the condition to return early rather than wrapping the async fetch body in an if block"},
+  {"id":"cross-integration-consistency","text":"Flags or checks whether IBM/sarama and Shopify/sarama use the same synchronization approach (sync.Map vs map+mutex) for storing cluster IDs, consistent with the confluent-kafka-go pattern"},
+  {"id":"cancel-on-close","text":"Flags that the async cluster ID fetch goroutine must be cancellable when Close() is called, and that expected cancellation errors (context.Canceled) should not be logged as warnings"}
+]}

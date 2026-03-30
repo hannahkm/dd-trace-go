@@ -98,6 +98,8 @@ log.Warn("failed to create admin client for cluster ID; cluster.id will be missi
 
 ## Data Streams Monitoring (DSM) patterns
 
+These patterns apply anywhere DSM code appears — in `contrib/`, `ddtrace/tracer/`, or `datastreams/`. They are listed here for reference but are not limited to contrib packages.
+
 ### Check DSM processor availability before tagging spans
 Don't tag spans with DSM metadata when DSM is disabled — it wastes cardinality:
 
@@ -114,9 +116,6 @@ if p := datastreams.GetProcessor(ctx); p != nil {
     p.TrackTransaction(...)
 }
 ```
-
-### Function parameter ordering
-For DSM functions dealing with cluster/topic/partition, order hierarchically: cluster > topic > partition. Reviewers flag reversed ordering.
 
 ### Deduplicate with timestamp variants
 When you have both `DoThing()` and `DoThingAt(timestamp)`, have the first call the second:

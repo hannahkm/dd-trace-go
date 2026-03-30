@@ -1,0 +1,6 @@
+{"eval_id":1,"eval_name":"otel-log-exporter","prompt":"Review PR #4350 in DataDog/dd-trace-go. It adds an OpenTelemetry log exporter integration for sending logs to the Datadog backend.","assertions":[
+  {"id":"otel-initialism","text":"Flags incorrect initialism in field/method names — 'Otel' should be 'OTel' (e.g., logsOtelEnabled → logsOTelEnabled, LogsOtelEnabled → LogsOTelEnabled)"},
+  {"id":"sync-once-no-retry","text":"Notes that sync.Once prevents retrying initialization after failure — a failed initialization permanently disables the feature"},
+  {"id":"lifecycle-not-wired","text":"Flags that StartIfEnabled/StopIfEnabled has no call site in the tracer lifecycle and must be called manually by users"},
+  {"id":"sampling-flag-wrong","text":"Flags that DD sampling priority is not mapped to OTel TraceFlags — always setting TraceFlagsSampled ignores the tracer's sampling decision"}
+]}

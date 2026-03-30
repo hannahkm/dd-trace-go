@@ -1,0 +1,26 @@
+{
+  "eval_id": 4,
+  "eval_name": "tracer-restart-state",
+  "configuration": "with_skill_pre_fix",
+  "assertions": [
+    {
+      "id": "restart-state-not-reset",
+      "score": 0.5,
+      "reasoning": "The review flags that Stop() does not reset traceID128BitEnabled and that mocktracer users will get a stale value after a stop/restart cycle. It correctly notes the real tracer restart works via newConfig, but the broader concern that the cached value is not reset on Stop() is discussed. The review touches on the topic but frames it as a mocktracer-specific gap rather than precisely stating that the cached value will be stale across any stop/restart cycle where newConfig is not called."
+    },
+    {
+      "id": "init-in-newconfig",
+      "score": 1.0,
+      "reasoning": "The review explicitly calls out that the PR author's own note about loading in newConfig should be pursued, and directly recommends not reading in init() at all and instead fixing mocktracer to call into the proper config path. This clearly flags that initialization of cached config values belongs in the newConfig/tracer Start path, not at package init."
+    },
+    {
+      "id": "os-getenv-vs-internal-env",
+      "score": 1.0,
+      "reasoning": "The review explicitly identifies that the init() uses sharedinternal.BoolEnv rather than the config provider pipeline (p.GetBool), noting it misses telemetry reporting, origin tracking, and remote config. It cites the review-ddtrace.md note that internal.BoolEnv 'bypasses the validated config pipeline' and contrasts it with the correct newConfig path that uses c.internalConfig.TraceID128BitEnabled() via the full provider."
+    }
+  ],
+  "passed": 2,
+  "partial": 1,
+  "failed": 0,
+  "pass_rate": 0.83
+}

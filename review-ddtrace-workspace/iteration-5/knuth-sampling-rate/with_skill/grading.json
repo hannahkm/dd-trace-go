@@ -1,0 +1,4 @@
+{"eval_id": 6, "variant": "with_skill", "expectations": [
+  {"text": "Flags happy-path alignment opportunity (negate condition for early return)", "passed": false, "evidence": "The review does not flag any happy-path alignment opportunity or suggest negating a condition for early return. It discusses the code changes positively without raising this style concern."},
+  {"text": "Notes that the lock is acquired twice unnecessarily and suggests combining into one critical section", "passed": true, "evidence": "The summary and overall assessment explicitly state 'The lock consolidation in apply() follows the concurrency reference's guidance on avoiding double lock acquisitions.' The review recognizes the PR itself addresses this issue with the getRateLocked refactoring."}
+]}

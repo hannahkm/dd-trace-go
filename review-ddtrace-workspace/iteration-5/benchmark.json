@@ -1,0 +1,74 @@
+{
+  "metadata": {
+    "skill_name": "review-ddtrace",
+    "timestamp": "2026-03-27T22:00:00Z",
+    "evals_run": [1,2,3,4,5,6,7,8,9,10],
+    "runs_per_configuration": 1,
+    "note": "10 never-before-seen PRs — true out-of-sample evaluation"
+  },
+  "runs": [
+    {"eval_id":1,"eval_name":"franz-go-contrib","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":0.75,"passed":3,"failed":1,"total":4,"time_seconds":92.9,"tokens":32342,"errors":0}},
+    {"eval_id":1,"eval_name":"franz-go-contrib","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.0,"passed":0,"failed":4,"total":4,"time_seconds":89.6,"tokens":31360,"errors":0}},
+    {"eval_id":2,"eval_name":"agent-info-poll","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":0.5,"passed":2,"failed":2,"total":4,"time_seconds":92.9,"tokens":32342,"errors":0}},
+    {"eval_id":2,"eval_name":"agent-info-poll","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.5,"passed":2,"failed":2,"total":4,"time_seconds":89.6,"tokens":31360,"errors":0}},
+    {"eval_id":3,"eval_name":"service-source","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":0.75,"passed":3,"failed":1,"total":4,"time_seconds":92.9,"tokens":32342,"errors":0}},
+    {"eval_id":3,"eval_name":"service-source","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.5,"passed":2,"failed":2,"total":4,"time_seconds":89.6,"tokens":31360,"errors":0}},
+    {"eval_id":4,"eval_name":"inspectable-tracer","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":0.67,"passed":2,"failed":1,"total":3,"time_seconds":92.9,"tokens":32342,"errors":0}},
+    {"eval_id":4,"eval_name":"inspectable-tracer","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.0,"passed":0,"failed":3,"total":3,"time_seconds":89.6,"tokens":31360,"errors":0}},
+    {"eval_id":5,"eval_name":"peer-service-config","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":0.33,"passed":1,"failed":2,"total":3,"time_seconds":92.9,"tokens":32342,"errors":0}},
+    {"eval_id":5,"eval_name":"peer-service-config","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.33,"passed":1,"failed":2,"total":3,"time_seconds":89.6,"tokens":31360,"errors":0}},
+    {"eval_id":6,"eval_name":"knuth-sampling-rate","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":0.5,"passed":1,"failed":1,"total":2,"time_seconds":70.7,"tokens":21782,"errors":0}},
+    {"eval_id":6,"eval_name":"knuth-sampling-rate","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.5,"passed":1,"failed":1,"total":2,"time_seconds":53.8,"tokens":18916,"errors":0}},
+    {"eval_id":7,"eval_name":"openfeature-metrics","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":0.0,"passed":0,"failed":3,"total":3,"time_seconds":70.7,"tokens":21782,"errors":0}},
+    {"eval_id":7,"eval_name":"openfeature-metrics","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.0,"passed":0,"failed":3,"total":3,"time_seconds":53.8,"tokens":18916,"errors":0}},
+    {"eval_id":8,"eval_name":"ibm-sarama-dsm","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":1.0,"passed":3,"failed":0,"total":3,"time_seconds":70.7,"tokens":21782,"errors":0}},
+    {"eval_id":8,"eval_name":"ibm-sarama-dsm","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":1.0,"passed":3,"failed":0,"total":3,"time_seconds":53.8,"tokens":18916,"errors":0}},
+    {"eval_id":9,"eval_name":"locking-migration","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":1.0,"passed":2,"failed":0,"total":2,"time_seconds":70.7,"tokens":21782,"errors":0}},
+    {"eval_id":9,"eval_name":"locking-migration","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":1.0,"passed":2,"failed":0,"total":2,"time_seconds":53.8,"tokens":18916,"errors":0}},
+    {"eval_id":10,"eval_name":"otlp-config","configuration":"with_skill","run_number":1,
+     "result":{"pass_rate":0.33,"passed":1,"failed":2,"total":3,"time_seconds":70.7,"tokens":21782,"errors":0}},
+    {"eval_id":10,"eval_name":"otlp-config","configuration":"without_skill","run_number":1,
+     "result":{"pass_rate":0.0,"passed":0,"failed":3,"total":3,"time_seconds":53.8,"tokens":18916,"errors":0}}
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {"mean": 0.58, "stddev": 0.31, "min": 0.0, "max": 1.0},
+      "assertions": {"passed": 18, "total": 31}
+    },
+    "without_skill": {
+      "pass_rate": {"mean": 0.35, "stddev": 0.37, "min": 0.0, "max": 1.0},
+      "assertions": {"passed": 11, "total": 31}
+    },
+    "delta": {
+      "pass_rate": "+0.23",
+      "assertions_delta": "+7 (18 vs 11)"
+    }
+  },
+  "notes": [
+    "TRUE OUT-OF-SAMPLE: None of these 10 PRs were used during skill development or tuning.",
+    "With-skill: 18/31 (58%) vs Baseline: 11/31 (35%) = +23pp delta on unseen PRs.",
+    "Strongest skill wins: franz-go-contrib (75% vs 0%), inspectable-tracer (67% vs 0%) — both had assertions about wrapper types and type assertion guards that the skill explicitly teaches.",
+    "Ties: ibm-sarama-dsm (100% both), locking-migration (100% both), agent-info-poll (50% both), peer-service-config (33% both), knuth-sampling-rate (50% both). These are concurrency-heavy PRs where general Go expertise catches the same issues.",
+    "Both failed: openfeature-metrics (0% both) — assertions tested subtle testing anti-patterns (bogus tests, test-only config leaking) that neither config detected.",
+    "Non-discriminating assertions (both pass): consistency across integrations, missing concurrency protection, trace lock recheck. These are general Go review competencies.",
+    "Discriminating assertions (skill-only passes): no-wrapper-type, hook documentation, type-assertion-guard, lifecycle-mismatch, use-ext-constants, debug-leftover. These are repo-specific conventions the skill teaches."
+  ]
+}

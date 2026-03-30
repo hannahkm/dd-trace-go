@@ -1,0 +1,6 @@
+{"eval_id":4,"variant":"with_skill","expectations":[
+  {"text":"Flags init() and suggests helper","passed":false,"evidence":"Not flagged — the PR may use newConfig() helper already, not init()"},
+  {"text":"Questions os.Setenv for config propagation","passed":true,"evidence":"Blocking #1: os.Setenv error silently discarded"},
+  {"text":"Suggests extracting session ID helper","passed":false,"evidence":"Not explicitly suggested"},
+  {"text":"Env var through internal/env","passed":false,"evidence":"Not flagged"}
+]}

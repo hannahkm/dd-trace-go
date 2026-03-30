@@ -1,0 +1,6 @@
+{"eval_id": 3, "variant": "without_skill", "expectations": [
+  {"text": "Flags hardcoded tag strings and recommends importing from ddtrace/ext or instrumentation", "passed": true, "evidence": "Should fix #2 flags that serviceSourceSQLDriver uses 'opt.sql_driver' with a different naming pattern than other integrations and suggests using string(instrumentation.PackageDatabaseSQL) for consistency."},
+  {"text": "Notes inconsistency in how service source is set across different contrib integrations", "passed": true, "evidence": "Should fix #2 explicitly notes the naming pattern inconsistency between database/sql's 'opt.' prefix and other integrations that use package names. Should fix #3 questions whether registerConfig serviceSource is properly set."},
+  {"text": "Flags values placed in shared instrumentation package that are too specific to one integration", "passed": false, "evidence": "The review does not flag values in the shared instrumentation package as being too specific to one integration."},
+  {"text": "Suggests reusing existing constants or patterns (like componentName) instead of creating new strings", "passed": false, "evidence": "The review does not suggest reusing existing constants like componentName. It discusses naming consistency but does not recommend reusing existing patterns specifically."}
+]}

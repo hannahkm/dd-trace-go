@@ -1,0 +1,6 @@
+{"eval_id":3,"eval_name":"service-source","prompt":"Review PR #4500 in DataDog/dd-trace-go. It adds service override source tracking (_dd.svc_src).","assertions":[
+  {"id":"use-ext-constants","text":"Flags hardcoded tag strings and recommends importing from ddtrace/ext or instrumentation"},
+  {"id":"consistency-across-contribs","text":"Notes inconsistency in how service source is set across different contrib integrations"},
+  {"id":"not-generic-enough","text":"Flags values placed in shared instrumentation package that are too specific to one integration"},
+  {"id":"reuse-existing","text":"Suggests reusing existing constants or patterns (like componentName) instead of creating new strings"}
+]}

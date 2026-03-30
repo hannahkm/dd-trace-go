@@ -1,0 +1,10 @@
+{
+  "eval_id": 2, "variant": "with_skill",
+  "expectations": [
+    {"text": "Notes consumers should access data through methods", "passed": false, "evidence": "Not explicitly flagged as a design principle, though the review does note the mocktracer unsafe.Pointer losing type safety"},
+    {"text": "Flags CI visibility SetTag/Finish concurrency issue", "passed": true, "evidence": "Should-fix: ciVisibilityEvent.SetTag no longer updates Content.Meta per-tag"},
+    {"text": "Identifies happy-path alignment opportunity", "passed": true, "evidence": "Should-fix: happy path not left-aligned in DecodeMsg"},
+    {"text": "Flags hardcoded magic strings", "passed": true, "evidence": "Should-fix: hardcoded 'm' instead of serviceSourceManual constant"},
+    {"text": "Notes stale docs referencing wrong promoted fields", "passed": true, "evidence": "Blocking #1: PR description and godoc claim component/span.kind promoted but only env/version/language are"}
+  ]
+}

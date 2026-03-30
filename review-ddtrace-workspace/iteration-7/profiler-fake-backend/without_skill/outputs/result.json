@@ -1,0 +1,26 @@
+{
+  "eval_id": 10,
+  "eval_name": "profiler-fake-backend",
+  "configuration": "without_skill",
+  "assertions": [
+    {
+      "id": "mock-vs-fake-naming",
+      "score": 1.0,
+      "reasoning": "The review explicitly flags that mockBackend is misnamed — it is a fake (a simplified working implementation) rather than a mock (which records calls for verification) — and notes that 'fake' is the correct Go testing convention term."
+    },
+    {
+      "id": "t-fatal-goroutine",
+      "score": 1.0,
+      "reasoning": "The review explicitly identifies the root cause: t.Fatalf was called from ServeHTTP (a non-test goroutine), which violates Go testing rules and can panic when the test function has already returned and t.Cleanup teardown has started. The review also confirms the fix correctly moves error reporting to the test goroutine via ReceiveProfile."
+    },
+    {
+      "id": "test-compression-regression",
+      "score": 0.5,
+      "reasoning": "The review flags the TestDebugCompressionEnv 'default' subtest change from gzip to zstd as a concern and warns that if the actual default compression is not zstd, 'the default subtest could fail with a zstd parse error on gzip data.' However, the review frames this as a potential risk to verify rather than definitively identifying it as a confirmed regression that already fails — the assertion requires identifying that the test *does* fail because the compression default was changed to zstd but the test expectation was not correctly updated."
+    }
+  ],
+  "passed": 2,
+  "partial": 1,
+  "failed": 0,
+  "pass_rate": 0.83
+}

@@ -1,0 +1,7 @@
+{"eval_id":3,"variant":"with_skill","expectations":[
+  {"text":"Callbacks under lock","passed":true,"evidence":"Blocking #1"},
+  {"text":"Restart state not reset","passed":true,"evidence":"Blocking #2: never reset on Stop()"},
+  {"text":"Test helpers in prod","passed":true,"evidence":"Should-fix #5"},
+  {"text":"Duplicate constant","passed":true,"evidence":"Should-fix #4: hardcoded env var string"},
+  {"text":"Error msg impact","passed":true,"evidence":"Should-fix #6: warning doesn't describe user impact"}
+]}

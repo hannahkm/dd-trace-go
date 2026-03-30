@@ -1,0 +1,5 @@
+{"eval_id":4,"eval_name":"inspectable-tracer","prompt":"Review PR #4512 in DataDog/dd-trace-go. It adds an inspectable tracer for testing.","assertions":[
+  {"id":"type-assertion-guard","text":"Flags the hard cast to *agentTraceWriter that will panic with non-agent writers"},
+  {"id":"lifecycle-mismatch","text":"Notes that the inspectable tracer skips startup hooks that Start() would run (like AppSec)"},
+  {"id":"blocking-channel","text":"Flags FlushSync blocking forever when LLMObs is not running (unbuffered channel with no reader)"}
+]}

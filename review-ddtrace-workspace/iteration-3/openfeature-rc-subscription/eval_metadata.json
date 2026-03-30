@@ -1,0 +1,37 @@
+{
+  "eval_id": 3,
+  "eval_name": "openfeature-rc-subscription",
+  "prompt": "Review PR #4495 in DataDog/dd-trace-go. It adds an RC subscription bridge between the tracer and the OpenFeature provider.",
+  "assertions": [
+    {
+      "id": "callbacks-under-lock",
+      "text": "Flags that forwardingCallback and/or AttachCallback invoke external callbacks while holding rcState.Lock, risking deadlocks",
+      "category": "concurrency"
+    },
+    {
+      "id": "restart-stale-state",
+      "text": "Notes that rcState.subscribed is not reset when the tracer stops and restarts, leading to stale state",
+      "category": "concurrency"
+    },
+    {
+      "id": "env-var-access",
+      "text": "Flags use of internal.BoolEnv instead of the internal/env package for environment variable access",
+      "category": "config-convention"
+    },
+    {
+      "id": "test-helpers-in-prod",
+      "text": "Flags ResetForTest or similar test helpers in non-test files (shipped in production builds)",
+      "category": "testing"
+    },
+    {
+      "id": "duplicate-constant",
+      "text": "Notes duplicate FFE product name constant across packages (ffeProductName and FFEProductName)",
+      "category": "code-organization"
+    },
+    {
+      "id": "goleak-ignore-broadening",
+      "text": "Flags broadening goleak.IgnoreAnyFunction entries that affect the whole test package",
+      "category": "testing"
+    }
+  ]
+}
