@@ -24,39 +24,39 @@ import (
 
 func TestGetSharedConfig(t *testing.T) {
 	t.Run("returns non-nil", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		cfg := GetSharedConfig()
 		assert.NotNil(t, cfg)
 	})
 
 	t.Run("singleton - returns same instance", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		cfg1 := GetSharedConfig()
 		cfg2 := GetSharedConfig()
 		assert.Same(t, cfg1, cfg2)
 	})
 
-	t.Run("SetUseFreshConfig resets singleton", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+	t.Run("ResetConfig resets singleton", func(t *testing.T) {
+		ResetConfig()
+		defer ResetConfig()
 
 		cfg1 := GetSharedConfig()
 		require.NotNil(t, cfg1)
 
-		SetUseFreshConfig(true)
+		ResetConfig()
 
 		cfg2 := GetSharedConfig()
 		require.NotNil(t, cfg2)
-		assert.NotSame(t, cfg1, cfg2, "SetUseFreshConfig should reset the SharedConfig singleton")
+		assert.NotSame(t, cfg1, cfg2, "ResetConfig should reset the SharedConfig singleton")
 	})
 
 	t.Run("concurrent access is safe", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		const numGoroutines = 100
 		var wg sync.WaitGroup
@@ -80,8 +80,8 @@ func TestGetSharedConfig(t *testing.T) {
 	})
 
 	t.Run("loads values from env", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("DD_TRACE_DEBUG", "true")
 
@@ -91,8 +91,8 @@ func TestGetSharedConfig(t *testing.T) {
 	})
 
 	t.Run("setters update config thread-safely", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		cfg := GetSharedConfig()
 		require.NotNil(t, cfg)
@@ -125,16 +125,16 @@ func TestGetSharedConfig(t *testing.T) {
 
 func TestGetProfilerConfig(t *testing.T) {
 	t.Run("returns non-nil", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		cfg := GetProfilerConfig()
 		assert.NotNil(t, cfg)
 	})
 
 	t.Run("shares same SharedConfig as tracer", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		tc := GetTracerConfig()
 		pc := GetProfilerConfig()
@@ -159,8 +159,8 @@ func TestSharedSettersReportTelemetry(t *testing.T) {
 		}
 
 		t.Run(methodName, func(t *testing.T) {
-			resetGlobalState()
-			defer resetGlobalState()
+			ResetConfig()
+			defer ResetConfig()
 
 			telemetryClient := new(telemetrytest.MockClient)
 			telemetryClient.On("RegisterAppConfigs", mock.Anything).Return().Maybe()
@@ -275,19 +275,13 @@ func getTestValueForType(t reflect.Type) any {
 		". Add support for this type in getTestValueForType() or add your setter to specialCaseSetters.")
 }
 
-// resetGlobalState resets all global singleton state for testing.
-func resetGlobalState() {
-	globalMu = sync.Mutex{}
-	globalInstance = nil
-}
-
 // ---------------------------------------------------------------------------
 // SharedConfig-specific tests
 // ---------------------------------------------------------------------------
 
 func TestSetFeatureFlagsReportsFullList(t *testing.T) {
-	resetGlobalState()
-	defer resetGlobalState()
+	ResetConfig()
+	defer ResetConfig()
 
 	rec := new(telemetrytest.RecordClient)
 	defer telemetry.MockClient(rec)()
@@ -319,8 +313,8 @@ func TestSetFeatureFlagsReportsFullList(t *testing.T) {
 
 func TestOTLPTraceURLResolution(t *testing.T) {
 	t.Run("default OTLP port from agent host", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		cfg := GetSharedConfig()
 		require.NotNil(t, cfg)
@@ -329,8 +323,8 @@ func TestOTLPTraceURLResolution(t *testing.T) {
 	})
 
 	t.Run("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT overrides", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://collector:4318/v1/traces")
 
@@ -341,8 +335,8 @@ func TestOTLPTraceURLResolution(t *testing.T) {
 	})
 
 	t.Run("uses agent host when no OTLP endpoint configured", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("DD_AGENT_HOST", "custom-agent")
 
@@ -355,8 +349,8 @@ func TestOTLPTraceURLResolution(t *testing.T) {
 
 func TestOTLPHeaders(t *testing.T) {
 	t.Run("always populated with at least Content-Type", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		cfg := GetSharedConfig()
 		require.NotNil(t, cfg)
@@ -368,8 +362,8 @@ func TestOTLPHeaders(t *testing.T) {
 	})
 
 	t.Run("OTEL_EXPORTER_OTLP_TRACES_HEADERS parsed into map", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_HEADERS", "api-key=secret,x-custom=value")
 
@@ -385,8 +379,8 @@ func TestOTLPHeaders(t *testing.T) {
 
 func TestHostnameConfiguration(t *testing.T) {
 	t.Run("default behavior - hostname empty when not configured", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		cfg := GetSharedConfig()
 		require.NotNil(t, cfg)
@@ -396,8 +390,8 @@ func TestHostnameConfiguration(t *testing.T) {
 	})
 
 	t.Run("DD_TRACE_REPORT_HOSTNAME=true enables hostname lookup", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("DD_TRACE_REPORT_HOSTNAME", "true")
 
@@ -410,8 +404,8 @@ func TestHostnameConfiguration(t *testing.T) {
 	})
 
 	t.Run("DD_TRACE_REPORT_HOSTNAME=false keeps hostname empty", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("DD_TRACE_REPORT_HOSTNAME", "false")
 
@@ -423,8 +417,8 @@ func TestHostnameConfiguration(t *testing.T) {
 	})
 
 	t.Run("DD_TRACE_SOURCE_HOSTNAME sets explicit hostname", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("DD_TRACE_SOURCE_HOSTNAME", "custom-hostname")
 
@@ -436,8 +430,8 @@ func TestHostnameConfiguration(t *testing.T) {
 	})
 
 	t.Run("DD_TRACE_SOURCE_HOSTNAME takes precedence over DD_TRACE_REPORT_HOSTNAME", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("DD_TRACE_REPORT_HOSTNAME", "true")
 		t.Setenv("DD_TRACE_SOURCE_HOSTNAME", "override-hostname")
@@ -450,8 +444,8 @@ func TestHostnameConfiguration(t *testing.T) {
 	})
 
 	t.Run("empty DD_TRACE_SOURCE_HOSTNAME is used when explicitly set", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("DD_TRACE_REPORT_HOSTNAME", "true")
 		t.Setenv("DD_TRACE_SOURCE_HOSTNAME", "")

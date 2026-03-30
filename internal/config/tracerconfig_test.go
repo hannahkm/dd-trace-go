@@ -23,16 +23,16 @@ import (
 
 func TestGetTracerConfig(t *testing.T) {
 	t.Run("returns non-nil", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		cfg := GetTracerConfig()
 		assert.NotNil(t, cfg)
 	})
 
 	t.Run("each call returns independent instance", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		cfg1 := GetTracerConfig()
 		cfg2 := GetTracerConfig()
@@ -40,8 +40,8 @@ func TestGetTracerConfig(t *testing.T) {
 	})
 
 	t.Run("instances share same SharedConfig", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		cfg1 := GetTracerConfig()
 		cfg2 := GetTracerConfig()
@@ -49,8 +49,8 @@ func TestGetTracerConfig(t *testing.T) {
 	})
 
 	t.Run("concurrent access is safe", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		const numGoroutines = 50
 		var wg sync.WaitGroup
@@ -93,8 +93,8 @@ func TestTracerSettersReportTelemetry(t *testing.T) {
 		}
 
 		t.Run(methodName, func(t *testing.T) {
-			resetGlobalState()
-			defer resetGlobalState()
+			ResetConfig()
+			defer ResetConfig()
 
 			telemetryClient := new(telemetrytest.MockClient)
 			telemetryClient.On("RegisterAppConfigs", mock.Anything).Return().Maybe()
@@ -131,8 +131,8 @@ func TestTracerSettersReportTelemetry(t *testing.T) {
 }
 
 func TestSetServiceMappingReportsFullList(t *testing.T) {
-	resetGlobalState()
-	defer resetGlobalState()
+	ResetConfig()
+	defer ResetConfig()
 
 	rec := new(telemetrytest.RecordClient)
 	defer telemetry.MockClient(rec)()
@@ -165,8 +165,8 @@ func TestSetServiceMappingReportsFullList(t *testing.T) {
 
 func TestOTLPExportMode(t *testing.T) {
 	t.Run("disabled by default", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		cfg := GetTracerConfig()
 		require.NotNil(t, cfg)
@@ -175,8 +175,8 @@ func TestOTLPExportMode(t *testing.T) {
 	})
 
 	t.Run("enabled by OTEL_TRACES_EXPORTER=otlp", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
 
@@ -187,8 +187,8 @@ func TestOTLPExportMode(t *testing.T) {
 	})
 
 	t.Run("not enabled by unsupported exporter value", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("OTEL_TRACES_EXPORTER", "jaeger")
 
@@ -199,8 +199,8 @@ func TestOTLPExportMode(t *testing.T) {
 	})
 
 	t.Run("not enabled by OTEL_TRACES_EXPORTER=none", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("OTEL_TRACES_EXPORTER", "none")
 
@@ -211,8 +211,8 @@ func TestOTLPExportMode(t *testing.T) {
 	})
 
 	t.Run("DD_TRACE_AGENT_PROTOCOL_VERSION overrides OTEL_TRACES_EXPORTER", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
 		t.Setenv("DD_TRACE_AGENT_PROTOCOL_VERSION", "1.0")
@@ -225,8 +225,8 @@ func TestOTLPExportMode(t *testing.T) {
 	})
 
 	t.Run("DD_TRACE_AGENT_PROTOCOL_VERSION=0.4 still overrides OTEL_TRACES_EXPORTER", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
 		t.Setenv("DD_TRACE_AGENT_PROTOCOL_VERSION", "0.4")
@@ -239,8 +239,8 @@ func TestOTLPExportMode(t *testing.T) {
 	})
 
 	t.Run("SetOTLPExportMode toggles mode", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		cfg := GetTracerConfig()
 		require.NotNil(t, cfg)

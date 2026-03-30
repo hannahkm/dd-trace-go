@@ -215,10 +215,10 @@ func GetProfilerConfig() *ProfilerConfig {
 	return loadProfilerConfig(initGlobal())
 }
 
-// SetUseFreshConfig resets the SharedConfig singleton so the next
+// ResetConfig resets the SharedConfig singleton so the next
 // access re-reads from environment variables and config sources.
 // Intended for use in tests.
-func SetUseFreshConfig(_ bool) {
+func ResetConfig() {
 	globalMu.Lock()
 	globalInstance = nil
 	globalMu.Unlock()

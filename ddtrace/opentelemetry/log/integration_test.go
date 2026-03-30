@@ -21,8 +21,8 @@ func TestStart(t *testing.T) {
 		_ = ShutdownGlobalLoggerProvider(context.Background())
 
 		// Ensure DD_LOGS_OTEL_ENABLED is false (default)
-		config.SetUseFreshConfig(true)
-		defer config.SetUseFreshConfig(false)
+		config.ResetConfig()
+		defer config.ResetConfig()
 
 		err := Start(context.Background())
 		assert.NoError(t, err)
@@ -37,8 +37,8 @@ func TestStart(t *testing.T) {
 		_ = ShutdownGlobalLoggerProvider(context.Background())
 
 		t.Setenv("DD_LOGS_OTEL_ENABLED", "true")
-		config.SetUseFreshConfig(true)
-		defer config.SetUseFreshConfig(false)
+		config.ResetConfig()
+		defer config.ResetConfig()
 
 		err := Start(context.Background())
 		require.NoError(t, err)
@@ -57,8 +57,8 @@ func TestStart(t *testing.T) {
 		_ = ShutdownGlobalLoggerProvider(context.Background())
 
 		t.Setenv("DD_LOGS_OTEL_ENABLED", "true")
-		config.SetUseFreshConfig(true)
-		defer config.SetUseFreshConfig(false)
+		config.ResetConfig()
+		defer config.ResetConfig()
 
 		err1 := Start(context.Background())
 		require.NoError(t, err1)
@@ -141,8 +141,8 @@ func TestIntegration(t *testing.T) {
 		t.Setenv("DD_SERVICE", "test-service")
 		t.Setenv("DD_ENV", "test")
 		t.Setenv("DD_VERSION", "1.0.0")
-		config.SetUseFreshConfig(true)
-		defer config.SetUseFreshConfig(false)
+		config.ResetConfig()
+		defer config.ResetConfig()
 
 		// Start
 		err := Start(context.Background())
@@ -163,8 +163,8 @@ func TestIntegration(t *testing.T) {
 		// Clean up any existing provider
 		_ = ShutdownGlobalLoggerProvider(context.Background())
 
-		config.SetUseFreshConfig(true)
-		defer config.SetUseFreshConfig(false)
+		config.ResetConfig()
+		defer config.ResetConfig()
 
 		// Start (should be no-op)
 		err := Start(context.Background())
