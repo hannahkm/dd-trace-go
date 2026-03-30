@@ -39,13 +39,13 @@ func TestGetTracerConfig(t *testing.T) {
 		assert.NotSame(t, cfg1, cfg2)
 	})
 
-	t.Run("instances share same SharedConfig", func(t *testing.T) {
+	t.Run("instances share same BaseConfig", func(t *testing.T) {
 		ResetConfig()
 		defer ResetConfig()
 
 		cfg1 := GetTracerConfig()
 		cfg2 := GetTracerConfig()
-		assert.Same(t, cfg1.SharedConfig, cfg2.SharedConfig)
+		assert.Same(t, cfg1.BaseConfig, cfg2.BaseConfig)
 	})
 
 	t.Run("concurrent access is safe", func(t *testing.T) {
@@ -76,7 +76,7 @@ func TestGetTracerConfig(t *testing.T) {
 }
 
 // TestTracerSettersReportTelemetry verifies all Set* methods on TracerConfig
-// (shadow overrides + promoted SharedConfig setters) report telemetry.
+// (shadow overrides + promoted BaseConfig setters) report telemetry.
 func TestTracerSettersReportTelemetry(t *testing.T) {
 	configType := reflect.TypeFor[*TracerConfig]()
 

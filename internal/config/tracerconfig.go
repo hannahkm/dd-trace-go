@@ -19,24 +19,24 @@ import (
 )
 
 // TracerConfig holds tracer-specific configuration. It embeds a pointer to
-// the shared SharedConfig so shared field accessors are promoted.
+// the shared BaseConfig so shared field accessors are promoted.
 //
 // Any field that the tracer's programmatic API (With* options) can set
 // is represented here as a shadow field. A nil shadow means "use the
-// SharedConfig value"; a non-nil shadow means the programmatic API has
+// BaseConfig value"; a non-nil shadow means the programmatic API has
 // provided a local override. This keeps env-var / RC updates flowing
-// through SharedConfig to all products, while programmatic overrides
+// through BaseConfig to all products, while programmatic overrides
 // stay local to the tracer.
 type TracerConfig struct {
-	*SharedConfig
+	*BaseConfig
 
 	tmu sync.RWMutex // protects TracerConfig fields only
 
-	// Shadow fields — nil means "use SharedConfig value".
+	// Shadow fields — nil means "use BaseConfig value".
 	serviceName             *string
 	env                     *string
 	version                 *string
-	serviceMappings         map[string]string // nil = use SharedConfig
+	serviceMappings         map[string]string // nil = use BaseConfig
 	runtimeMetrics          *bool
 	runtimeMetricsV2        *bool
 	profilerHotspots        *bool
@@ -55,8 +55,8 @@ type TracerConfig struct {
 	ciVisibilityEnabled     *bool
 }
 
-func loadTracerConfig(g *SharedConfig) *TracerConfig {
-	return &TracerConfig{SharedConfig: g}
+func loadTracerConfig(g *BaseConfig) *TracerConfig {
+	return &TracerConfig{BaseConfig: g}
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ func (t *TracerConfig) ServiceName() string {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.ServiceName()
+	return t.BaseConfig.ServiceName()
 }
 
 func (t *TracerConfig) SetServiceName(name string, origin telemetry.Origin) {
@@ -89,7 +89,7 @@ func (t *TracerConfig) Env() string {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.Env()
+	return t.BaseConfig.Env()
 }
 
 func (t *TracerConfig) SetEnv(env string, origin telemetry.Origin) {
@@ -107,7 +107,7 @@ func (t *TracerConfig) Version() string {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.Version()
+	return t.BaseConfig.Version()
 }
 
 func (t *TracerConfig) SetVersion(version string, origin telemetry.Origin) {
@@ -127,7 +127,7 @@ func (t *TracerConfig) ServiceMappings() map[string]string {
 		maps.Copy(result, t.serviceMappings)
 		return result
 	}
-	return t.SharedConfig.ServiceMappings()
+	return t.BaseConfig.ServiceMappings()
 }
 
 // ServiceMapping performs a single mapping lookup.
@@ -139,13 +139,13 @@ func (t *TracerConfig) ServiceMapping(from string) (to string, ok bool) {
 		return to, ok
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.ServiceMapping(from)
+	return t.BaseConfig.ServiceMapping(from)
 }
 
 func (t *TracerConfig) SetServiceMapping(from, to string, origin telemetry.Origin) {
 	t.tmu.Lock()
 	if t.serviceMappings == nil {
-		shared := t.SharedConfig.ServiceMappings()
+		shared := t.BaseConfig.ServiceMappings()
 		if shared != nil {
 			t.serviceMappings = shared
 		} else {
@@ -169,7 +169,7 @@ func (t *TracerConfig) RuntimeMetricsEnabled() bool {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.RuntimeMetricsEnabled()
+	return t.BaseConfig.RuntimeMetricsEnabled()
 }
 
 func (t *TracerConfig) SetRuntimeMetricsEnabled(enabled bool, origin telemetry.Origin) {
@@ -187,7 +187,7 @@ func (t *TracerConfig) RuntimeMetricsV2Enabled() bool {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.RuntimeMetricsV2Enabled()
+	return t.BaseConfig.RuntimeMetricsV2Enabled()
 }
 
 func (t *TracerConfig) SetRuntimeMetricsV2Enabled(enabled bool, origin telemetry.Origin) {
@@ -205,7 +205,7 @@ func (t *TracerConfig) ProfilerHotspotsEnabled() bool {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.ProfilerHotspotsEnabled()
+	return t.BaseConfig.ProfilerHotspotsEnabled()
 }
 
 func (t *TracerConfig) SetProfilerHotspotsEnabled(enabled bool, origin telemetry.Origin) {
@@ -223,7 +223,7 @@ func (t *TracerConfig) ProfilerEndpoints() bool {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.ProfilerEndpoints()
+	return t.BaseConfig.ProfilerEndpoints()
 }
 
 func (t *TracerConfig) SetProfilerEndpoints(enabled bool, origin telemetry.Origin) {
@@ -241,7 +241,7 @@ func (t *TracerConfig) DebugAbandonedSpans() bool {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.DebugAbandonedSpans()
+	return t.BaseConfig.DebugAbandonedSpans()
 }
 
 func (t *TracerConfig) SetDebugAbandonedSpans(enabled bool, origin telemetry.Origin) {
@@ -259,7 +259,7 @@ func (t *TracerConfig) SpanTimeout() time.Duration {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.SpanTimeout()
+	return t.BaseConfig.SpanTimeout()
 }
 
 func (t *TracerConfig) SetSpanTimeout(timeout time.Duration, origin telemetry.Origin) {
@@ -277,7 +277,7 @@ func (t *TracerConfig) PartialFlushEnabled() (enabled bool, minSpans int) {
 	localMinSpans := t.partialFlushMinSpans
 	t.tmu.RUnlock()
 
-	sharedEnabled, sharedMinSpans := t.SharedConfig.PartialFlushEnabled()
+	sharedEnabled, sharedMinSpans := t.BaseConfig.PartialFlushEnabled()
 
 	if localEnabled != nil {
 		enabled = *localEnabled
@@ -314,7 +314,7 @@ func (t *TracerConfig) StatsComputationEnabled() bool {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.StatsComputationEnabled()
+	return t.BaseConfig.StatsComputationEnabled()
 }
 
 func (t *TracerConfig) SetStatsComputationEnabled(enabled bool, origin telemetry.Origin) {
@@ -332,7 +332,7 @@ func (t *TracerConfig) GlobalSampleRate() float64 {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.GlobalSampleRate()
+	return t.BaseConfig.GlobalSampleRate()
 }
 
 func (t *TracerConfig) SetGlobalSampleRate(rate float64, origin telemetry.Origin) {
@@ -350,7 +350,7 @@ func (t *TracerConfig) TraceRateLimitPerSecond() float64 {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.TraceRateLimitPerSecond()
+	return t.BaseConfig.TraceRateLimitPerSecond()
 }
 
 func (t *TracerConfig) SetTraceRateLimitPerSecond(rate float64, origin telemetry.Origin) {
@@ -368,7 +368,7 @@ func (t *TracerConfig) DebugStack() bool {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.DebugStack()
+	return t.BaseConfig.DebugStack()
 }
 
 func (t *TracerConfig) SetDebugStack(enabled bool, origin telemetry.Origin) {
@@ -386,7 +386,7 @@ func (t *TracerConfig) RetryInterval() time.Duration {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.RetryInterval()
+	return t.BaseConfig.RetryInterval()
 }
 
 func (t *TracerConfig) SetRetryInterval(interval time.Duration, origin telemetry.Origin) {
@@ -404,7 +404,7 @@ func (t *TracerConfig) TraceProtocol() float64 {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.TraceProtocol()
+	return t.BaseConfig.TraceProtocol()
 }
 
 func (t *TracerConfig) SetTraceProtocol(v float64, origin telemetry.Origin) {
@@ -422,7 +422,7 @@ func (t *TracerConfig) OTLPExportMode() bool {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.OTLPExportMode()
+	return t.BaseConfig.OTLPExportMode()
 }
 
 func (t *TracerConfig) SetOTLPExportMode(v bool, origin telemetry.Origin) {
@@ -440,7 +440,7 @@ func (t *TracerConfig) CIVisibilityEnabled() bool {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.SharedConfig.CIVisibilityEnabled()
+	return t.BaseConfig.CIVisibilityEnabled()
 }
 
 func (t *TracerConfig) SetCIVisibilityEnabled(enabled bool, origin telemetry.Origin) {

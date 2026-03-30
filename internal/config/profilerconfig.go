@@ -10,16 +10,16 @@ import (
 )
 
 // ProfilerConfig holds profiler-specific configuration. It embeds a pointer
-// to the shared SharedConfig so shared field accessors are promoted.
+// to the shared BaseConfig so shared field accessors are promoted.
 //
 // Shadow fields will be added here as the profiler's programmatic API
 // (e.g. profiler.WithService) is wired through internal/config.
 type ProfilerConfig struct {
-	*SharedConfig
+	*BaseConfig
 
 	pmu sync.RWMutex // protects ProfilerConfig fields only
 }
 
-func loadProfilerConfig(g *SharedConfig) *ProfilerConfig {
-	return &ProfilerConfig{SharedConfig: g}
+func loadProfilerConfig(g *BaseConfig) *ProfilerConfig {
+	return &ProfilerConfig{BaseConfig: g}
 }

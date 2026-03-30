@@ -22,12 +22,12 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/telemetrytest"
 )
 
-func TestGetSharedConfig(t *testing.T) {
+func TestGetBaseConfig(t *testing.T) {
 	t.Run("returns non-nil", func(t *testing.T) {
 		ResetConfig()
 		defer ResetConfig()
 
-		cfg := GetSharedConfig()
+		cfg := GetBaseConfig()
 		assert.NotNil(t, cfg)
 	})
 
@@ -35,8 +35,8 @@ func TestGetSharedConfig(t *testing.T) {
 		ResetConfig()
 		defer ResetConfig()
 
-		cfg1 := GetSharedConfig()
-		cfg2 := GetSharedConfig()
+		cfg1 := GetBaseConfig()
+		cfg2 := GetBaseConfig()
 		assert.Same(t, cfg1, cfg2)
 	})
 
@@ -44,14 +44,14 @@ func TestGetSharedConfig(t *testing.T) {
 		ResetConfig()
 		defer ResetConfig()
 
-		cfg1 := GetSharedConfig()
+		cfg1 := GetBaseConfig()
 		require.NotNil(t, cfg1)
 
 		ResetConfig()
 
-		cfg2 := GetSharedConfig()
+		cfg2 := GetBaseConfig()
 		require.NotNil(t, cfg2)
-		assert.NotSame(t, cfg1, cfg2, "ResetConfig should reset the SharedConfig singleton")
+		assert.NotSame(t, cfg1, cfg2, "ResetConfig should reset the BaseConfig singleton")
 	})
 
 	t.Run("concurrent access is safe", func(t *testing.T) {
@@ -62,11 +62,11 @@ func TestGetSharedConfig(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines)
 
-		configs := make([]*SharedConfig, numGoroutines)
+		configs := make([]*BaseConfig, numGoroutines)
 		for i := range numGoroutines {
 			go func(j int) {
 				defer wg.Done()
-				configs[j] = GetSharedConfig()
+				configs[j] = GetBaseConfig()
 			}(i)
 		}
 		wg.Wait()
@@ -85,7 +85,7 @@ func TestGetSharedConfig(t *testing.T) {
 
 		t.Setenv("DD_TRACE_DEBUG", "true")
 
-		cfg := GetSharedConfig()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 		assert.True(t, cfg.Debug())
 	})
@@ -94,7 +94,7 @@ func TestGetSharedConfig(t *testing.T) {
 		ResetConfig()
 		defer ResetConfig()
 
-		cfg := GetSharedConfig()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		initialDebug := cfg.Debug()
@@ -132,19 +132,19 @@ func TestGetProfilerConfig(t *testing.T) {
 		assert.NotNil(t, cfg)
 	})
 
-	t.Run("shares same SharedConfig as tracer", func(t *testing.T) {
+	t.Run("shares same BaseConfig as tracer", func(t *testing.T) {
 		ResetConfig()
 		defer ResetConfig()
 
 		tc := GetTracerConfig()
 		pc := GetProfilerConfig()
-		assert.Same(t, tc.SharedConfig, pc.SharedConfig)
+		assert.Same(t, tc.BaseConfig, pc.BaseConfig)
 	})
 }
 
-// TestSharedSettersReportTelemetry verifies all Set* methods on SharedConfig report telemetry.
+// TestSharedSettersReportTelemetry verifies all Set* methods on BaseConfig report telemetry.
 func TestSharedSettersReportTelemetry(t *testing.T) {
-	configType := reflect.TypeFor[*SharedConfig]()
+	configType := reflect.TypeFor[*BaseConfig]()
 
 	for i := 0; i < configType.NumMethod(); i++ {
 		method := configType.Method(i)
@@ -166,7 +166,7 @@ func TestSharedSettersReportTelemetry(t *testing.T) {
 			telemetryClient.On("RegisterAppConfigs", mock.Anything).Return().Maybe()
 			defer telemetry.MockClient(telemetryClient)()
 
-			cfg := GetSharedConfig()
+			cfg := GetBaseConfig()
 			testOrigin := telemetry.OriginCode
 
 			if callFunc, isSpecial := specialCaseSetters[methodName]; isSpecial {
@@ -276,7 +276,7 @@ func getTestValueForType(t reflect.Type) any {
 }
 
 // ---------------------------------------------------------------------------
-// SharedConfig-specific tests
+// BaseConfig-specific tests
 // ---------------------------------------------------------------------------
 
 func TestSetFeatureFlagsReportsFullList(t *testing.T) {
@@ -286,7 +286,7 @@ func TestSetFeatureFlagsReportsFullList(t *testing.T) {
 	rec := new(telemetrytest.RecordClient)
 	defer telemetry.MockClient(rec)()
 
-	cfg := GetSharedConfig()
+	cfg := GetBaseConfig()
 	require.NotNil(t, cfg)
 
 	cfg.SetFeatureFlags([]string{"b", "a"}, telemetry.OriginCode)
@@ -316,7 +316,7 @@ func TestOTLPTraceURLResolution(t *testing.T) {
 		ResetConfig()
 		defer ResetConfig()
 
-		cfg := GetSharedConfig()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Contains(t, cfg.OTLPTraceURL(), ":4318/v1/traces")
@@ -328,7 +328,7 @@ func TestOTLPTraceURLResolution(t *testing.T) {
 
 		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://collector:4318/v1/traces")
 
-		cfg := GetSharedConfig()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Equal(t, "http://collector:4318/v1/traces", cfg.OTLPTraceURL())
@@ -340,7 +340,7 @@ func TestOTLPTraceURLResolution(t *testing.T) {
 
 		t.Setenv("DD_AGENT_HOST", "custom-agent")
 
-		cfg := GetSharedConfig()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Equal(t, "http://custom-agent:4318/v1/traces", cfg.OTLPTraceURL())
@@ -352,7 +352,7 @@ func TestOTLPHeaders(t *testing.T) {
 		ResetConfig()
 		defer ResetConfig()
 
-		cfg := GetSharedConfig()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		headers := cfg.OTLPHeaders()
@@ -367,7 +367,7 @@ func TestOTLPHeaders(t *testing.T) {
 
 		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_HEADERS", "api-key=secret,x-custom=value")
 
-		cfg := GetSharedConfig()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		headers := cfg.OTLPHeaders()
@@ -382,7 +382,7 @@ func TestHostnameConfiguration(t *testing.T) {
 		ResetConfig()
 		defer ResetConfig()
 
-		cfg := GetSharedConfig()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Empty(t, cfg.Hostname(), "Hostname should be empty by default")
@@ -395,7 +395,7 @@ func TestHostnameConfiguration(t *testing.T) {
 
 		t.Setenv("DD_TRACE_REPORT_HOSTNAME", "true")
 
-		cfg := GetSharedConfig()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.NotEmpty(t, cfg.Hostname(), "Hostname should be set when DD_TRACE_REPORT_HOSTNAME=true")
@@ -409,7 +409,7 @@ func TestHostnameConfiguration(t *testing.T) {
 
 		t.Setenv("DD_TRACE_REPORT_HOSTNAME", "false")
 
-		cfg := GetSharedConfig()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Empty(t, cfg.Hostname(), "Hostname should be empty when DD_TRACE_REPORT_HOSTNAME=false")
@@ -422,7 +422,7 @@ func TestHostnameConfiguration(t *testing.T) {
 
 		t.Setenv("DD_TRACE_SOURCE_HOSTNAME", "custom-hostname")
 
-		cfg := GetSharedConfig()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Equal(t, "custom-hostname", cfg.Hostname(), "Hostname should match DD_TRACE_SOURCE_HOSTNAME")
@@ -436,7 +436,7 @@ func TestHostnameConfiguration(t *testing.T) {
 		t.Setenv("DD_TRACE_REPORT_HOSTNAME", "true")
 		t.Setenv("DD_TRACE_SOURCE_HOSTNAME", "override-hostname")
 
-		cfg := GetSharedConfig()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Equal(t, "override-hostname", cfg.Hostname(), "DD_TRACE_SOURCE_HOSTNAME should take precedence")
@@ -450,7 +450,7 @@ func TestHostnameConfiguration(t *testing.T) {
 		t.Setenv("DD_TRACE_REPORT_HOSTNAME", "true")
 		t.Setenv("DD_TRACE_SOURCE_HOSTNAME", "")
 
-		cfg := GetSharedConfig()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Empty(t, cfg.Hostname(), "Empty DD_TRACE_SOURCE_HOSTNAME should override hostname lookup")
