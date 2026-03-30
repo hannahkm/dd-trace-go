@@ -8,10 +8,12 @@ package config
 import (
 	"fmt"
 	"maps"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	configtelemetry "github.com/DataDog/dd-trace-go/v2/internal/config/configtelemetry"
 	"github.com/DataDog/dd-trace-go/v2/internal/telemetry"
@@ -20,13 +22,6 @@ import (
 
 // TracerConfig holds tracer-specific configuration. It embeds a pointer to
 // the shared BaseConfig so shared field accessors are promoted.
-//
-// Any field that the tracer's programmatic API (With* options) can set
-// is represented here as a shadow field. A nil shadow means "use the
-// BaseConfig value"; a non-nil shadow means the programmatic API has
-// provided a local override. This keeps env-var / RC updates flowing
-// through BaseConfig to all products, while programmatic overrides
-// stay local to the tracer.
 type TracerConfig struct {
 	*BaseConfig
 
@@ -53,6 +48,12 @@ type TracerConfig struct {
 	traceProtocol           *float64
 	otlpExportMode          *bool
 	ciVisibilityEnabled     *bool
+	debug                   *bool
+	logToStdout             *bool
+	agentURL                **url.URL
+	hostname                *string
+	logStartup              *bool
+	featureFlags            map[string]struct{} // nil = use BaseConfig
 }
 
 func loadTracerConfig(g *BaseConfig) *TracerConfig {
@@ -448,4 +449,151 @@ func (t *TracerConfig) SetCIVisibilityEnabled(enabled bool, origin telemetry.Ori
 	t.ciVisibilityEnabled = &enabled
 	t.tmu.Unlock()
 	configtelemetry.Report(constants.CIVisibilityEnabledEnvironmentVariable, enabled, origin)
+}
+
+func (t *TracerConfig) Debug() bool {
+	t.tmu.RLock()
+	if t.debug != nil {
+		v := *t.debug
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.BaseConfig.Debug()
+}
+
+func (t *TracerConfig) SetDebug(enabled bool, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.debug = &enabled
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_TRACE_DEBUG", enabled, origin)
+}
+
+func (t *TracerConfig) LogToStdout() bool {
+	t.tmu.RLock()
+	if t.logToStdout != nil {
+		v := *t.logToStdout
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.BaseConfig.LogToStdout()
+}
+
+func (t *TracerConfig) SetLogToStdout(enabled bool, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.logToStdout = &enabled
+	t.tmu.Unlock()
+}
+
+func (t *TracerConfig) RawAgentURL() *url.URL {
+	t.tmu.RLock()
+	if t.agentURL != nil {
+		u := *t.agentURL
+		if u == nil {
+			t.tmu.RUnlock()
+			return nil
+		}
+		copy := *u
+		t.tmu.RUnlock()
+		return &copy
+	}
+	t.tmu.RUnlock()
+	return t.BaseConfig.RawAgentURL()
+}
+
+func (t *TracerConfig) AgentURL() *url.URL {
+	u := t.RawAgentURL()
+	if u != nil && u.Scheme == "unix" {
+		return internal.UnixDataSocketURL(u.Path)
+	}
+	return u
+}
+
+func (t *TracerConfig) SetAgentURL(u *url.URL, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.agentURL = &u
+	t.tmu.Unlock()
+	if u != nil {
+		configtelemetry.Report("DD_TRACE_AGENT_URL", u.String(), origin)
+	}
+}
+
+func (t *TracerConfig) Hostname() string {
+	t.tmu.RLock()
+	if t.hostname != nil {
+		v := *t.hostname
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.BaseConfig.Hostname()
+}
+
+func (t *TracerConfig) SetHostname(name string, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.hostname = &name
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_TRACE_SOURCE_HOSTNAME", name, origin)
+}
+
+func (t *TracerConfig) LogStartup() bool {
+	t.tmu.RLock()
+	if t.logStartup != nil {
+		v := *t.logStartup
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.BaseConfig.LogStartup()
+}
+
+func (t *TracerConfig) SetLogStartup(enabled bool, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.logStartup = &enabled
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_TRACE_STARTUP_LOGS", enabled, origin)
+}
+
+func (t *TracerConfig) FeatureFlags() map[string]struct{} {
+	t.tmu.RLock()
+	defer t.tmu.RUnlock()
+	if t.featureFlags != nil {
+		result := make(map[string]struct{}, len(t.featureFlags))
+		maps.Copy(result, t.featureFlags)
+		return result
+	}
+	return t.BaseConfig.FeatureFlags()
+}
+
+func (t *TracerConfig) HasFeature(feat string) bool {
+	t.tmu.RLock()
+	if t.featureFlags != nil {
+		_, ok := t.featureFlags[strings.TrimSpace(feat)]
+		t.tmu.RUnlock()
+		return ok
+	}
+	t.tmu.RUnlock()
+	return t.BaseConfig.HasFeature(feat)
+}
+
+func (t *TracerConfig) SetFeatureFlags(features []string, origin telemetry.Origin) {
+	t.tmu.Lock()
+	if t.featureFlags == nil {
+		shared := t.BaseConfig.FeatureFlags()
+		if shared != nil {
+			t.featureFlags = shared
+		} else {
+			t.featureFlags = make(map[string]struct{})
+		}
+	}
+	for _, feat := range features {
+		t.featureFlags[strings.TrimSpace(feat)] = struct{}{}
+	}
+	all := make([]string, 0, len(t.featureFlags))
+	for feat := range t.featureFlags {
+		all = append(all, feat)
+	}
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_TRACE_FEATURES", strings.Join(all, ","), origin)
 }

@@ -11,11 +11,13 @@ Configuration is split into two layers:
 
 ### Shadow fields
 
-A **shadow field** is needed when a global config value can be overridden at the product level — that is, a product needs its own value independent of other products. Programmatic APIs (`With*` options) are typically how this happens. The product config holds a local override pointer (`*bool`, `*string`, etc.); `nil` means "use the `BaseConfig` value." The getter checks the local override first and falls through to `BaseConfig` if unset.
+**Rule: if a field has a programmatic API (`With*` option) on any product, it gets a shadow field on that product's config.**
 
-Not every field with a programmatic API needs a shadow. Some settings (e.g. `debug`, `agentURL`) are inherently global — when the tracer sets them, it intends to affect all products. These stay on `BaseConfig` with no shadow.
+A shadow field is a local override pointer (`*bool`, `*string`, etc.) on the product config; `nil` means "use the `BaseConfig` value." The getter checks the local override first and falls through to `BaseConfig` if unset.
 
-This means environment variables and Remote Config updates flow through `BaseConfig` and affect all products automatically, while a product-level override only affects the calling product.
+This rule is intentionally simple and forward-looking. Even if only one product has a `With*` option for a field today, making it a shadow from the start means that when a second product adds a `With*` for the same field, the first product doesn't need refactoring — each product already has its own independent override.
+
+Environment variables and Remote Config updates flow through `BaseConfig` and affect all products automatically, while a product-level programmatic override only affects the calling product.
 
 ### Constructors
 
@@ -40,7 +42,7 @@ All constructors share a single config provider so declarative config (YAML) is 
 
 When migrating a configuration value from another package (e.g. `ddtrace/tracer`):
 
-- **Decide scope**: most fields belong on `BaseConfig`. Add a shadow field on a product config when the field can be overridden at the product level (see "Shadow fields" above).
+- **Decide scope**: most fields belong on `BaseConfig`. If the field has a programmatic API (`With*` option), add a shadow field on the corresponding product config (see "Shadow fields" above).
 - **Initialize it in the load function**: `loadBaseConfig()` reads from the config provider. Product load functions (`loadTracerConfig`, `loadProfilerConfig`) only set the `BaseConfig` pointer; they don't read from the provider.
 - **Expose an accessor**: add a getter (and a setter if the value is updated at runtime).
 - **Report telemetry in setters**: setters should call `configtelemetry.Report(...)` with the correct origin.
