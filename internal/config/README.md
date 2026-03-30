@@ -15,28 +15,24 @@ Configuration is split into two layers:
 
 A shadow field is a local override pointer (`*bool`, `*string`, etc.) on the product config; `nil` means "use the `BaseConfig` value." The getter checks the local override first and falls through to `BaseConfig` if unset.
 
-This rule is intentionally simple and forward-looking. Even if only one product has a `With*` option for a field today, making it a shadow from the start means that when a second product adds a `With*` for the same field, the first product doesn't need refactoring — each product already has its own independent override.
+This rule is intentionally simple: there are no judgment calls about whether a field is "inherently global" or "product-specific." If it has a programmatic API, it's a shadow.
 
 Environment variables and Remote Config updates flow through `BaseConfig` and affect all products automatically, while a product-level programmatic override only affects the calling product.
 
 ### Constructors
 
-| Function | Returns | Use |
-|---|---|---|
-| `GetBaseConfig()` | `*BaseConfig` | Shared singleton. Default choice for most packages. |
-| `GetTracerConfig()` | `*TracerConfig` | Tracer-owned config with product overrides. Called once at tracer startup. |
-| `GetProfilerConfig()` | `*ProfilerConfig` | Profiler-owned config with product overrides. Called once at profiler startup. |
+- `GetBaseConfig()` → `*BaseConfig` — shared singleton. Default choice for most packages.
+- `GetTracerConfig()` → `*TracerConfig` — tracer-owned config with product overrides. Called once at tracer startup.
+- `GetProfilerConfig()` → `*ProfilerConfig` — profiler-owned config with product overrides. Called once at profiler startup.
 
 All constructors share a single config provider so declarative config (YAML) is parsed only once.
 
 ### File layout
 
-| File | Contents |
-|---|---|
-| `config.go` | `BaseConfig` type, singleton/constructor logic, shared getters & setters |
-| `tracerconfig.go` | `TracerConfig` type, shadow field overrides |
-| `profilerconfig.go` | `ProfilerConfig` type, shadow field overrides |
-| `config_helpers.go` | Shared helpers (URL resolution, validation, etc.) |
+- `config.go` — `BaseConfig` type, singleton/constructor logic, shared getters & setters
+- `tracerconfig.go` — `TracerConfig` type, shadow field overrides
+- `profilerconfig.go` — `ProfilerConfig` type, shadow field overrides
+- `config_helpers.go` — shared helpers (URL resolution, validation, etc.)
 
 ## Migration guidelines
 
