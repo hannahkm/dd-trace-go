@@ -45,23 +45,20 @@ const (
 type BaseConfig struct {
 	mu sync.RWMutex
 
-	// Universal fields
-	agentURL            *url.URL
-	debug               bool
-	logStartup          bool
-	serviceName         string
-	version             string
-	env                 string
-	hostname            string
-	hostnameLookupError error
-	reportHostname      bool
-	logToStdout         bool
-	isLambdaFunction    bool
-	logDirectory        string
-	featureFlags        map[string]struct{}
-	logsOTelEnabled     bool
-
-	// Fields without cross-product override conflicts.
+	agentURL                      *url.URL
+	debug                         bool
+	logStartup                    bool
+	serviceName                   string
+	version                       string
+	env                           string
+	hostname                      string
+	hostnameLookupError           error
+	reportHostname                bool
+	logToStdout                   bool
+	isLambdaFunction              bool
+	logDirectory                  string
+	featureFlags                  map[string]struct{}
+	logsOTelEnabled               bool
 	serviceMappings               map[string]string
 	runtimeMetrics                bool
 	runtimeMetricsV2              bool
@@ -185,14 +182,17 @@ func loadBaseConfig() *BaseConfig {
 
 var (
 	globalInstance *BaseConfig
-	globalMu       sync.Mutex
+	globalMu      sync.Mutex
+	useFreshConfig bool
 )
 
 // initGlobal lazily initializes the BaseConfig singleton.
+// When useFreshConfig is true, the singleton is re-created on every call
+// so that tests picking up env-var changes via t.Setenv get fresh values.
 func initGlobal() *BaseConfig {
 	globalMu.Lock()
 	defer globalMu.Unlock()
-	if globalInstance == nil {
+	if globalInstance == nil || useFreshConfig {
 		globalInstance = loadBaseConfig()
 	}
 	return globalInstance
@@ -215,9 +215,20 @@ func GetProfilerConfig() *ProfilerConfig {
 	return loadProfilerConfig(initGlobal())
 }
 
-// ResetConfig resets the BaseConfig singleton so the next
+// SetUseFreshConfig controls whether each config access re-reads from
+// environment variables instead of returning the cached singleton.
+// Intended for use in tests that modify env vars between calls.
+func SetUseFreshConfig(fresh bool) {
+	globalMu.Lock()
+	useFreshConfig = fresh
+	if fresh {
+		globalInstance = nil
+	}
+	globalMu.Unlock()
+}
+
+// ResetConfig clears the cached BaseConfig singleton so the next
 // access re-reads from environment variables and config sources.
-// Intended for use in tests.
 func ResetConfig() {
 	globalMu.Lock()
 	globalInstance = nil
