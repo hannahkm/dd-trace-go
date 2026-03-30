@@ -117,15 +117,6 @@ if p := datastreams.GetProcessor(ctx); p != nil {
 }
 ```
 
-### Deduplicate with timestamp variants
-When you have both `DoThing()` and `DoThingAt(timestamp)`, have the first call the second:
-
-```go
-func TrackTransaction(ctx context.Context, id, name string) {
-    TrackTransactionAt(ctx, id, name, time.Now())
-}
-```
-
 ## Integration testing
 
 ### Consistent patterns across similar integrations
