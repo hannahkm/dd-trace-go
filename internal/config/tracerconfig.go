@@ -63,9 +63,8 @@ type TracerConfig struct {
 	traceID128BitEnabled          bool
 }
 
-func loadTracerConfig(g *GlobalConfig) *TracerConfig {
+func loadTracerConfig(g *GlobalConfig, p *provider.Provider) *TracerConfig {
 	tc := &TracerConfig{GlobalConfig: g}
-	p := provider.New()
 
 	tc.serviceMappings = p.GetMap("DD_SERVICE_MAPPING", nil, internal.DDTagsDelimiter)
 	tc.runtimeMetrics = p.GetBool("DD_RUNTIME_METRICS_ENABLED", false)
