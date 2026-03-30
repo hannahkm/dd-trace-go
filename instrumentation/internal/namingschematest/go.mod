@@ -438,13 +438,3 @@ replace github.com/DataDog/dd-trace-go/v2 => ../../..
 replace github.com/DataDog/dd-trace-go/contrib/graphql-go/graphql/v2 => ../../../contrib/graphql-go/graphql
 
 replace github.com/DataDog/dd-trace-go/instrumentation/testutils/containers/v2 => ../../testutils/containers
-
-replace github.com/DataDog/dd-trace-go/contrib/jackc/pgx.v5/v2 => ../../../contrib/jackc/pgx.v5
-
-replace github.com/DataDog/dd-trace-go/contrib/uptrace/bun/v2 => ../../../contrib/uptrace/bun
-
-replace github.com/DataDog/dd-trace-go/contrib/redis/rueidis/v2 => ../../../contrib/redis/rueidis
-
-replace github.com/DataDog/dd-trace-go/contrib/valkey-io/valkey-go/v2 => ../../../contrib/valkey-io/valkey-go
-
-replace github.com/DataDog/dd-trace-go/contrib/valyala/fasthttp/v2 => ../../../contrib/valyala/fasthttp
