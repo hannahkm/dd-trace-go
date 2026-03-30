@@ -1,7 +1,0 @@
-{"eval_id":2,"variant":"with_skill","expectations":[
-  {"text":"CI visibility concurrency issue","passed":true,"evidence":"Blocking #3: SetTag drops Content.Meta sync"},
-  {"text":"Happy-path alignment","passed":true,"evidence":"Should-fix: DecodeMsg"},
-  {"text":"Magic strings","passed":true,"evidence":"Nit: hardcoded 'm'"},
-  {"text":"Stale docs","passed":true,"evidence":"Blocking #1: component/span.kind not promoted"},
-  {"text":"init() function","passed":true,"evidence":"Should-fix: init() function violates repo convention"}
-]}

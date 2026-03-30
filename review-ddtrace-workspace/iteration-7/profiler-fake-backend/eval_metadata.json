@@ -1,5 +1,0 @@
-{"eval_id":10,"eval_name":"profiler-fake-backend","prompt":"Review PR #4436 in DataDog/dd-trace-go. It de-flakes the profiler mock backend by moving t.Fatalf calls from ServeHTTP goroutines to the test goroutine, using an error field on profileMeta instead.","assertions":[
-  {"id":"mock-vs-fake-naming","text":"Flags that mockBackend is misnamed — it is a fake (a working, simplified implementation), not a mock (which records calls for verification). Suggests renaming to fakeBackend per Go testing conventions"},
-  {"id":"t-fatal-goroutine","text":"Identifies the root cause of the flakiness: t.Fatalf was being called from a non-test goroutine (ServeHTTP), which is racy with t.Cleanup and can panic — and confirms the fix correctly moves error reporting to the test goroutine"},
-  {"id":"test-compression-regression","text":"Flags that TestDebugCompressionEnv still fails after this PR — the 'default' subtest gets a gzip parse error because the compression default was changed to zstd but the test expectation was not updated"}
-]}

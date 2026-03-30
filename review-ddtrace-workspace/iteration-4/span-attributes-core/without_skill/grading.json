@@ -1,7 +1,0 @@
-{"eval_id":2,"variant":"without_skill","expectations":[
-  {"text":"CI visibility concurrency issue","passed":true,"evidence":"Blocking #2 and #3: SetTag stale and Finish race"},
-  {"text":"Happy-path alignment","passed":false,"evidence":"Not mentioned"},
-  {"text":"Magic strings","passed":true,"evidence":"Nit: hardcoded 'm'"},
-  {"text":"Stale docs","passed":true,"evidence":"Should-fix: stale comments referencing component/span.kind"},
-  {"text":"init() function","passed":false,"evidence":"Not flagged"}
-]}

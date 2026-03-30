@@ -1,5 +1,0 @@
-{"eval_id": 5, "variant": "with_skill", "expectations": [
-  {"text": "Flags that TracerConf() acquires a lock per span, creating contention in setPeerService", "passed": true, "evidence": "Blocking #1 explicitly flags that 'PeerServiceMapping on TracerConf is a function closure that captures *Config and acquires c.mu.RLock() -- this is called on every span in setPeerService' and recommends using atomic.Pointer for lock-free reads instead."},
-  {"text": "Notes APIs introduced that have no call sites yet", "passed": false, "evidence": "The review does not flag any APIs that have no call sites. It discusses the API change to TracerConf and various methods but does not identify unused new APIs."},
-  {"text": "Notes that config loading should be in loadConfig, not scattered in option.go", "passed": false, "evidence": "The review does not specifically flag config loading being scattered in option.go vs loadConfig. It mentions the consolidation of schema-aware defaults into loadConfig positively (Nit #3) but does not flag any remaining scattered config loading."}
-]}

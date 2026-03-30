@@ -1,5 +1,0 @@
-{"eval_id":3,"eval_name":"v2fix-codemod","prompt":"Review PR #4393 in DataDog/dd-trace-go. It adds automatic code migration fixes (v2fix) for upgrading from v1 to v2 of the tracer API, including AST rewrites.","assertions":[
-  {"id":"golden-generator-prod","text":"Flags that golden_generator.go is in the production v2fix package despite being test-only infrastructure — it should be a _test.go file to avoid adding the testing package as a production dependency"},
-  {"id":"false-positives-coverage","text":"Flags that TestFalsePositives does not cover the four new analyzers (ChildOfStartChild, AppSecLoginEvents, DeprecatedWithPrioritySampling, DeprecatedWithHTTPRoundTripper)"},
-  {"id":"contrib-paths-drift","text":"Notes that v2ContribModulePaths is a manually maintained hardcoded list that can silently drift from the actual contrib/ directory structure"}
-]}

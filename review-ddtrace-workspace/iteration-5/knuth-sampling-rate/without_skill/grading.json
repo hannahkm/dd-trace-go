@@ -1,4 +1,0 @@
-{"eval_id": 6, "variant": "without_skill", "expectations": [
-  {"text": "Flags happy-path alignment opportunity (negate condition for early return)", "passed": false, "evidence": "The review does not flag any happy-path alignment opportunity or suggest negating a condition for early return."},
-  {"text": "Notes that the lock is acquired twice unnecessarily and suggests combining into one critical section", "passed": true, "evidence": "The summary explicitly states 'The PR also refactors prioritySampler to consolidate lock acquisitions by extracting getRateLocked() so that apply() acquires ps.mu.RLock only once to read both the rate and agentRatesLoaded.' The review acknowledges the PR addresses this lock consolidation."}
-]}

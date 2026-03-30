@@ -1,5 +1,0 @@
-{"eval_id":3,"eval_name":"dsm-tagging","prompt":"Review PR #4499 in DataDog/dd-trace-go. It adds DSM (Data Streams Monitoring) correlation tags to active spans via TrackDataStreamsTransaction.","assertions":[
-  {"id":"dsm-gate-on-processor","text":"Flags that DSM span tagging should be gated on processor availability — tagging the active span even when DSM is not enabled adds unnecessary overhead"},
-  {"id":"transaction-id-truncation","text":"Flags that the raw transactionID is stored on the span without truncation — if it exceeds the DSM wire limit, downstream consumers will corrupt or reject it"},
-  {"id":"dedup-logic","text":"Notes duplicated logic between TrackDataStreamsTransaction and TrackDataStreamsTransactionAt that could be consolidated by having one call the other"}
-]}

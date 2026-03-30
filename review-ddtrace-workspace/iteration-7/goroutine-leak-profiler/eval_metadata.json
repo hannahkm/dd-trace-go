@@ -1,5 +1,0 @@
-{"eval_id":6,"eval_name":"goroutine-leak-profiler","prompt":"Review PR #4420 in DataDog/dd-trace-go. It adds support for Go 1.26's experimental goroutine leak profiler, gated behind GOEXPERIMENT=goroutineleakprofile.","assertions":[
-  {"id":"overhead-analysis","text":"Flags or asks about the overhead of the new profile type — specifically that the GOLF algorithm increases STW pause times and this should be analyzed before enabling by default"},
-  {"id":"concurrent-profile-ordering","text":"Flags the ordering issue: when captured concurrently, the goroutine leak profile waits for a GC cycle, which causes the heap profile to reflect the previous GC cycle's data rather than the most recent one"},
-  {"id":"opt-out-future","text":"Notes that even though this is opt-in now, there should be a plan to allow users to opt-out if the profile is later enabled by default — or questions the overhead given it triggers an extra GC cycle"}
-]}

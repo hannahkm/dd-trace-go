@@ -1,5 +1,0 @@
-{"eval_id":7,"eval_name":"openfeature-metrics","prompt":"Review PR #4489 in DataDog/dd-trace-go. It adds flag evaluation tracking via OTel Metrics.","assertions":[
-  {"id":"test-only-knob","text":"Flags ownsProvider or similar test-only configuration that leaks into production code"},
-  {"id":"bogus-test","text":"Notes that a test is ineffective because setup makes the tested behavior a no-op"},
-  {"id":"error-prone-signature","text":"Flags function signature with multiple string parameters as error-prone"}
-]}

@@ -1,5 +1,0 @@
-{"eval_id":2,"eval_name":"propagated-context-api","prompt":"Review PR #4492 in DataDog/dd-trace-go. It adds a new public API StartSpanFromPropagatedContext (or similar name) that creates a span from a propagated trace context in a carrier.","assertions":[
-  {"id":"pprof-ctx-missing","text":"Flags that pprofCtxActive labeling context is not propagated back to callers, creating a behavioral inconsistency with StartSpanFromContext when profiling is enabled"},
-  {"id":"opts-expand-missing","text":"Flags missing options.Expand before appending to the opts slice — StartSpanFromContext uses options.Expand to protect against data races if callers reuse slices"},
-  {"id":"error-noise","text":"Notes that ErrSpanContextNotFound should be filtered before returning/logging, to avoid noisy debug logs on every untraced request"}
-]}

@@ -1,7 +1,0 @@
-{"eval_id":6,"variant":"with_skill","expectations":[
-  {"text":"Missing concurrency protection","passed":false,"evidence":"Flagged shared encodedKeys slice but not as missing mutex — framed as defensive copy"},
-  {"text":"Avoid unnecessary alloc","passed":false,"evidence":"Not flagged — review focused on higher-level issues"},
-  {"text":"Naming too generic","passed":false,"evidence":"Not flagged — api.txt signature error found instead"},
-  {"text":"Missing tests","passed":false,"evidence":"Not explicitly flagged as missing tests for checkpointRegistry"},
-  {"text":"API naming should be more specific","passed":false,"evidence":"Not flagged"}
-]}

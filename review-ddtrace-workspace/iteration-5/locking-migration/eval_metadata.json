@@ -1,4 +1,0 @@
-{"eval_id":9,"eval_name":"locking-migration","prompt":"Review PR #4359 in DataDog/dd-trace-go. It migrates to locking.*Mutex for dynamic lock checks.","assertions":[
-  {"id":"trace-lock-recheck","text":"Flags that state must be rechecked after releasing and reacquiring the trace lock"},
-  {"id":"tag-copy-under-lock","text":"Flags that trace-level tags are iterated without holding the trace lock"}
-]}

@@ -1,6 +1,0 @@
-{"eval_id":5,"variant":"with_skill","expectations":[
-  {"text":"Named constants for schemes/protocols","passed":true,"evidence":"Nit: premature export of scheme/protocol constants"},
-  {"text":"Happy-path alignment","passed":true,"evidence":"Should-fix #4: happy path nesting in resolveAgentURL"},
-  {"text":"Extract helper function","passed":true,"evidence":"Should-fix #2: resolveAgentURL duplicates AgentURLFromEnv"},
-  {"text":"Confusing boolean condition","passed":false,"evidence":"Not explicitly flagged as confusing condition"}
-]}

@@ -1,5 +1,0 @@
-{"eval_id": 8, "variant": "without_skill", "expectations": [
-  {"text": "Questions why a different concurrency primitive is used vs the existing kafka implementation", "passed": true, "evidence": "Blocking #1 flags the data race on cancel and ready fields in Fetcher, noting the Fetcher claims to be safe for concurrent use but is not fully. This questions the concurrency design choice."},
-  {"text": "Suggests extracting shared cache logic into its own function", "passed": true, "evidence": "Should fix #3 explicitly states 'Identical code duplicated between IBM/sarama and Shopify/sarama' and suggests sharing via an internal helper or at minimum documenting that changes to one must be mirrored."},
-  {"text": "Flags WithClusterID or similar exported option that is only used internally", "passed": true, "evidence": "Nit #2 flags that 'setClusterID method is never called in the diff' and notes it as unused API surface that should be added in the same PR or removed."}
-]}

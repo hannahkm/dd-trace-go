@@ -1,5 +1,0 @@
-{"eval_id":5,"eval_name":"process-context-mapping","prompt":"Review PR #4456 in DataDog/dd-trace-go. It implements an OTel process context mapping using Linux shared memory (mmap) for inter-process trace context sharing.","assertions":[
-  {"id":"mprotect-regression","text":"Flags that mprotect(PROT_READ) is missing — the previous implementation made the mapping read-only after writing, but the new code omits this, leaving the mapping writable"},
-  {"id":"proto-marshal-silent","text":"Flags that the proto.Marshal error is silently discarded with _, potentially publishing a corrupted or empty payload without the caller knowing"},
-  {"id":"global-state-unprotected","text":"Flags that package-level state (existingMappingBytes, publisherPID) is read and written without mutex protection, creating a data race on concurrent calls"}
-]}

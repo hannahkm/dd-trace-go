@@ -1,5 +1,0 @@
-{"eval_id":1,"eval_name":"sampler-alloc","prompt":"Review PR #4603 in DataDog/dd-trace-go. It optimizes the Knuth sampling rate formatting in the sampler to eliminate allocations.","assertions":[
-  {"id":"benchmark-required","text":"Requests or notes that the PR should include benchmark comparisons (before/after) to validate the allocation improvement"},
-  {"id":"fmt-sprintf-hot-path","text":"Flags or notes that fmt.Sprintf / string formatting in a hot path causes allocations and recommends strconv or strings.Builder instead"},
-  {"id":"allocation-count-verify","text":"Explicitly discusses or checks the allocation count (allocs/op) in the context of sampling — a hot path that runs on every span"}
-]}

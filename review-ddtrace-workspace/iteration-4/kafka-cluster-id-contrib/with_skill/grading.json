@@ -1,7 +1,0 @@
-{"eval_id":1,"variant":"with_skill","expectations":[
-  {"text":"Flags SetClusterID as exported","passed":true,"evidence":"Should-fix #6: exported but only used internally"},
-  {"text":"Notes duplicated logic","passed":true,"evidence":"Nit: duplicated startClusterIDFetch"},
-  {"text":"Suggests atomic.Value","passed":true,"evidence":"Should-fix #5: write-once field benefits from atomic.Value"},
-  {"text":"Notes context.Canceled noise","passed":true,"evidence":"Blocking #2: cancellation check should use errors.Is"},
-  {"text":"Warn describes impact","passed":true,"evidence":"Should-fix #3: error messages don't describe user impact"}
-]}

@@ -1,5 +1,0 @@
-{"eval_id": 4, "variant": "with_skill", "expectations": [
-  {"text": "Flags the hard cast to *agentTraceWriter that will panic with non-agent writers", "passed": true, "evidence": "Blocking #3 explicitly flags 'does a type assertion tracer.traceWriter.(*agentTraceWriter).wg.Wait()' and notes this tightly couples test infrastructure to internal implementation details that will break if the writer type changes."},
-  {"text": "Notes that the inspectable tracer skips startup hooks that Start() would run (like AppSec)", "passed": true, "evidence": "Should fix #3 flags that 'bootstrapInspectableTracer sets global tracer state but does not reset all global state on cleanup' and specifically notes that appsec is started on line 114 but not cleaned up, with reference to the concurrency.md guidance on global state reset."},
-  {"text": "Flags FlushSync blocking forever when LLMObs is not running (unbuffered channel with no reader)", "passed": false, "evidence": "The review does not mention FlushSync blocking forever or any unbuffered channel issue with LLMObs. It mentions llmobs cleanup and FlushSync in passing but does not flag it as a blocking concern."}
-]}

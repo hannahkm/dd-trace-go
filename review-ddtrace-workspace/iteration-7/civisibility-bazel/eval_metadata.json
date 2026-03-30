@@ -1,5 +1,0 @@
-{"eval_id":5,"eval_name":"civisibility-bazel","prompt":"Review PR #4503 in DataDog/dd-trace-go. It adds Bazel/manifest mode support to CI Visibility, returning empty responses for operations not supported in those modes.","assertions":[
-  {"id":"function-aliases","text":"Flags unnecessary function aliases (var x = pkg.Function) that add indirection without value — the code should call the functions directly"},
-  {"id":"early-return-bazel","text":"Flags or notes that skippable tests should return empty/disabled responses immediately in Bazel mode rather than falling through to HTTP calls"},
-  {"id":"test-coverage-gap","text":"Flags that the new Bazel mode gating in skippable.go has no test coverage, or that the existing test makes no sense once skippable is disabled in this mode"}
-]}

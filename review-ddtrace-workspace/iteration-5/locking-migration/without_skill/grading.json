@@ -1,4 +1,0 @@
-{"eval_id": 9, "variant": "without_skill", "expectations": [
-  {"text": "Flags that state must be rechecked after releasing and reacquiring the trace lock", "passed": true, "evidence": "Blocking #2 explicitly flags that 'Between t.mu.Unlock() and t.mu.RLock(), another goroutine could modify t.tags or t.propagatingTags. This is a window where the trace-level tags could change, potentially causing setTraceTagsLocked to see inconsistent state.'"},
-  {"text": "Flags that trace-level tags are iterated without holding the trace lock", "passed": true, "evidence": "Blocking #2 describes the concern about setTraceTagsLocked reading from t.tags and t.propagatingTags during a window where the trace lock was released and re-acquired, noting the RLock is correct for reading but the state may have changed between unlock and re-lock."}
-]}

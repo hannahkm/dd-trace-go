@@ -1,4 +1,0 @@
-{"eval_id":6,"eval_name":"knuth-sampling-rate","prompt":"Review PR #4523 in DataDog/dd-trace-go. It fixes _dd.p.ksr to only set after agent rates are received.","assertions":[
-  {"id":"happy-path","text":"Flags happy-path alignment opportunity (negate condition for early return)"},
-  {"id":"double-lock","text":"Notes that the lock is acquired twice unnecessarily and suggests combining into one critical section"}
-]}

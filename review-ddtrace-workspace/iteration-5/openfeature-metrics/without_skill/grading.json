@@ -1,5 +1,0 @@
-{"eval_id": 7, "variant": "without_skill", "expectations": [
-  {"text": "Flags ownsProvider or similar test-only configuration that leaks into production code", "passed": false, "evidence": "The review does not flag ownsProvider or any test-only configuration leaking into production code."},
-  {"text": "Notes that a test is ineffective because setup makes the tested behavior a no-op", "passed": false, "evidence": "The review does not flag any test as ineffective due to setup making the tested behavior a no-op."},
-  {"text": "Flags function signature with multiple string parameters as error-prone", "passed": false, "evidence": "The review does not flag any function signature with multiple string parameters as error-prone."}
-]}

@@ -1,6 +1,0 @@
-{"eval_id":2,"eval_name":"agent-info-poll","prompt":"Review PR #4451 in DataDog/dd-trace-go. It adds periodic /info polling for dynamic agent capability updates.","assertions":[
-  {"id":"http-shutdown","text":"Flags that the /info polling HTTP request should be cancellable during tracer shutdown"},
-  {"id":"extract-long-function","text":"Notes that the function is too long and suggests extracting parts into helpers"},
-  {"id":"stale-cached-config","text":"Questions whether cached telemetry/agent config values can become outdated"},
-  {"id":"dont-pin-to-file","text":"Notes that comments should not reference specific file names that may move"}
-]}

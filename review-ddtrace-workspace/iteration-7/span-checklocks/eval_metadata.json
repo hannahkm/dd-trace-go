@@ -1,5 +1,0 @@
-{"eval_id":2,"eval_name":"span-checklocks","prompt":"Review PR #4408 in DataDog/dd-trace-go. It adds checklocks annotations to span.go and spancontext.go to make lock requirements explicit for the static analyzer.","assertions":[
-  {"id":"checklocks-annotation-style","text":"Mentions or checks that checklocks annotations (+checklocks:mu) are consistent with the project's existing annotation style in span.go"},
-  {"id":"assert-rwmutex-locked","text":"Notes or flags use of assert.RWMutexLocked — either recommending it to guard lock-required paths, or noting its overhead in hot paths"},
-  {"id":"inlining-annotation-impact","text":"Notes that adding annotations or helper methods to span.go could affect the inlining budget for hot-path callers, given span operations run on every span creation"}
-]}
