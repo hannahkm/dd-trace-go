@@ -7,49 +7,19 @@ package config
 
 import (
 	"sync"
-
-	configtelemetry "github.com/DataDog/dd-trace-go/v2/internal/config/configtelemetry"
-	"github.com/DataDog/dd-trace-go/v2/internal/config/provider"
-	"github.com/DataDog/dd-trace-go/v2/internal/telemetry"
 )
 
 // ProfilerConfig holds profiler-specific configuration. It embeds a pointer
-// to the shared GlobalConfig so global field accessors are promoted.
+// to the shared SharedConfig so shared field accessors are promoted.
+//
+// Shadow fields will be added here as the profiler's programmatic API
+// (e.g. profiler.WithService) is wired through internal/config.
 type ProfilerConfig struct {
-	*GlobalConfig
+	*SharedConfig
 
 	pmu sync.RWMutex // protects ProfilerConfig fields only
-
-	enabled bool
 }
 
-func loadProfilerConfig(g *GlobalConfig, p *provider.Provider) *ProfilerConfig {
-	pc := &ProfilerConfig{GlobalConfig: g}
-
-	// DD_PROFILING_ENABLED="auto" means activation is determined by the
-	// Datadog admission controller, so treat it as true.
-	if v := p.GetString("DD_PROFILING_ENABLED", ""); v == "auto" {
-		pc.enabled = true
-	} else {
-		pc.enabled = p.GetBool("DD_PROFILING_ENABLED", true)
-	}
-
-	return pc
-}
-
-// ---------------------------------------------------------------------------
-// ProfilerConfig getters & setters
-// ---------------------------------------------------------------------------
-
-func (p *ProfilerConfig) Enabled() bool {
-	p.pmu.RLock()
-	defer p.pmu.RUnlock()
-	return p.enabled
-}
-
-func (p *ProfilerConfig) SetEnabled(enabled bool, origin telemetry.Origin) {
-	p.pmu.Lock()
-	defer p.pmu.Unlock()
-	p.enabled = enabled
-	configtelemetry.Report("DD_PROFILING_ENABLED", enabled, origin)
+func loadProfilerConfig(g *SharedConfig) *ProfilerConfig {
+	return &ProfilerConfig{SharedConfig: g}
 }

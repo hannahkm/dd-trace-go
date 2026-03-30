@@ -8,115 +8,72 @@ package config
 import (
 	"fmt"
 	"maps"
-	"math"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/DataDog/dd-trace-go/v2/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	configtelemetry "github.com/DataDog/dd-trace-go/v2/internal/config/configtelemetry"
-	"github.com/DataDog/dd-trace-go/v2/internal/config/provider"
 	"github.com/DataDog/dd-trace-go/v2/internal/telemetry"
 	"github.com/DataDog/dd-trace-go/v2/internal/traceprof"
 )
 
 // TracerConfig holds tracer-specific configuration. It embeds a pointer to
-// the shared GlobalConfig so global field accessors are promoted. Fields
-// that can be overridden per-product via programmatic APIs have local shadow
-// fields (nil means "use GlobalConfig value").
+// the shared SharedConfig so shared field accessors are promoted.
+//
+// Any field that the tracer's programmatic API (With* options) can set
+// is represented here as a shadow field. A nil shadow means "use the
+// SharedConfig value"; a non-nil shadow means the programmatic API has
+// provided a local override. This keeps env-var / RC updates flowing
+// through SharedConfig to all products, while programmatic overrides
+// stay local to the tracer.
 type TracerConfig struct {
-	*GlobalConfig
+	*SharedConfig
 
 	tmu sync.RWMutex // protects TracerConfig fields only
 
-	// Local overrides for global fields. nil means "use GlobalConfig value".
-	serviceName *string
-	env         *string
-	version     *string
-
-	serviceMappings               map[string]string
-	runtimeMetrics                bool
-	runtimeMetricsV2              bool
-	profilerHotspots              bool
-	profilerEndpoints             bool
-	spanAttributeSchemaVersion    int
-	peerServiceDefaultsEnabled    bool
-	peerServiceMappings           map[string]string
-	debugAbandonedSpans           bool
-	spanTimeout                   time.Duration
-	partialFlushMinSpans          int
-	partialFlushEnabled           bool
-	statsComputationEnabled       bool
-	dataStreamsMonitoringEnabled   bool
-	dynamicInstrumentationEnabled bool
-	globalSampleRate              float64
-	ciVisibilityEnabled           bool
-	ciVisibilityAgentless         bool
-	traceRateLimitPerSecond       float64
-	debugStack                    bool
-	retryInterval                 time.Duration
-	traceProtocol                 float64
-	otlpExportMode                bool
-	otlpTraceURL                  string
-	otlpHeaders                   map[string]string
-	traceID128BitEnabled          bool
+	// Shadow fields — nil means "use SharedConfig value".
+	serviceName              *string
+	env                      *string
+	version                  *string
+	serviceMappings          map[string]string // nil = use SharedConfig
+	runtimeMetrics           *bool
+	runtimeMetricsV2         *bool
+	profilerHotspots         *bool
+	profilerEndpoints        *bool
+	debugAbandonedSpans      *bool
+	spanTimeout              *time.Duration
+	partialFlushEnabled      *bool
+	partialFlushMinSpans     *int
+	statsComputationEnabled  *bool
+	globalSampleRate         *float64
+	traceRateLimitPerSecond  *float64
+	debugStack               *bool
+	retryInterval            *time.Duration
+	traceProtocol            *float64
+	otlpExportMode           *bool
+	ciVisibilityEnabled      *bool
 }
 
-func loadTracerConfig(g *GlobalConfig, p *provider.Provider) *TracerConfig {
-	tc := &TracerConfig{GlobalConfig: g}
-
-	tc.serviceMappings = p.GetMap("DD_SERVICE_MAPPING", nil, internal.DDTagsDelimiter)
-	tc.runtimeMetrics = p.GetBool("DD_RUNTIME_METRICS_ENABLED", false)
-	tc.runtimeMetricsV2 = p.GetBool("DD_RUNTIME_METRICS_V2_ENABLED", true)
-	tc.profilerHotspots = p.GetBool("DD_PROFILING_CODE_HOTSPOTS_COLLECTION_ENABLED", true)
-	tc.profilerEndpoints = p.GetBool("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", true)
-	tc.spanAttributeSchemaVersion = p.GetInt("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", 0)
-	tc.peerServiceDefaultsEnabled = p.GetBool("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", false)
-	tc.peerServiceMappings = p.GetMap("DD_TRACE_PEER_SERVICE_MAPPING", nil, internal.DDTagsDelimiter)
-	tc.debugAbandonedSpans = p.GetBool("DD_TRACE_DEBUG_ABANDONED_SPANS", false)
-	tc.spanTimeout = p.GetDuration("DD_TRACE_ABANDONED_SPAN_TIMEOUT", 10*time.Minute)
-	tc.partialFlushMinSpans = p.GetIntWithValidator("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 1000, validatePartialFlushMinSpans)
-	tc.partialFlushEnabled = p.GetBool("DD_TRACE_PARTIAL_FLUSH_ENABLED", false)
-	tc.statsComputationEnabled = p.GetBool("DD_TRACE_STATS_COMPUTATION_ENABLED", true)
-	tc.dataStreamsMonitoringEnabled = p.GetBool("DD_DATA_STREAMS_ENABLED", false)
-	tc.dynamicInstrumentationEnabled = p.GetBool("DD_DYNAMIC_INSTRUMENTATION_ENABLED", false)
-	tc.ciVisibilityEnabled = p.GetBool(constants.CIVisibilityEnabledEnvironmentVariable, false)
-	tc.ciVisibilityAgentless = p.GetBool("DD_CIVISIBILITY_AGENTLESS_ENABLED", false)
-	tc.traceRateLimitPerSecond = p.GetFloatWithValidator("DD_TRACE_RATE_LIMIT", DefaultRateLimit, validateRateLimit)
-	tc.globalSampleRate = p.GetFloatWithValidator("DD_TRACE_SAMPLE_RATE", math.NaN(), validateSampleRate)
-	tc.debugStack = p.GetBool("DD_TRACE_DEBUG_STACK", true)
-	tc.retryInterval = p.GetDuration("DD_TRACE_RETRY_INTERVAL", time.Millisecond)
-	tc.traceProtocol = resolveTraceProtocol(p.GetStringWithValidator("DD_TRACE_AGENT_PROTOCOL_VERSION", TraceProtocolVersionStringV04, validateTraceProtocolVersion))
-	tc.otlpExportMode = p.GetString("OTEL_TRACES_EXPORTER", "") == "otlp"
-	if p.IsSet("DD_TRACE_AGENT_PROTOCOL_VERSION") {
-		tc.otlpExportMode = false
-	}
-	tc.otlpTraceURL = resolveOTLPTraceURL(g.agentURL, p.GetString("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", ""))
-	tc.otlpHeaders = buildOTLPHeaders(p.GetMap("OTEL_EXPORTER_OTLP_TRACES_HEADERS", nil, internal.OtelTagsDelimeter))
-	tc.traceID128BitEnabled = p.GetBool("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", true)
-
-	return tc
+func loadTracerConfig(g *SharedConfig) *TracerConfig {
+	return &TracerConfig{SharedConfig: g}
 }
 
 // ---------------------------------------------------------------------------
-// Shadow getters (override promoted GlobalConfig methods)
+// Shadow getters & setters
 // ---------------------------------------------------------------------------
 
-// ServiceName returns the tracer's local override if set, otherwise the
-// global value from config sources.
 func (t *TracerConfig) ServiceName() string {
 	t.tmu.RLock()
 	if t.serviceName != nil {
-		name := *t.serviceName
+		v := *t.serviceName
 		t.tmu.RUnlock()
-		return name
+		return v
 	}
 	t.tmu.RUnlock()
-	return t.GlobalConfig.ServiceName()
+	return t.SharedConfig.ServiceName()
 }
 
-// SetServiceName sets a tracer-local override for service name.
 func (t *TracerConfig) SetServiceName(name string, origin telemetry.Origin) {
 	t.tmu.Lock()
 	t.serviceName = &name
@@ -124,19 +81,17 @@ func (t *TracerConfig) SetServiceName(name string, origin telemetry.Origin) {
 	configtelemetry.Report("DD_SERVICE", name, origin)
 }
 
-// Env returns the tracer's local override if set, otherwise the global value.
 func (t *TracerConfig) Env() string {
 	t.tmu.RLock()
 	if t.env != nil {
-		e := *t.env
+		v := *t.env
 		t.tmu.RUnlock()
-		return e
+		return v
 	}
 	t.tmu.RUnlock()
-	return t.GlobalConfig.Env()
+	return t.SharedConfig.Env()
 }
 
-// SetEnv sets a tracer-local override for env.
 func (t *TracerConfig) SetEnv(env string, origin telemetry.Origin) {
 	t.tmu.Lock()
 	t.env = &env
@@ -144,7 +99,6 @@ func (t *TracerConfig) SetEnv(env string, origin telemetry.Origin) {
 	configtelemetry.Report("DD_ENV", env, origin)
 }
 
-// Version returns the tracer's local override if set, otherwise the global value.
 func (t *TracerConfig) Version() string {
 	t.tmu.RLock()
 	if t.version != nil {
@@ -153,10 +107,9 @@ func (t *TracerConfig) Version() string {
 		return v
 	}
 	t.tmu.RUnlock()
-	return t.GlobalConfig.Version()
+	return t.SharedConfig.Version()
 }
 
-// SetVersion sets a tracer-local override for version.
 func (t *TracerConfig) SetVersion(version string, origin telemetry.Origin) {
 	t.tmu.Lock()
 	t.version = &version
@@ -164,205 +117,40 @@ func (t *TracerConfig) SetVersion(version string, origin telemetry.Origin) {
 	configtelemetry.Report("DD_VERSION", version, origin)
 }
 
-// ---------------------------------------------------------------------------
-// Tracer-specific getters & setters
-// ---------------------------------------------------------------------------
-
-func (t *TracerConfig) ProfilerEndpoints() bool {
-	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.profilerEndpoints
-}
-
-func (t *TracerConfig) SetProfilerEndpoints(enabled bool, origin telemetry.Origin) {
-	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.profilerEndpoints = enabled
-	configtelemetry.Report("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", enabled, origin)
-}
-
-func (t *TracerConfig) ProfilerHotspotsEnabled() bool {
-	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.profilerHotspots
-}
-
-func (t *TracerConfig) SetProfilerHotspotsEnabled(enabled bool, origin telemetry.Origin) {
-	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.profilerHotspots = enabled
-	configtelemetry.Report(traceprof.CodeHotspotsEnvVar, enabled, origin)
-}
-
-func (t *TracerConfig) RuntimeMetricsEnabled() bool {
-	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.runtimeMetrics
-}
-
-func (t *TracerConfig) SetRuntimeMetricsEnabled(enabled bool, origin telemetry.Origin) {
-	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.runtimeMetrics = enabled
-	configtelemetry.Report("DD_RUNTIME_METRICS_ENABLED", enabled, origin)
-}
-
-func (t *TracerConfig) RuntimeMetricsV2Enabled() bool {
-	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.runtimeMetricsV2
-}
-
-func (t *TracerConfig) SetRuntimeMetricsV2Enabled(enabled bool, origin telemetry.Origin) {
-	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.runtimeMetricsV2 = enabled
-	configtelemetry.Report("DD_RUNTIME_METRICS_V2_ENABLED", enabled, origin)
-}
-
-func (t *TracerConfig) DataStreamsMonitoringEnabled() bool {
-	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.dataStreamsMonitoringEnabled
-}
-
-func (t *TracerConfig) SetDataStreamsMonitoringEnabled(enabled bool, origin telemetry.Origin) {
-	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.dataStreamsMonitoringEnabled = enabled
-	configtelemetry.Report("DD_DATA_STREAMS_ENABLED", enabled, origin)
-}
-
-func (t *TracerConfig) GlobalSampleRate() float64 {
-	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.globalSampleRate
-}
-
-func (t *TracerConfig) SetGlobalSampleRate(rate float64, origin telemetry.Origin) {
-	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.globalSampleRate = rate
-	configtelemetry.Report("DD_TRACE_SAMPLE_RATE", rate, origin)
-}
-
-func (t *TracerConfig) TraceRateLimitPerSecond() float64 {
-	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.traceRateLimitPerSecond
-}
-
-func (t *TracerConfig) SetTraceRateLimitPerSecond(rate float64, origin telemetry.Origin) {
-	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.traceRateLimitPerSecond = rate
-	configtelemetry.Report("DD_TRACE_RATE_LIMIT", rate, origin)
-}
-
-// PartialFlushEnabled returns the partial flushing configuration under a single read lock.
-func (t *TracerConfig) PartialFlushEnabled() (enabled bool, minSpans int) {
-	t.tmu.RLock()
-	enabled = t.partialFlushEnabled
-	minSpans = t.partialFlushMinSpans
-	t.tmu.RUnlock()
-	return enabled, minSpans
-}
-
-func (t *TracerConfig) SetPartialFlushEnabled(enabled bool, origin telemetry.Origin) {
-	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.partialFlushEnabled = enabled
-	configtelemetry.Report("DD_TRACE_PARTIAL_FLUSH_ENABLED", enabled, origin)
-}
-
-func (t *TracerConfig) SetPartialFlushMinSpans(minSpans int, origin telemetry.Origin) {
-	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.partialFlushMinSpans = minSpans
-	configtelemetry.Report("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", minSpans, origin)
-}
-
-func (t *TracerConfig) DebugAbandonedSpans() bool {
-	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.debugAbandonedSpans
-}
-
-func (t *TracerConfig) SetDebugAbandonedSpans(enabled bool, origin telemetry.Origin) {
-	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.debugAbandonedSpans = enabled
-	configtelemetry.Report("DD_TRACE_DEBUG_ABANDONED_SPANS", enabled, origin)
-}
-
-func (t *TracerConfig) SpanTimeout() time.Duration {
-	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.spanTimeout
-}
-
-func (t *TracerConfig) SetSpanTimeout(timeout time.Duration, origin telemetry.Origin) {
-	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.spanTimeout = timeout
-	configtelemetry.Report("DD_TRACE_ABANDONED_SPAN_TIMEOUT", timeout, origin)
-}
-
-func (t *TracerConfig) DebugStack() bool {
-	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.debugStack
-}
-
-func (t *TracerConfig) SetDebugStack(enabled bool, origin telemetry.Origin) {
-	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.debugStack = enabled
-	configtelemetry.Report("DD_TRACE_DEBUG_STACK", enabled, origin)
-}
-
-func (t *TracerConfig) StatsComputationEnabled() bool {
-	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.statsComputationEnabled
-}
-
-func (t *TracerConfig) SetStatsComputationEnabled(enabled bool, origin telemetry.Origin) {
-	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.statsComputationEnabled = enabled
-	configtelemetry.Report("DD_TRACE_STATS_COMPUTATION_ENABLED", enabled, origin)
-}
-
-// ServiceMappings returns a copy of the service mappings map.
+// ServiceMappings returns a copy of the tracer's local mappings if any
+// programmatic override has been applied, otherwise the shared mappings.
 func (t *TracerConfig) ServiceMappings() map[string]string {
 	t.tmu.RLock()
 	defer t.tmu.RUnlock()
-	if t.serviceMappings == nil {
-		return nil
+	if t.serviceMappings != nil {
+		result := make(map[string]string, len(t.serviceMappings))
+		maps.Copy(result, t.serviceMappings)
+		return result
 	}
-	result := make(map[string]string, len(t.serviceMappings))
-	maps.Copy(result, t.serviceMappings)
-	return result
+	return t.SharedConfig.ServiceMappings()
 }
 
-// ServiceMapping performs a single mapping lookup without copying the map.
+// ServiceMapping performs a single mapping lookup.
 func (t *TracerConfig) ServiceMapping(from string) (to string, ok bool) {
 	t.tmu.RLock()
-	m := t.serviceMappings
-	if m == nil {
+	if t.serviceMappings != nil {
+		to, ok = t.serviceMappings[from]
 		t.tmu.RUnlock()
-		return "", false
+		return to, ok
 	}
-	to, ok = m[from]
 	t.tmu.RUnlock()
-	return to, ok
+	return t.SharedConfig.ServiceMapping(from)
 }
 
 func (t *TracerConfig) SetServiceMapping(from, to string, origin telemetry.Origin) {
 	t.tmu.Lock()
 	if t.serviceMappings == nil {
-		t.serviceMappings = make(map[string]string)
+		shared := t.SharedConfig.ServiceMappings()
+		if shared != nil {
+			t.serviceMappings = shared
+		} else {
+			t.serviceMappings = make(map[string]string)
+		}
 	}
 	t.serviceMappings[from] = to
 	all := make([]string, 0, len(t.serviceMappings))
@@ -370,77 +158,294 @@ func (t *TracerConfig) SetServiceMapping(from, to string, origin telemetry.Origi
 		all = append(all, fmt.Sprintf("%s:%s", k, v))
 	}
 	t.tmu.Unlock()
-
 	configtelemetry.Report("DD_SERVICE_MAPPING", strings.Join(all, ","), origin)
+}
+
+func (t *TracerConfig) RuntimeMetricsEnabled() bool {
+	t.tmu.RLock()
+	if t.runtimeMetrics != nil {
+		v := *t.runtimeMetrics
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.SharedConfig.RuntimeMetricsEnabled()
+}
+
+func (t *TracerConfig) SetRuntimeMetricsEnabled(enabled bool, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.runtimeMetrics = &enabled
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_RUNTIME_METRICS_ENABLED", enabled, origin)
+}
+
+func (t *TracerConfig) RuntimeMetricsV2Enabled() bool {
+	t.tmu.RLock()
+	if t.runtimeMetricsV2 != nil {
+		v := *t.runtimeMetricsV2
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.SharedConfig.RuntimeMetricsV2Enabled()
+}
+
+func (t *TracerConfig) SetRuntimeMetricsV2Enabled(enabled bool, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.runtimeMetricsV2 = &enabled
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_RUNTIME_METRICS_V2_ENABLED", enabled, origin)
+}
+
+func (t *TracerConfig) ProfilerHotspotsEnabled() bool {
+	t.tmu.RLock()
+	if t.profilerHotspots != nil {
+		v := *t.profilerHotspots
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.SharedConfig.ProfilerHotspotsEnabled()
+}
+
+func (t *TracerConfig) SetProfilerHotspotsEnabled(enabled bool, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.profilerHotspots = &enabled
+	t.tmu.Unlock()
+	configtelemetry.Report(traceprof.CodeHotspotsEnvVar, enabled, origin)
+}
+
+func (t *TracerConfig) ProfilerEndpoints() bool {
+	t.tmu.RLock()
+	if t.profilerEndpoints != nil {
+		v := *t.profilerEndpoints
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.SharedConfig.ProfilerEndpoints()
+}
+
+func (t *TracerConfig) SetProfilerEndpoints(enabled bool, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.profilerEndpoints = &enabled
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", enabled, origin)
+}
+
+func (t *TracerConfig) DebugAbandonedSpans() bool {
+	t.tmu.RLock()
+	if t.debugAbandonedSpans != nil {
+		v := *t.debugAbandonedSpans
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.SharedConfig.DebugAbandonedSpans()
+}
+
+func (t *TracerConfig) SetDebugAbandonedSpans(enabled bool, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.debugAbandonedSpans = &enabled
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_TRACE_DEBUG_ABANDONED_SPANS", enabled, origin)
+}
+
+func (t *TracerConfig) SpanTimeout() time.Duration {
+	t.tmu.RLock()
+	if t.spanTimeout != nil {
+		v := *t.spanTimeout
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.SharedConfig.SpanTimeout()
+}
+
+func (t *TracerConfig) SetSpanTimeout(timeout time.Duration, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.spanTimeout = &timeout
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_TRACE_ABANDONED_SPAN_TIMEOUT", timeout, origin)
+}
+
+// PartialFlushEnabled returns the partial flushing configuration.
+// Each field resolves independently: local override if set, otherwise shared value.
+func (t *TracerConfig) PartialFlushEnabled() (enabled bool, minSpans int) {
+	t.tmu.RLock()
+	localEnabled := t.partialFlushEnabled
+	localMinSpans := t.partialFlushMinSpans
+	t.tmu.RUnlock()
+
+	sharedEnabled, sharedMinSpans := t.SharedConfig.PartialFlushEnabled()
+
+	if localEnabled != nil {
+		enabled = *localEnabled
+	} else {
+		enabled = sharedEnabled
+	}
+	if localMinSpans != nil {
+		minSpans = *localMinSpans
+	} else {
+		minSpans = sharedMinSpans
+	}
+	return enabled, minSpans
+}
+
+func (t *TracerConfig) SetPartialFlushEnabled(enabled bool, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.partialFlushEnabled = &enabled
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_TRACE_PARTIAL_FLUSH_ENABLED", enabled, origin)
+}
+
+func (t *TracerConfig) SetPartialFlushMinSpans(minSpans int, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.partialFlushMinSpans = &minSpans
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", minSpans, origin)
+}
+
+func (t *TracerConfig) StatsComputationEnabled() bool {
+	t.tmu.RLock()
+	if t.statsComputationEnabled != nil {
+		v := *t.statsComputationEnabled
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.SharedConfig.StatsComputationEnabled()
+}
+
+func (t *TracerConfig) SetStatsComputationEnabled(enabled bool, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.statsComputationEnabled = &enabled
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_TRACE_STATS_COMPUTATION_ENABLED", enabled, origin)
+}
+
+func (t *TracerConfig) GlobalSampleRate() float64 {
+	t.tmu.RLock()
+	if t.globalSampleRate != nil {
+		v := *t.globalSampleRate
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.SharedConfig.GlobalSampleRate()
+}
+
+func (t *TracerConfig) SetGlobalSampleRate(rate float64, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.globalSampleRate = &rate
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_TRACE_SAMPLE_RATE", rate, origin)
+}
+
+func (t *TracerConfig) TraceRateLimitPerSecond() float64 {
+	t.tmu.RLock()
+	if t.traceRateLimitPerSecond != nil {
+		v := *t.traceRateLimitPerSecond
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.SharedConfig.TraceRateLimitPerSecond()
+}
+
+func (t *TracerConfig) SetTraceRateLimitPerSecond(rate float64, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.traceRateLimitPerSecond = &rate
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_TRACE_RATE_LIMIT", rate, origin)
+}
+
+func (t *TracerConfig) DebugStack() bool {
+	t.tmu.RLock()
+	if t.debugStack != nil {
+		v := *t.debugStack
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.SharedConfig.DebugStack()
+}
+
+func (t *TracerConfig) SetDebugStack(enabled bool, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.debugStack = &enabled
+	t.tmu.Unlock()
+	configtelemetry.Report("DD_TRACE_DEBUG_STACK", enabled, origin)
 }
 
 func (t *TracerConfig) RetryInterval() time.Duration {
 	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.retryInterval
+	if t.retryInterval != nil {
+		v := *t.retryInterval
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.SharedConfig.RetryInterval()
 }
 
 func (t *TracerConfig) SetRetryInterval(interval time.Duration, origin telemetry.Origin) {
 	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.retryInterval = interval
+	t.retryInterval = &interval
+	t.tmu.Unlock()
 	configtelemetry.Report("DD_TRACE_RETRY_INTERVAL", interval, origin)
-}
-
-func (t *TracerConfig) CIVisibilityEnabled() bool {
-	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.ciVisibilityEnabled
-}
-
-func (t *TracerConfig) SetCIVisibilityEnabled(enabled bool, origin telemetry.Origin) {
-	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.ciVisibilityEnabled = enabled
-	configtelemetry.Report(constants.CIVisibilityEnabledEnvironmentVariable, enabled, origin)
 }
 
 func (t *TracerConfig) TraceProtocol() float64 {
 	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.traceProtocol
+	if t.traceProtocol != nil {
+		v := *t.traceProtocol
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.SharedConfig.TraceProtocol()
 }
 
 func (t *TracerConfig) SetTraceProtocol(v float64, origin telemetry.Origin) {
 	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.traceProtocol = v
+	t.traceProtocol = &v
+	t.tmu.Unlock()
 	configtelemetry.Report("DD_TRACE_AGENT_PROTOCOL_VERSION", v, origin)
-}
-
-func (t *TracerConfig) OTLPTraceURL() string {
-	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.otlpTraceURL
 }
 
 func (t *TracerConfig) OTLPExportMode() bool {
 	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.otlpExportMode
+	if t.otlpExportMode != nil {
+		v := *t.otlpExportMode
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.SharedConfig.OTLPExportMode()
 }
 
 func (t *TracerConfig) SetOTLPExportMode(v bool, origin telemetry.Origin) {
 	t.tmu.Lock()
-	defer t.tmu.Unlock()
-	t.otlpExportMode = v
+	t.otlpExportMode = &v
+	t.tmu.Unlock()
 	configtelemetry.Report("OTEL_TRACES_EXPORTER", v, origin)
 }
 
-// OTLPHeaders returns a copy of the OTLP headers map.
-func (t *TracerConfig) OTLPHeaders() map[string]string {
+func (t *TracerConfig) CIVisibilityEnabled() bool {
 	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return maps.Clone(t.otlpHeaders)
+	if t.ciVisibilityEnabled != nil {
+		v := *t.ciVisibilityEnabled
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.SharedConfig.CIVisibilityEnabled()
 }
 
-func (t *TracerConfig) TraceID128BitEnabled() bool {
-	t.tmu.RLock()
-	defer t.tmu.RUnlock()
-	return t.traceID128BitEnabled
+func (t *TracerConfig) SetCIVisibilityEnabled(enabled bool, origin telemetry.Origin) {
+	t.tmu.Lock()
+	t.ciVisibilityEnabled = &enabled
+	t.tmu.Unlock()
+	configtelemetry.Report(constants.CIVisibilityEnabledEnvironmentVariable, enabled, origin)
 }

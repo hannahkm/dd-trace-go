@@ -6,19 +6,24 @@ This package is the **single source of truth** for initializing, reading, and up
 
 Configuration is split into two layers:
 
-- **`GlobalConfig`** holds fields shared across all products (service name, env, version, agent URL, etc.). A single instance is created lazily and shared via pointer.
-- **Product configs** (`TracerConfig`, `ProfilerConfig`, ...) embed `*GlobalConfig` so global getters are promoted automatically. Each product config adds its own product-specific fields.
+- **`SharedConfig`** — the single source of truth for all configuration. Loaded once from config sources (env, declarative, defaults, RC) and shared via pointer. A field lives here regardless of which product reads it, unless it requires a shadow override (see below).
+- **Product configs** (`TracerConfig`, `ProfilerConfig`, ...) — embed `*SharedConfig` so shared getters are promoted automatically. Product configs exist **only** to hold shadow fields.
 
-Product configs can **shadow** global fields (e.g. `serviceName`) with local override pointers. When a programmatic API like `WithService` is called, it sets the product-local override. Getters check the local override first; if nil, they fall through to `GlobalConfig`. This means environment variables and Remote Config updates affect all products, while programmatic APIs only affect the calling product.
+### Shadow fields
+
+A **shadow field** is needed when a global config value can be overridden at the product level — that is, a product needs its own value independent of other products. Programmatic APIs (`With*` options) are typically how this happens. The product config holds a local override pointer (`*bool`, `*string`, etc.); `nil` means "use the `SharedConfig` value." The getter checks the local override first and falls through to `SharedConfig` if unset.
+
+Not every field with a programmatic API needs a shadow. Some settings (e.g. `debug`, `agentURL`) are inherently global — when the tracer sets them, it intends to affect all products. These stay on `SharedConfig` with no shadow.
+
+This means environment variables and Remote Config updates flow through `SharedConfig` and affect all products automatically, while a product-level override only affects the calling product.
 
 ### Constructors
 
 | Function | Returns | Use |
 |---|---|---|
-| `GetTracerConfig()` | `*TracerConfig` | New tracer-owned config pointing at the shared `GlobalConfig` |
-| `GetProfilerConfig()` | `*ProfilerConfig` | New profiler-owned config pointing at the shared `GlobalConfig` |
-| `Get()` | `*Config` (= `*TracerConfig`) | Legacy singleton, prefer `GetTracerConfig()` |
-| `CreateNew()` | `*Config` | Legacy, prefer `GetTracerConfig()` |
+| `GetSharedConfig()` | `*SharedConfig` | Shared singleton. Default choice for most packages. |
+| `GetTracerConfig()` | `*TracerConfig` | Tracer-owned config with product overrides. Called once at tracer startup. |
+| `GetProfilerConfig()` | `*ProfilerConfig` | Profiler-owned config with product overrides. Called once at profiler startup. |
 
 All constructors share a single config provider so declarative config (YAML) is parsed only once.
 
@@ -26,17 +31,17 @@ All constructors share a single config provider so declarative config (YAML) is 
 
 | File | Contents |
 |---|---|
-| `config.go` | `GlobalConfig` type, singleton/constructor logic, global getters & setters |
-| `tracerconfig.go` | `TracerConfig` type, shadow overrides, tracer-specific getters & setters |
-| `profilerconfig.go` | `ProfilerConfig` type, profiler-specific getters & setters |
+| `config.go` | `SharedConfig` type, singleton/constructor logic, shared getters & setters |
+| `tracerconfig.go` | `TracerConfig` type, shadow field overrides |
+| `profilerconfig.go` | `ProfilerConfig` type, shadow field overrides |
 | `config_helpers.go` | Shared helpers (URL resolution, validation, etc.) |
 
 ## Migration guidelines
 
 When migrating a configuration value from another package (e.g. `ddtrace/tracer`):
 
-- **Decide scope**: if the field is shared across products, add it to `GlobalConfig`. If it is product-specific, add it to the appropriate product config (e.g. `TracerConfig`).
-- **Initialize it in the load function**: `loadGlobalConfig()` for global fields, `loadTracerConfig()` / `loadProfilerConfig()` for product fields. Read from the config provider, which iterates over the following sources, in order, returning the default if no valid value found: local declarative config file, OTEL env vars, env vars, managed declarative config file.
+- **Decide scope**: most fields belong on `SharedConfig`. Add a shadow field on a product config when the field can be overridden at the product level (see "Shadow fields" above).
+- **Initialize it in the load function**: `loadSharedConfig()` reads from the config provider. Product load functions (`loadTracerConfig`, `loadProfilerConfig`) only set the `SharedConfig` pointer; they don't read from the provider.
 - **Expose an accessor**: add a getter (and a setter if the value is updated at runtime).
 - **Report telemetry in setters**: setters should call `configtelemetry.Report(...)` with the correct origin.
 - **Update callers**: replace reads/writes on local "config" structs with calls to the product config (e.g. `GetTracerConfig()`).
