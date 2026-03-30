@@ -572,8 +572,7 @@ func (p *payloadV1) encodeSpans(bm bitmap, fieldID int, spans spanList, st *stri
 		// To avoid increased allocations, we serialize attributes immediately without
 		// creating an intermediate map.
 		size := len(span.meta) + len(span.metrics) + len(span.metaStruct)
-		_, containsSpanLinks := span.meta["_dd.span_links"]
-		if containsSpanLinks {
+		if _, ok := span.meta["_dd.span_links"]; ok {
 			size--
 		}
 		p.buf = msgp.AppendUint32(p.buf, uint32(9))           // attributes fieldID
@@ -731,7 +730,7 @@ func (p *payloadV1) encodeSpanEvents(bm bitmap, fieldID int, spanEvents []spanEv
 					p.encodeSpanEventArrayValues(v, st)
 				}
 			default:
-				log.Warn("dropped unsupported span event attribute type %d", v.Type)
+				warnUnsupportedValue(uint32(v.Type))
 				p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))
 				p.buf = st.serialize(serializationFailed, p.buf)
 			}
@@ -755,7 +754,7 @@ func (p *payloadV1) encodeSpanEventArrayValues(v *spanEventArrayAttributeValue, 
 		p.buf = msgp.AppendUint32(p.buf, uint32(BoolValueType))
 		p.buf = msgp.AppendBool(p.buf, v.BoolValue)
 	default:
-		log.Warn("could not serialize unsupported span event array attribute type %d", v.Type)
+		warnUnsupportedValue(uint32(v.Type))
 		p.buf = msgp.AppendUint32(p.buf, uint32(StringValueType))
 		p.buf = st.serialize(serializationFailed, p.buf)
 	}
@@ -946,7 +945,7 @@ func (a anyValue) encode(buf []byte, st *stringTable) []byte {
 			buf = v.encode(buf, st)
 		}
 	default:
-		log.Warn("failed to serialize value type: %d", a.valueType)
+		warnUnsupportedValue(uint32(a.valueType))
 		buf = msgp.AppendInt32(buf, StringValueType)
 		buf = st.serialize(serializationFailed, buf)
 	}
@@ -1009,7 +1008,6 @@ func (i *index) decode(buf []byte) ([]byte, error) {
 type stringValue string
 
 func (s stringValue) encode(buf []byte) []byte {
-	// TODO(hannahkm): add the fixstr representation
 	return msgp.AppendString(buf, string(s))
 }
 
@@ -1609,4 +1607,9 @@ func decodeAttributes(b []byte, strings *stringTable) (map[string]anyValue, []by
 		kv[key] = av
 	}
 	return kv, o, nil
+}
+
+//go:noinline
+func warnUnsupportedValue(t uint32) {
+	log.Warn("failed to serialize unsupported type: %d", t)
 }
