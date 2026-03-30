@@ -29,7 +29,6 @@ import (
 // Re-exported so callers don't need to import internal/telemetry.
 type Origin = telemetry.Origin
 
-// Re-exported origin constants for common configuration sources
 const (
 	OriginCode       = telemetry.OriginCode
 	OriginCalculated = telemetry.OriginCalculated
@@ -40,11 +39,9 @@ const (
 // SharedConfig
 // ---------------------------------------------------------------------------
 
-// SharedConfig holds all configuration loaded once from config sources (env,
+// SharedConfig holds all configuration loaded once from init-time config sources (env,
 // OTEL, declarative, defaults, RC). A single instance is created lazily and
-// shared by all product configs via pointer. Not all fields are relevant to
-// every product — some are product-specific settings that have no
-// cross-product override conflicts.
+// shared by all product configs via pointer.
 type SharedConfig struct {
 	mu sync.RWMutex
 
@@ -65,8 +62,6 @@ type SharedConfig struct {
 	logsOTelEnabled     bool
 
 	// Fields without cross-product override conflicts.
-	// These live here (rather than on a product config) because no two
-	// products have independent programmatic APIs for the same setting.
 	serviceMappings               map[string]string
 	runtimeMetrics                bool
 	runtimeMetricsV2              bool
@@ -80,7 +75,7 @@ type SharedConfig struct {
 	partialFlushMinSpans          int
 	partialFlushEnabled           bool
 	statsComputationEnabled       bool
-	dataStreamsMonitoringEnabled   bool
+	dataStreamsMonitoringEnabled  bool
 	dynamicInstrumentationEnabled bool
 	globalSampleRate              float64
 	ciVisibilityEnabled           bool
@@ -96,16 +91,15 @@ type SharedConfig struct {
 	profilingEnabled              bool
 }
 
-func loadSharedConfig(p *provider.Provider) *SharedConfig {
+func loadSharedConfig() *SharedConfig {
+	p := provider.New()
 	cfg := new(SharedConfig)
 
-	// Agent URL
 	agentURLStr := p.GetString("DD_TRACE_AGENT_URL", "")
 	agentHost := p.GetString("DD_AGENT_HOST", "")
 	agentPort := p.GetString("DD_TRACE_AGENT_PORT", "")
 	cfg.agentURL = resolveAgentURL(agentURLStr, agentHost, agentPort)
 
-	// Universal fields
 	cfg.debug = p.GetBool("DD_TRACE_DEBUG", false)
 	cfg.logStartup = p.GetBool("DD_TRACE_STARTUP_LOGS", true)
 	cfg.serviceName = p.GetString("DD_SERVICE", "")
@@ -144,7 +138,6 @@ func loadSharedConfig(p *provider.Provider) *SharedConfig {
 		cfg.reportHostname = true
 	}
 
-	// Fields without cross-product override conflicts
 	cfg.serviceMappings = p.GetMap("DD_SERVICE_MAPPING", nil, internal.DDTagsDelimiter)
 	cfg.runtimeMetrics = p.GetBool("DD_RUNTIME_METRICS_ENABLED", false)
 	cfg.runtimeMetricsV2 = p.GetBool("DD_RUNTIME_METRICS_V2_ENABLED", true)
@@ -192,59 +185,47 @@ func loadSharedConfig(p *provider.Provider) *SharedConfig {
 
 var (
 	globalInstance *SharedConfig
-	globalProvider *provider.Provider
 	globalMu       sync.Mutex
 )
 
-// initGlobal lazily initializes the SharedConfig singleton and its
-// provider. Returns both so product constructors can reuse the same
-// provider (avoiding re-parsing declarative config YAML).
-func initGlobal() (*SharedConfig, *provider.Provider) {
+// initGlobal lazily initializes the SharedConfig singleton.
+func initGlobal() *SharedConfig {
 	globalMu.Lock()
 	defer globalMu.Unlock()
 	if globalInstance == nil {
-		globalProvider = provider.New()
-		globalInstance = loadSharedConfig(globalProvider)
+		globalInstance = loadSharedConfig()
 	}
-	return globalInstance, globalProvider
+	return globalInstance
 }
 
 // GetSharedConfig returns the shared SharedConfig singleton.
 // Use this when you only need shared fields and don't need
 // product-specific overrides.
 func GetSharedConfig() *SharedConfig {
-	g, _ := initGlobal()
-	return g
+	return initGlobal()
 }
 
-// GetTracerConfig returns a new TracerConfig pointing at the shared
-// SharedConfig singleton. Each call returns an independent instance
-// the caller owns.
+// GetTracerConfig returns a new config for the tracer.
 func GetTracerConfig() *TracerConfig {
-	g, _ := initGlobal()
-	return loadTracerConfig(g)
+	return loadTracerConfig(initGlobal())
 }
 
-// GetProfilerConfig returns a new ProfilerConfig pointing at the shared
-// SharedConfig singleton. Each call returns an independent instance
-// the caller owns.
+// GetProfilerConfig returns a new config for the profiler.
 func GetProfilerConfig() *ProfilerConfig {
-	g, _ := initGlobal()
-	return loadProfilerConfig(g)
+	return loadProfilerConfig(initGlobal())
 }
 
-// SetUseFreshConfig resets all cached config singletons so the next
+// SetUseFreshConfig resets the SharedConfig singleton so the next
 // access re-reads from environment variables and config sources.
 // Intended for use in tests.
 func SetUseFreshConfig(_ bool) {
 	globalMu.Lock()
 	globalInstance = nil
-	globalProvider = nil
 	globalMu.Unlock()
 }
 
 // ---------------------------------------------------------------------------
-// SharedConfig getters & setters — universal fields
+// SharedConfig getters & setters
 // ---------------------------------------------------------------------------
 
 func (c *SharedConfig) RawAgentURL() *url.URL {
@@ -455,10 +436,6 @@ func (c *SharedConfig) SetLogsOTelEnabled(enabled bool, origin telemetry.Origin)
 	c.logsOTelEnabled = enabled
 	configtelemetry.Report("DD_LOGS_OTEL_ENABLED", enabled, origin)
 }
-
-// ---------------------------------------------------------------------------
-// SharedConfig getters & setters — non-contested product fields
-// ---------------------------------------------------------------------------
 
 func (c *SharedConfig) ProfilerEndpoints() bool {
 	c.mu.RLock()

@@ -279,7 +279,6 @@ func getTestValueForType(t reflect.Type) any {
 func resetGlobalState() {
 	globalMu = sync.Mutex{}
 	globalInstance = nil
-	globalProvider = nil
 }
 
 // ---------------------------------------------------------------------------

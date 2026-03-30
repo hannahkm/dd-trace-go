@@ -33,26 +33,26 @@ type TracerConfig struct {
 	tmu sync.RWMutex // protects TracerConfig fields only
 
 	// Shadow fields — nil means "use SharedConfig value".
-	serviceName              *string
-	env                      *string
-	version                  *string
-	serviceMappings          map[string]string // nil = use SharedConfig
-	runtimeMetrics           *bool
-	runtimeMetricsV2         *bool
-	profilerHotspots         *bool
-	profilerEndpoints        *bool
-	debugAbandonedSpans      *bool
-	spanTimeout              *time.Duration
-	partialFlushEnabled      *bool
-	partialFlushMinSpans     *int
-	statsComputationEnabled  *bool
-	globalSampleRate         *float64
-	traceRateLimitPerSecond  *float64
-	debugStack               *bool
-	retryInterval            *time.Duration
-	traceProtocol            *float64
-	otlpExportMode           *bool
-	ciVisibilityEnabled      *bool
+	serviceName             *string
+	env                     *string
+	version                 *string
+	serviceMappings         map[string]string // nil = use SharedConfig
+	runtimeMetrics          *bool
+	runtimeMetricsV2        *bool
+	profilerHotspots        *bool
+	profilerEndpoints       *bool
+	debugAbandonedSpans     *bool
+	spanTimeout             *time.Duration
+	partialFlushEnabled     *bool
+	partialFlushMinSpans    *int
+	statsComputationEnabled *bool
+	globalSampleRate        *float64
+	traceRateLimitPerSecond *float64
+	debugStack              *bool
+	retryInterval           *time.Duration
+	traceProtocol           *float64
+	otlpExportMode          *bool
+	ciVisibilityEnabled     *bool
 }
 
 func loadTracerConfig(g *SharedConfig) *TracerConfig {
