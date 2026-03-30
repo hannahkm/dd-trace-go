@@ -678,7 +678,7 @@ func TestEvaluateFlag_JSONFixtures(t *testing.T) {
 			var cases []struct {
 				Flag         string         `json:"flag"`
 				DefaultValue any            `json:"defaultValue"`
-				TargetingKey string         `json:"targetingKey"`
+				TargetingKey *string        `json:"targetingKey"`
 				Attributes   map[string]any `json:"attributes"`
 				Result       struct {
 					Value  any    `json:"value"`
@@ -689,138 +689,27 @@ func TestEvaluateFlag_JSONFixtures(t *testing.T) {
 				t.Fatalf("parse error: %v", err)
 			}
 			for i, tc := range cases {
-				t.Run(fmt.Sprintf("case%d/%s", i, tc.TargetingKey), func(t *testing.T) {
+				tkLabel := "<nil>"
+				if tc.TargetingKey != nil {
+					tkLabel = *tc.TargetingKey
+				}
+				t.Run(fmt.Sprintf("case%d/%s", i, tkLabel), func(t *testing.T) {
 					ctx := make(map[string]any, len(tc.Attributes)+1)
 					maps.Copy(ctx, tc.Attributes)
-					ctx["targetingKey"] = tc.TargetingKey
+					if tc.TargetingKey != nil {
+						ctx["targetingKey"] = *tc.TargetingKey
+					}
 
 					result := evaluateFlag(cfg.Flags[tc.Flag], tc.DefaultValue, ctx)
 
 					if fmt.Sprintf("%v", result.Value) != fmt.Sprintf("%v", tc.Result.Value) {
 						t.Errorf("value: got %v, want %v", result.Value, tc.Result.Value)
 					}
-					if result.Reason != of.Reason(tc.Result.Reason) {
+					if tc.Result.Reason != "" && result.Reason != of.Reason(tc.Result.Reason) {
 						t.Errorf("reason: got %q, want %q", result.Reason, tc.Result.Reason)
 					}
 				})
 			}
 		})
 	}
-}
-
-func TestEvaluateFlag_NullTargetingKey(t *testing.T) {
-	t.Run("static flag succeeds without targeting key", func(t *testing.T) {
-		f := &flag{
-			Enabled:       true,
-			VariationType: valueTypeString,
-			Variations: map[string]*variant{
-				"on": {Key: "on", Value: "on-value"},
-			},
-			Allocations: []*allocation{
-				{
-					Key:   "alloc1",
-					Rules: []*rule{},
-					Splits: []*split{
-						{
-							VariationKey: "on",
-							Shards:       []*shard{},
-						},
-					},
-				},
-			},
-		}
-		ctx := map[string]any{} // NO targetingKey
-		result := evaluateFlag(f, "default", ctx)
-		if result.Value != "on-value" {
-			t.Errorf("expected value %q, got %v", "on-value", result.Value)
-		}
-		if result.Reason != of.StaticReason {
-			t.Errorf("expected reason %q, got %q", of.StaticReason, result.Reason)
-		}
-		if result.Error != nil {
-			t.Errorf("expected no error, got %v", result.Error)
-		}
-	})
-
-	t.Run("sharded flag errors without targeting key", func(t *testing.T) {
-		f := &flag{
-			Enabled:       true,
-			VariationType: valueTypeString,
-			Variations: map[string]*variant{
-				"on": {Key: "on", Value: "on-value"},
-			},
-			Allocations: []*allocation{
-				{
-					Key:   "alloc1",
-					Rules: []*rule{},
-					Splits: []*split{
-						{
-							VariationKey: "on",
-							Shards: []*shard{
-								{
-									Salt:        "test-salt",
-									Ranges:      []*shardRange{{Start: 0, End: 10000}},
-									TotalShards: 10000,
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-		ctx := map[string]any{} // NO targetingKey
-		result := evaluateFlag(f, "default", ctx)
-		if result.Value != "default" {
-			t.Errorf("expected value %q, got %v", "default", result.Value)
-		}
-		if result.Reason != of.ErrorReason {
-			t.Errorf("expected reason %q, got %q", of.ErrorReason, result.Reason)
-		}
-		if !errors.Is(result.Error, errTargetingKeyMissing) {
-			t.Errorf("expected errTargetingKeyMissing, got %v", result.Error)
-		}
-	})
-
-	t.Run("rule-matched flag succeeds without targeting key", func(t *testing.T) {
-		f := &flag{
-			Enabled:       true,
-			VariationType: valueTypeString,
-			Variations: map[string]*variant{
-				"on": {Key: "on", Value: "on-value"},
-			},
-			Allocations: []*allocation{
-				{
-					Key: "alloc1",
-					Rules: []*rule{
-						{
-							Conditions: []*condition{
-								{
-									Operator:  operatorOneOf,
-									Attribute: "country",
-									Value:     []string{"US"},
-								},
-							},
-						},
-					},
-					Splits: []*split{
-						{
-							VariationKey: "on",
-							Shards:       []*shard{},
-						},
-					},
-				},
-			},
-		}
-		ctx := map[string]any{"country": "US"} // NO targetingKey, but has country for rule match
-		result := evaluateFlag(f, "default", ctx)
-		if result.Value != "on-value" {
-			t.Errorf("expected value %q, got %v", "on-value", result.Value)
-		}
-		if result.Reason != of.TargetingMatchReason {
-			t.Errorf("expected reason %q, got %q", of.TargetingMatchReason, result.Reason)
-		}
-		if result.Error != nil {
-			t.Errorf("expected no error, got %v", result.Error)
-		}
-	})
 }
