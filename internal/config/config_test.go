@@ -391,8 +391,10 @@ func getTestValueForType(t reflect.Type) any {
 
 // resetGlobalState resets all global singleton state for testing
 func resetGlobalState() {
-	mu = sync.Mutex{}
-	instance = nil
+	globalMu = sync.Mutex{}
+	globalInstance = nil
+	legacyMu = sync.Mutex{}
+	legacyInstance = nil
 	useFreshConfig = false
 }
 
