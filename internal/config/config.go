@@ -182,7 +182,7 @@ func loadBaseConfig() *BaseConfig {
 
 var (
 	globalInstance *BaseConfig
-	globalMu      sync.Mutex
+	globalMu       sync.Mutex
 	useFreshConfig bool
 )
 
