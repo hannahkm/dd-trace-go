@@ -48,11 +48,11 @@ func startTelemetry(c *config) telemetry.Client {
 		{Name: "send_retries", Value: c.sendRetries},
 		{Name: "retry_interval", Value: c.internalConfig.RetryInterval()},
 		{Name: "trace_startup_logs_enabled", Value: c.internalConfig.LogStartup()},
-		{Name: "service", Value: c.serviceName},
+		{Name: "service", Value: c.internalConfig.ServiceName()},
 		{Name: "universal_version", Value: c.universalVersion},
 		{Name: "env", Value: c.internalConfig.Env()},
 		{Name: "version", Value: c.internalConfig.Version()},
-		{Name: "trace_agent_url", Value: c.agentURL.String()},
+		{Name: "trace_agent_url", Value: c.internalConfig.AgentURL().String()},
 		{Name: "agent_hostname", Value: c.internalConfig.Hostname()},
 		{Name: "runtime_metrics_v2_enabled", Value: c.internalConfig.RuntimeMetricsV2Enabled()},
 		{Name: "dogstatsd_addr", Value: c.dogstatsdAddr},
@@ -120,12 +120,12 @@ func startTelemetry(c *config) telemetry.Client {
 	// telemetry is attempted rather than silently dropped.
 	// When the spans are emitted on stdout it means there is no agent at all in the env.
 	if (!a.reachable || a.hasTelemetryProxy) && !c.internalConfig.LogToStdout() {
-		cfg.AgentURL = c.agentURL.String()
+		cfg.AgentURL = c.internalConfig.AgentURL().String()
 	}
 	if c.internalConfig.LogToStdout() || c.ciVisibilityAgentless {
 		cfg.APIKey = env.Get("DD_API_KEY")
 	}
-	client, err := telemetry.NewClient(c.serviceName, c.internalConfig.Env(), c.internalConfig.Version(), cfg)
+	client, err := telemetry.NewClient(c.internalConfig.ServiceName(), c.internalConfig.Env(), c.internalConfig.Version(), cfg)
 	if err != nil {
 		log.Debug("tracer: failed to create telemetry client: %s", err.Error())
 		return nil

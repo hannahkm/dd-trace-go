@@ -9,14 +9,13 @@ import (
 	"os"
 	"reflect"
 	"testing"
-
-	"net/url"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/dd-trace-go/v2/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/telemetry"
 	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/telemetrytest"
 )
@@ -110,7 +109,7 @@ func TestGetMethods(t *testing.T) {
 		assert.Equal(t, true, p.GetBool("DD_TRACE_DEBUG", true))
 		assert.Equal(t, 1, p.GetInt("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 1))
 		assert.Equal(t, 1.0, p.GetFloat("DD_TRACE_SAMPLE_RATE", 1.0))
-		assert.Equal(t, &url.URL{Scheme: "http", Host: "localhost:8126"}, p.GetURL("DD_TRACE_AGENT_URL", &url.URL{Scheme: "http", Host: "localhost:8126"}))
+		assert.Equal(t, "", p.GetString("DD_TRACE_AGENT_URL", ""))
 	})
 	t.Run("non-defaults", func(t *testing.T) {
 		entries := map[string]string{
@@ -125,7 +124,7 @@ func TestGetMethods(t *testing.T) {
 		assert.Equal(t, true, p.GetBool("DD_TRACE_DEBUG", false))
 		assert.Equal(t, 1, p.GetInt("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 0))
 		assert.Equal(t, 1.0, p.GetFloat("DD_TRACE_SAMPLE_RATE", 0.0))
-		assert.Equal(t, &url.URL{Scheme: "https", Host: "localhost:8126"}, p.GetURL("DD_TRACE_AGENT_URL", &url.URL{Scheme: "https", Host: "localhost:8126"}))
+		assert.Equal(t, "https://localhost:8126", p.GetString("DD_TRACE_AGENT_URL", ""))
 	})
 	t.Run("GetBool accepts various boolean formats", func(t *testing.T) {
 		testCases := []struct {
@@ -179,7 +178,7 @@ func TestNew(t *testing.T) {
 		assert.Equal(t, true, p.GetBool("DD_TRACE_DEBUG", false))
 		assert.Equal(t, 1, p.GetInt("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 0))
 		assert.Equal(t, 1.0, p.GetFloat("DD_TRACE_SAMPLE_RATE", 0.0))
-		assert.Equal(t, &url.URL{Scheme: "https", Host: "localhost:8126"}, p.GetURL("DD_TRACE_AGENT_URL", &url.URL{Scheme: "https", Host: "localhost:8126"}))
+		assert.Equal(t, "https://localhost:8126", p.GetString("DD_TRACE_AGENT_URL", ""))
 
 		assert.Equal(t, "value", p.GetString("DD_ENV", "value"))
 	})
@@ -198,7 +197,6 @@ func TestNew(t *testing.T) {
 		assert.Equal(t, true, p.GetBool("DD_TRACE_DEBUG", false))
 		assert.Equal(t, 1.0, p.GetFloat("DD_TRACE_SAMPLE_RATE", 0))
 		assert.Equal(t, 1.0, p.GetFloat("DD_TRACE_SAMPLE_RATE", 0.0))
-		assert.Equal(t, &url.URL{Scheme: "https", Host: "localhost:8126"}, p.GetURL("DD_TRACE_AGENT_URL", &url.URL{Scheme: "https", Host: "localhost:8126"}))
 		assert.Equal(t, "key1:value1,key2:value2", p.GetString("DD_TAGS", "key:value"))
 	})
 	t.Run("Settings only exist in localDeclarativeConfigSource", func(t *testing.T) {
@@ -228,7 +226,7 @@ apm_configuration_default:
 		assert.Equal(t, true, p.GetBool("DD_TRACE_DEBUG", false))
 		assert.Equal(t, 1, p.GetInt("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 0))
 		assert.Equal(t, 1.0, p.GetFloat("DD_TRACE_SAMPLE_RATE", 0.0))
-		assert.Equal(t, &url.URL{Scheme: "https", Host: "localhost:8126"}, p.GetURL("DD_TRACE_AGENT_URL", &url.URL{Scheme: "https", Host: "localhost:8126"}))
+		assert.Equal(t, "https://localhost:8126", p.GetString("DD_TRACE_AGENT_URL", ""))
 
 		assert.Equal(t, "value", p.GetString("DD_ENV", "value"))
 	})
@@ -259,7 +257,7 @@ apm_configuration_default:
 		assert.Equal(t, true, p.GetBool("DD_TRACE_DEBUG", false))
 		assert.Equal(t, 1, p.GetInt("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 0))
 		assert.Equal(t, 1.0, p.GetFloat("DD_TRACE_SAMPLE_RATE", 0.0))
-		assert.Equal(t, &url.URL{Scheme: "https", Host: "localhost:8126"}, p.GetURL("DD_TRACE_AGENT_URL", &url.URL{Scheme: "https", Host: "localhost:8126"}))
+		assert.Equal(t, "https://localhost:8126", p.GetString("DD_TRACE_AGENT_URL", ""))
 
 		assert.Equal(t, "value", p.GetString("DD_ENV", "value"))
 	})
@@ -363,8 +361,8 @@ func TestProviderTelemetryRegistration(t *testing.T) {
 		_ = p.GetBool("DD_TRACE_DEBUG", false)
 		_ = p.GetInt("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 0)
 		_ = p.GetFloat("DD_TRACE_SAMPLE_RATE", 0.0)
-		_ = p.GetURL("DD_TRACE_AGENT_URL", nil)
-		_ = p.GetMap("DD_SERVICE_MAPPING", nil)
+		_ = p.GetString("DD_TRACE_AGENT_URL", "")
+		_ = p.GetMap("DD_SERVICE_MAPPING", nil, internal.DDTagsDelimiter)
 		_ = p.GetDuration("DD_TRACE_ABANDONED_SPAN_TIMEOUT", 0)
 
 		telemetryClient.AssertCalled(t, "RegisterAppConfigs", mock.MatchedBy(matchConfig("DD_SERVICE", "service", telemetry.OriginEnvVar, telemetry.EmptyID)))
@@ -402,8 +400,8 @@ apm_configuration_default:
 		_ = p.GetBool("DD_TRACE_DEBUG", false)
 		_ = p.GetInt("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 0)
 		_ = p.GetFloat("DD_TRACE_SAMPLE_RATE", 0.0)
-		_ = p.GetURL("DD_TRACE_AGENT_URL", nil)
-		_ = p.GetMap("DD_SERVICE_MAPPING", nil)
+		_ = p.GetString("DD_TRACE_AGENT_URL", "")
+		_ = p.GetMap("DD_SERVICE_MAPPING", nil, internal.DDTagsDelimiter)
 		_ = p.GetDuration("DD_TRACE_ABANDONED_SPAN_TIMEOUT", 0)
 
 		telemetryClient.AssertCalled(t, "RegisterAppConfigs", mock.MatchedBy(matchConfig("DD_SERVICE", "svc", telemetry.OriginLocalStableConfig, "123")))
@@ -473,7 +471,6 @@ apm_configuration_default:
 		intKey, intDef := "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 7
 		floatKey, floatDef := "DD_TRACE_SAMPLE_RATE", 0.25
 		durKey, durDef := "DD_TRACE_ABANDONED_SPAN_TIMEOUT", 42*time.Second
-		urlKey, urlDef := "DD_TRACE_AGENT_URL", &url.URL{Scheme: "http", Host: "localhost:9000"}
 		mapKey, mapDef := "DD_SERVICE_MAPPING", map[string]string{"a": "b"}
 
 		telemetryClient.On("RegisterAppConfigs", mock.MatchedBy(matchDefaultConfig(strKey, strDef))).Return()
@@ -481,7 +478,6 @@ apm_configuration_default:
 		telemetryClient.On("RegisterAppConfigs", mock.MatchedBy(matchDefaultConfig(intKey, intDef))).Return()
 		telemetryClient.On("RegisterAppConfigs", mock.MatchedBy(matchDefaultConfig(floatKey, floatDef))).Return()
 		telemetryClient.On("RegisterAppConfigs", mock.MatchedBy(matchDefaultConfig(durKey, durDef))).Return()
-		telemetryClient.On("RegisterAppConfigs", mock.MatchedBy(matchDefaultConfig(urlKey, urlDef))).Return()
 		telemetryClient.On("RegisterAppConfigs", mock.MatchedBy(matchDefaultConfig(mapKey, mapDef))).Return()
 		defer telemetry.MockClient(telemetryClient)()
 
@@ -492,8 +488,7 @@ apm_configuration_default:
 		assert.Equal(t, intDef, p.GetInt(intKey, intDef))
 		assert.Equal(t, floatDef, p.GetFloat(floatKey, floatDef))
 		assert.Equal(t, durDef, p.GetDuration(durKey, durDef))
-		assert.Equal(t, urlDef, p.GetURL(urlKey, urlDef))
-		assert.Equal(t, mapDef, p.GetMap(mapKey, mapDef))
+		assert.Equal(t, mapDef, p.GetMap(mapKey, mapDef, internal.DDTagsDelimiter))
 
 		telemetryClient.AssertExpectations(t)
 	})

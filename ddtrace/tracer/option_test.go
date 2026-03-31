@@ -50,6 +50,27 @@ func withTickChan(ch <-chan time.Time) StartOption {
 	}
 }
 
+// withAgentRemoteConfig creates a mock agent server that reports remote config support.
+// Use in tests that need RC to start but don't have a real agent running.
+// The server is automatically closed when the test ends.
+func withAgentRemoteConfig(t testing.TB) StartOption {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/info":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"endpoints":["/v0.7/config"]}`)
+		default:
+			// RC polling: return empty object (handled gracefully by updateState)
+			_, _ = w.Write([]byte(`{}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	u, _ := url.Parse(srv.URL)
+	return func(c *config) {
+		c.internalConfig.SetAgentURL(u, internalconfig.OriginCode)
+	}
+}
+
 // testStatsd asserts that the given statsd.Client can successfully send metrics
 // to a UDP listener located at addr.
 func testStatsd(t *testing.T, cfg *config, addr string) {
@@ -384,8 +405,8 @@ func TestTracerOptionsDefaults(t *testing.T) {
 		c, err := newTestConfig()
 		assert.NoError(err)
 		assert.Equal(float64(1), c.sampler.Rate())
-		assert.Regexp(`tracer\.test(\.exe)?`, c.serviceName)
-		assert.Equal(&url.URL{Scheme: "http", Host: "localhost:8126"}, c.agentURL)
+		assert.Regexp(`tracer\.test(\.exe)?`, c.internalConfig.ServiceName())
+		assert.Equal(&url.URL{Scheme: "http", Host: "localhost:8126"}, c.internalConfig.RawAgentURL())
 		assert.Equal("localhost:8125", c.dogstatsdAddr)
 		assert.Nil(nil, c.httpClient)
 		x := *c.httpClient
@@ -540,8 +561,8 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			defer tracer.Stop()
 			assert.NoError(t, err)
 			c := tracer.config
-			assert.Equal(t, "localhost:8125", c.dogstatsdAddr)
-			assert.Equal(t, "localhost:8125", globalconfig.DogstatsdAddr())
+			assert.Equal(t, "localhost:123", c.dogstatsdAddr)
+			assert.Equal(t, "localhost:123", globalconfig.DogstatsdAddr())
 		})
 
 		t.Run("env-port: agent not available", func(t *testing.T) {
@@ -564,8 +585,8 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			assert.NoError(t, err)
 			defer tracer.Stop()
 			c := tracer.config
-			assert.Equal(t, "localhost:8125", c.dogstatsdAddr)
-			assert.Equal(t, "localhost:8125", globalconfig.DogstatsdAddr())
+			assert.Equal(t, "localhost:123", c.dogstatsdAddr)
+			assert.Equal(t, "localhost:123", globalconfig.DogstatsdAddr())
 		})
 
 		t.Run("env-all: agent not available", func(t *testing.T) {
@@ -590,8 +611,8 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			assert.NoError(t, err)
 			defer tracer.Stop()
 			c := tracer.config
-			assert.Equal(t, "10.1.0.12:8125", c.dogstatsdAddr)
-			assert.Equal(t, "10.1.0.12:8125", globalconfig.DogstatsdAddr())
+			assert.Equal(t, "10.1.0.12:4002", c.dogstatsdAddr)
+			assert.Equal(t, "10.1.0.12:4002", globalconfig.DogstatsdAddr())
 		})
 
 		t.Run("option: agent not available", func(t *testing.T) {
@@ -643,7 +664,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 		assert.NoError(t, err)
 		defer tracer.Stop()
 		c := tracer.config
-		assert.Equal(t, &url.URL{Scheme: "http", Host: "localhost:8126"}, c.agentURL)
+		assert.Equal(t, &url.URL{Scheme: "http", Host: "localhost:8126"}, c.internalConfig.RawAgentURL())
 	})
 
 	t.Run("env-agentURL", func(t *testing.T) {
@@ -653,7 +674,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			defer tracer.Stop()
 			assert.NoError(t, err)
 			c := tracer.config
-			assert.Equal(t, &url.URL{Scheme: "https", Host: "127.0.0.1:1234"}, c.agentURL)
+			assert.Equal(t, &url.URL{Scheme: "https", Host: "127.0.0.1:1234"}, c.internalConfig.RawAgentURL())
 		})
 
 		t.Run("override-env", func(t *testing.T) {
@@ -664,7 +685,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			defer tracer.Stop()
 			assert.NoError(t, err)
 			c := tracer.config
-			assert.Equal(t, &url.URL{Scheme: "https", Host: "127.0.0.1:1234"}, c.agentURL)
+			assert.Equal(t, &url.URL{Scheme: "https", Host: "127.0.0.1:1234"}, c.internalConfig.RawAgentURL())
 		})
 
 		t.Run("code-override", func(t *testing.T) {
@@ -673,7 +694,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			defer tracer.Stop()
 			assert.NoError(t, err)
 			c := tracer.config
-			assert.Equal(t, &url.URL{Scheme: "http", Host: "localhost:3333"}, c.agentURL)
+			assert.Equal(t, &url.URL{Scheme: "http", Host: "localhost:3333"}, c.internalConfig.RawAgentURL())
 		})
 
 		t.Run("code-override-full-URL", func(t *testing.T) {
@@ -682,7 +703,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			assert.Nil(t, err)
 			defer tracer.Stop()
 			c := tracer.config
-			assert.Equal(t, &url.URL{Scheme: "http", Host: "localhost:3333"}, c.agentURL)
+			assert.Equal(t, &url.URL{Scheme: "http", Host: "localhost:3333"}, c.internalConfig.RawAgentURL())
 		})
 
 		t.Run("code-full-UDS", func(t *testing.T) {
@@ -690,7 +711,11 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			assert.Nil(t, err)
 			defer tracer.Stop()
 			c := tracer.config
-			assert.Equal(t, &url.URL{Scheme: "http", Host: "UDS__var_run_datadog_apm.socket"}, c.agentURL)
+			// Source URL is unix, effective URL is rewritten for HTTP transport
+			rawAgentURL := c.internalConfig.RawAgentURL()
+			effectiveAgentURL := c.internalConfig.AgentURL()
+			assert.Equal(t, &url.URL{Scheme: "unix", Path: "/var/run/datadog/apm.socket"}, rawAgentURL)
+			assert.Equal(t, &url.URL{Scheme: "http", Host: "UDS__var_run_datadog_apm.socket"}, effectiveAgentURL)
 		})
 
 		t.Run("code-override-full-URL-error", func(t *testing.T) {
@@ -702,7 +727,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 			assert.Nil(t, err)
 			defer tracer.Stop()
 			c := tracer.config
-			assert.Equal(t, &url.URL{Scheme: "https", Host: "localhost:1234"}, c.agentURL)
+			assert.Equal(t, &url.URL{Scheme: "https", Host: "localhost:1234"}, c.internalConfig.RawAgentURL())
 			cond := func() bool {
 				return strings.Contains(strings.Join(tp.Logs(), ""), "Unsupported protocol")
 			}
@@ -755,7 +780,7 @@ func TestTracerOptionsDefaults(t *testing.T) {
 		assert.NoError(err)
 		c := tracer.config
 		assert.Equal(float64(0.5), c.sampler.Rate())
-		assert.Equal(&url.URL{Scheme: "http", Host: "127.0.0.1:58126"}, c.agentURL)
+		assert.Equal(&url.URL{Scheme: "http", Host: "127.0.0.1:58126"}, c.internalConfig.RawAgentURL())
 		assert.NotNil(c.globalTags.get())
 		assert.Equal("v", c.globalTags.get()["k"])
 		assert.Equal("testEnv", c.internalConfig.Env())
@@ -997,80 +1022,147 @@ func TestDefaultHTTPClient(t *testing.T) {
 	})
 }
 
-func TestDefaultDogstatsdAddr(t *testing.T) {
-	t.Run("no-socket", func(t *testing.T) {
-		assert.Equal(t, defaultDogstatsdAddr(), "localhost:8125")
-	})
+func TestResolveDogstatsdAddr(t *testing.T) {
+	socketFile, err := os.CreateTemp("", "dsd.socket")
+	require.NoError(t, err)
+	require.NoError(t, socketFile.Close())
+	t.Cleanup(func() { os.RemoveAll(socketFile.Name()) })
+	socketPath := socketFile.Name()
 
-	t.Run("host-env", func(t *testing.T) {
-		t.Setenv("DD_DOGSTATSD_HOST", "111.111.1.1")
-		t.Setenv("DD_AGENT_HOST", "222.222.2.2")
-		assert.Equal(t, "111.111.1.1:8125", defaultDogstatsdAddr())
-	})
+	tests := []struct {
+		name       string
+		configAddr string
+		af         agentFeatures
+		env        map[string]string
+		socketPath string
+		expected   string
+	}{
+		{
+			name:     "defaults",
+			expected: "localhost:8125",
+		},
+		{
+			name:     "host-env",
+			env:      map[string]string{"DD_DOGSTATSD_HOST": "111.111.1.1", "DD_AGENT_HOST": "222.222.2.2"},
+			expected: "111.111.1.1:8125",
+		},
+		{
+			name:     "port-env",
+			env:      map[string]string{"DD_DOGSTATSD_PORT": "8111"},
+			expected: "localhost:8111",
+		},
+		{
+			name:     "port-env+agent-host-env",
+			env:      map[string]string{"DD_DOGSTATSD_PORT": "8111", "DD_AGENT_HOST": "222.222.2.2"},
+			expected: "222.222.2.2:8111",
+		},
+		{
+			name:     "host-env+port-env",
+			env:      map[string]string{"DD_DOGSTATSD_HOST": "111.111.1.1", "DD_DOGSTATSD_PORT": "8888", "DD_AGENT_HOST": "222.222.2.2"},
+			expected: "111.111.1.1:8888",
+		},
+		{
+			name:       "host-env+socket",
+			env:        map[string]string{"DD_DOGSTATSD_HOST": "111.111.1.1"},
+			socketPath: socketPath,
+			expected:   "111.111.1.1:8125",
+		},
+		{
+			name:       "port-env+socket",
+			env:        map[string]string{"DD_DOGSTATSD_PORT": "8111"},
+			socketPath: socketPath,
+			expected:   "localhost:8111",
+		},
+		{
+			name:       "socket",
+			socketPath: socketPath,
+			expected:   "unix://" + socketPath,
+		},
+		// DD_AGENT_HOST alone should not trigger the env var path;
+		// it falls through to auto-discovery.
+		{
+			name:       "agent-host-env-only+socket",
+			env:        map[string]string{"DD_AGENT_HOST": "222.222.2.2"},
+			socketPath: socketPath,
+			expected:   "unix://" + socketPath,
+		},
+		{
+			name:     "agent-host-env-only",
+			env:      map[string]string{"DD_AGENT_HOST": "222.222.2.2"},
+			expected: "222.222.2.2:8125",
+		},
+		{
+			name:     "agent-host-env-only+agent-port",
+			env:      map[string]string{"DD_AGENT_HOST": "222.222.2.2"},
+			af:       agentFeatures{StatsdPort: 9876},
+			expected: "222.222.2.2:9876",
+		},
+		// configAddr (priority 1) wins over everything.
+		{
+			name:       "config-addr",
+			configAddr: "custom:9999",
+			expected:   "custom:9999",
+		},
+		{
+			name:       "config-addr+env",
+			configAddr: "custom:9999",
+			env:        map[string]string{"DD_DOGSTATSD_HOST": "111.111.1.1", "DD_DOGSTATSD_PORT": "8111"},
+			expected:   "custom:9999",
+		},
+		{
+			name:       "config-addr+socket",
+			configAddr: "custom:9999",
+			socketPath: socketPath,
+			expected:   "custom:9999",
+		},
+		{
+			name:       "config-addr+agent-port",
+			configAddr: "custom:9999",
+			af:         agentFeatures{StatsdPort: 9876},
+			expected:   "custom:9999",
+		},
+		// Agent-reported port used as fallback when env host is set but no env port.
+		{
+			name:     "host-env+agent-port",
+			env:      map[string]string{"DD_DOGSTATSD_HOST": "111.111.1.1"},
+			af:       agentFeatures{StatsdPort: 9876},
+			expected: "111.111.1.1:9876",
+		},
+		// Env port wins over agent-reported port.
+		{
+			name:     "host-env+port-env+agent-port",
+			env:      map[string]string{"DD_DOGSTATSD_HOST": "111.111.1.1", "DD_DOGSTATSD_PORT": "8111"},
+			af:       agentFeatures{StatsdPort: 9876},
+			expected: "111.111.1.1:8111",
+		},
+		// Auto-discovery: agent-reported port when no env and no socket.
+		{
+			name:     "agent-port",
+			af:       agentFeatures{StatsdPort: 9876},
+			expected: "localhost:9876",
+		},
+		// Auto-discovery: socket wins over agent-reported port.
+		{
+			name:       "socket+agent-port",
+			af:         agentFeatures{StatsdPort: 9876},
+			socketPath: socketPath,
+			expected:   "unix://" + socketPath,
+		},
+	}
 
-	t.Run("port-env", func(t *testing.T) {
-		t.Setenv("DD_DOGSTATSD_PORT", "8111")
-		assert.Equal(t, defaultDogstatsdAddr(), "localhost:8111")
-		t.Setenv("DD_AGENT_HOST", "222.222.2.2")
-		assert.Equal(t, defaultDogstatsdAddr(), "222.222.2.2:8111")
-	})
-
-	t.Run("host-env+port-env", func(t *testing.T) {
-		t.Setenv("DD_DOGSTATSD_HOST", "111.111.1.1")
-		t.Setenv("DD_DOGSTATSD_PORT", "8888")
-		t.Setenv("DD_AGENT_HOST", "222.222.2.2")
-		assert.Equal(t, "111.111.1.1:8888", defaultDogstatsdAddr())
-	})
-
-	t.Run("host-env+socket", func(t *testing.T) {
-		t.Setenv("DD_DOGSTATSD_HOST", "111.111.1.1")
-		assert.Equal(t, "111.111.1.1:8125", defaultDogstatsdAddr())
-		f, err := os.CreateTemp("", "dsd.socket")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := f.Close(); err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(f.Name())
-		defer func(old string) { defaultSocketDSD = old }(defaultSocketDSD)
-		defaultSocketDSD = f.Name()
-		assert.Equal(t, "111.111.1.1:8125", defaultDogstatsdAddr())
-	})
-
-	t.Run("port-env+socket", func(t *testing.T) {
-		t.Setenv("DD_DOGSTATSD_PORT", "8111")
-		assert.Equal(t, defaultDogstatsdAddr(), "localhost:8111")
-		f, err := os.CreateTemp("", "dsd.socket")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := f.Close(); err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(f.Name())
-		defer func(old string) { defaultSocketDSD = old }(defaultSocketDSD)
-		defaultSocketDSD = f.Name()
-		assert.Equal(t, defaultDogstatsdAddr(), "localhost:8111")
-	})
-
-	t.Run("socket", func(t *testing.T) {
-		defer func(old string) { os.Setenv("DD_AGENT_HOST", old) }(os.Getenv("DD_AGENT_HOST"))
-		defer func(old string) { os.Setenv("DD_DOGSTATSD_PORT", old) }(os.Getenv("DD_DOGSTATSD_PORT"))
-		os.Unsetenv("DD_AGENT_HOST")
-		os.Unsetenv("DD_DOGSTATSD_PORT")
-		f, err := os.CreateTemp("", "dsd.socket")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := f.Close(); err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(f.Name())
-		defer func(old string) { defaultSocketDSD = old }(defaultSocketDSD)
-		defaultSocketDSD = f.Name()
-		assert.Equal(t, defaultDogstatsdAddr(), "unix://"+f.Name())
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clear all relevant env vars so that each subtest is isolated
+			// from the host environment and other subtests.
+			for _, key := range []string{"DD_DOGSTATSD_HOST", "DD_DOGSTATSD_PORT", "DD_AGENT_HOST"} {
+				t.Setenv(key, "")
+			}
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+			assert.Equal(t, tt.expected, resolveDogstatsdAddr(tt.configAddr, tt.af, tt.socketPath))
+		})
+	}
 }
 
 func TestServiceName(t *testing.T) {
@@ -1081,7 +1173,7 @@ func TestServiceName(t *testing.T) {
 			WithService("api-intake"),
 		)
 		assert.NoError(err)
-		assert.Equal("api-intake", c.serviceName)
+		assert.Equal("api-intake", c.internalConfig.ServiceName())
 		assert.Equal("api-intake", globalconfig.ServiceName())
 	})
 
@@ -1092,7 +1184,7 @@ func TestServiceName(t *testing.T) {
 		c, err := newTestConfig()
 
 		assert.NoError(err)
-		assert.Equal("api-intake", c.serviceName)
+		assert.Equal("api-intake", c.internalConfig.ServiceName())
 		assert.Equal("api-intake", globalconfig.ServiceName())
 	})
 
@@ -1105,7 +1197,7 @@ func TestServiceName(t *testing.T) {
 		c, err := newTestConfig()
 		assert.NoError(err)
 
-		assert.Equal("api-intake", c.serviceName)
+		assert.Equal("api-intake", c.internalConfig.ServiceName())
 		assert.Equal("api-intake", globalconfig.ServiceName())
 	})
 
@@ -1114,7 +1206,7 @@ func TestServiceName(t *testing.T) {
 		assert := assert.New(t)
 		c, err := newTestConfig(WithGlobalTag("service", "api-intake"))
 		assert.NoError(err)
-		assert.Equal("api-intake", c.serviceName)
+		assert.Equal("api-intake", c.internalConfig.ServiceName())
 		assert.Equal("api-intake", globalconfig.ServiceName())
 	})
 
@@ -1127,7 +1219,7 @@ func TestServiceName(t *testing.T) {
 		c, err := newTestConfig()
 		assert.NoError(err)
 
-		assert.Equal("api-intake", c.serviceName)
+		assert.Equal("api-intake", c.internalConfig.ServiceName())
 		assert.Equal("api-intake", globalconfig.ServiceName())
 	})
 
@@ -1138,7 +1230,7 @@ func TestServiceName(t *testing.T) {
 		c, err := newTestConfig()
 		assert.NoError(err)
 
-		assert.Equal("api-intake", c.serviceName)
+		assert.Equal("api-intake", c.internalConfig.ServiceName())
 		assert.Equal("api-intake", globalconfig.ServiceName())
 	})
 
@@ -1150,47 +1242,47 @@ func TestServiceName(t *testing.T) {
 		globalconfig.SetServiceName("")
 		c, err := newTestConfig()
 		assert.NoError(err)
-		assert.Equal(c.serviceName, filepath.Base(os.Args[0]))
+		assert.Equal(c.internalConfig.ServiceName(), filepath.Base(os.Args[0]))
 		assert.Equal("", globalconfig.ServiceName())
 
 		t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.name=testService6")
 		globalconfig.SetServiceName("")
 		c, err = newTestConfig()
 		assert.NoError(err)
-		assert.Equal(c.serviceName, "testService6")
+		assert.Equal(c.internalConfig.ServiceName(), "testService6")
 		assert.Equal("testService6", globalconfig.ServiceName())
 
 		t.Setenv("DD_TAGS", "service:testService")
 		globalconfig.SetServiceName("")
 		c, err = newTestConfig()
 		assert.NoError(err)
-		assert.Equal(c.serviceName, "testService")
+		assert.Equal(c.internalConfig.ServiceName(), "testService")
 		assert.Equal("testService", globalconfig.ServiceName())
 
 		globalconfig.SetServiceName("")
 		c, err = newTestConfig(WithGlobalTag("service", "testService2"))
 		assert.NoError(err)
-		assert.Equal(c.serviceName, "testService2")
+		assert.Equal(c.internalConfig.ServiceName(), "testService2")
 		assert.Equal("testService2", globalconfig.ServiceName())
 
 		t.Setenv("OTEL_SERVICE_NAME", "testService3")
 		globalconfig.SetServiceName("")
 		c, err = newTestConfig(WithGlobalTag("service", "testService2"))
 		assert.NoError(err)
-		assert.Equal(c.serviceName, "testService3")
+		assert.Equal(c.internalConfig.ServiceName(), "testService3")
 		assert.Equal("testService3", globalconfig.ServiceName())
 
 		t.Setenv("DD_SERVICE", "testService4")
 		globalconfig.SetServiceName("")
 		c, err = newTestConfig(WithGlobalTag("service", "testService2"), WithService("testService4"))
 		assert.NoError(err)
-		assert.Equal(c.serviceName, "testService4")
+		assert.Equal(c.internalConfig.ServiceName(), "testService4")
 		assert.Equal("testService4", globalconfig.ServiceName())
 
 		globalconfig.SetServiceName("")
 		c, err = newTestConfig(WithGlobalTag("service", "testService2"), WithService("testService5"))
 		assert.NoError(err)
-		assert.Equal(c.serviceName, "testService5")
+		assert.Equal(c.internalConfig.ServiceName(), "testService5")
 		assert.Equal("testService5", globalconfig.ServiceName())
 	})
 }
