@@ -402,19 +402,21 @@ func (p *payloadV1) update() {
 
 // encode writes existing payload fields into the buffer in msgp format.
 func (p *payloadV1) encode() {
-	st := newStringTable()
-	p.buf = encodeField(p.buf, p.bm, 2, p.containerID, st)
-	p.buf = encodeField(p.buf, p.bm, 3, p.languageName, st)
-	p.buf = encodeField(p.buf, p.bm, 4, p.languageVersion, st)
-	p.buf = encodeField(p.buf, p.bm, 5, p.tracerVersion, st)
-	p.buf = encodeField(p.buf, p.bm, 6, p.runtimeID, st)
-	p.buf = encodeField(p.buf, p.bm, 7, p.env, st)
-	p.buf = encodeField(p.buf, p.bm, 8, p.hostname, st)
-	p.buf = encodeField(p.buf, p.bm, 9, p.appVersion, st)
+	if p.st == nil {
+		p.st = newStringTable()
+	}
+	p.buf = encodeField(p.buf, p.bm, 2, p.containerID, p.st)
+	p.buf = encodeField(p.buf, p.bm, 3, p.languageName, p.st)
+	p.buf = encodeField(p.buf, p.bm, 4, p.languageVersion, p.st)
+	p.buf = encodeField(p.buf, p.bm, 5, p.tracerVersion, p.st)
+	p.buf = encodeField(p.buf, p.bm, 6, p.runtimeID, p.st)
+	p.buf = encodeField(p.buf, p.bm, 7, p.env, p.st)
+	p.buf = encodeField(p.buf, p.bm, 8, p.hostname, p.st)
+	p.buf = encodeField(p.buf, p.bm, 9, p.appVersion, p.st)
 
-	p.encodeAttributes(p.bm, 10, p.attributes, st)
+	p.encodeAttributes(p.bm, 10, p.attributes, p.st)
 
-	p.encodeTraceChunks(p.bm, 11, p.chunks, st)
+	p.encodeTraceChunks(p.bm, 11, p.chunks, p.st)
 }
 
 type fieldValue interface {
