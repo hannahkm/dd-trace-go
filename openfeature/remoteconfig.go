@@ -42,58 +42,87 @@ func startWithRemoteConfig(config ProviderConfig) (*DatadogProvider, error) {
 
 func (p *DatadogProvider) rcCallback(update remoteconfig.ProductUpdate) map[string]rc.ApplyStatus {
 	statuses := make(map[string]rc.ApplyStatus, len(update))
+	parsed := make(map[string]*universalFlagsConfiguration, len(update))
 
-	// Process each configuration file in the update
 	for path, data := range update {
-		status := processConfigUpdate(p, path, data)
+		config, status := processConfigUpdate(path, data)
 		statuses[path] = status
+		if status.State == rc.ApplyStateAcknowledged {
+			parsed[path] = config
+		}
+	}
+
+	if len(parsed) > 0 {
+		p.applyConfigUpdate(parsed)
 	}
 
 	return statuses
 }
 
-// processConfigUpdate processes a single configuration update from Remote Config.
-func processConfigUpdate(provider *DatadogProvider, path string, data []byte) rc.ApplyStatus {
-	// Handle configuration deletion (nil data means the config was removed)
+// processConfigUpdate parses and validates a single configuration update.
+// Returns the parsed config (nil for deletions) and the apply status.
+func processConfigUpdate(path string, data []byte) (*universalFlagsConfiguration, rc.ApplyStatus) {
 	if data == nil {
 		log.Debug("openfeature: remote config: removing configuration %q", path)
-		// For now, we treat deletion as clearing the configuration
-		// In a multi-config scenario, we might track configs per path
-		provider.updateConfiguration(nil)
-		return rc.ApplyStatus{
-			State: rc.ApplyStateAcknowledged,
-		}
+		return nil, rc.ApplyStatus{State: rc.ApplyStateAcknowledged}
 	}
 
-	// Parse the configuration
 	log.Debug("openfeature: remote config: processing configuration update %q", path)
 
 	var config universalFlagsConfiguration
 	if err := json.Unmarshal(data, &config); err != nil {
 		log.Error("openfeature: remote config: failed to unmarshal configuration %q: %v", path, err.Error())
-		return rc.ApplyStatus{
+		return nil, rc.ApplyStatus{
 			State: rc.ApplyStateError,
 			Error: fmt.Sprintf("failed to unmarshal configuration: %v", err),
 		}
 	}
 
-	// Validate the configuration
 	err := validateConfiguration(&config)
 	if err != nil {
 		log.Error("openfeature: remote config: invalid configuration %q: %v", path, err.Error())
-		return rc.ApplyStatus{
+		return nil, rc.ApplyStatus{
 			State: rc.ApplyStateError,
 			Error: fmt.Sprintf("invalid configuration: %v", err),
 		}
 	}
 
-	// Update the provider with the new configuration
-	provider.updateConfiguration(&config)
-	log.Debug("openfeature: remote config: successfully applied configuration %q with %d flags", path, len(config.Flags))
+	log.Debug("openfeature: remote config: successfully parsed configuration %q with %d flags", path, len(config.Flags))
+	return &config, rc.ApplyStatus{State: rc.ApplyStateAcknowledged}
+}
 
-	return rc.ApplyStatus{
-		State: rc.ApplyStateAcknowledged,
+// applyConfigUpdate atomically applies a batch of parsed config updates.
+// Each entry maps an RC path to a parsed config (nil means deletion).
+func (p *DatadogProvider) applyConfigUpdate(update map[string]*universalFlagsConfiguration) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for path, config := range update {
+		if config == nil {
+			delete(p.configState, path)
+		} else {
+			p.configState[path] = config
+		}
 	}
+	p.configuration = p.mergeConfigurations()
+	p.configChange.Broadcast()
+}
+
+// mergeConfigurations rebuilds the unified configuration from all entries in configState.
+// Only Format and Flags are used by the evaluation engine; other metadata fields are dropped.
+// If two configs share a flag key, last-write-wins (nondeterministic map iteration order).
+// Must be called with p.mu held.
+func (p *DatadogProvider) mergeConfigurations() *universalFlagsConfiguration {
+	if len(p.configState) == 0 {
+		return nil
+	}
+	merged := &universalFlagsConfiguration{
+		Format: "SERVER",
+		Flags:  make(map[string]*flag),
+	}
+	for _, config := range p.configState {
+		maps.Copy(merged.Flags, config.Flags)
+	}
+	return merged
 }
 
 // validateConfiguration performs basic validation on a serverConfiguration.

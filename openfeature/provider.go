@@ -50,6 +50,7 @@ type ProviderConfig struct {
 // using configuration received from Datadog Remote Config.
 type DatadogProvider struct {
 	mu            sync.RWMutex
+	configState   map[string]*universalFlagsConfiguration
 	configuration *universalFlagsConfiguration
 	metadata      openfeature.Metadata
 
@@ -95,6 +96,7 @@ func newDatadogProvider(config ProviderConfig) *DatadogProvider {
 	}
 
 	p := &DatadogProvider{
+		configState: make(map[string]*universalFlagsConfiguration),
 		metadata: openfeature.Metadata{
 			Name: "Datadog Remote Config Provider",
 		},
@@ -106,8 +108,9 @@ func newDatadogProvider(config ProviderConfig) *DatadogProvider {
 	return p
 }
 
-// updateConfiguration updates the provider's flag configuration.
-// This is called by the Remote Config callback when new configuration is received.
+// updateConfiguration sets the provider's merged configuration directly.
+// Used by tests to set up evaluation state without going through the RC callback path.
+// Production code should use applyConfigUpdate instead.
 func (p *DatadogProvider) updateConfiguration(config *universalFlagsConfiguration) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -208,6 +211,7 @@ func (p *DatadogProvider) ShutdownWithContext(ctx context.Context) error {
 
 		p.mu.Lock()
 		defer p.mu.Unlock()
+		p.configState = make(map[string]*universalFlagsConfiguration)
 		p.configuration = nil
 		// Stop the exposure writer
 		if p.exposureWriter != nil {

@@ -414,8 +414,6 @@ func TestValidateFlag(t *testing.T) {
 
 func TestProcessConfigUpdate(t *testing.T) {
 	t.Run("valid configuration update", func(t *testing.T) {
-		provider := newDatadogProvider(ProviderConfig{})
-
 		config := universalFlagsConfiguration{
 			CreatedAt: time.Now(),
 			Format:    "SERVER",
@@ -440,26 +438,25 @@ func TestProcessConfigUpdate(t *testing.T) {
 			t.Fatalf("failed to marshal config: %v", err)
 		}
 
-		status := processConfigUpdate(provider, "test-path", data)
+		parsed, status := processConfigUpdate("test-path", data)
 		if status.State != rc.ApplyStateAcknowledged {
 			t.Errorf("expected ApplyStateAcknowledged, got %v", status.State)
 		}
 
-		// Verify configuration was updated
-		updatedConfig := provider.getConfiguration()
-		if updatedConfig == nil {
+		// Verify configuration was parsed
+		if parsed == nil {
 			t.Fatal("expected configuration to be set")
 		}
-		if len(updatedConfig.Flags) != 1 {
-			t.Errorf("expected 1 flag, got %d", len(updatedConfig.Flags))
+		if len(parsed.Flags) != 1 {
+			t.Errorf("expected 1 flag, got %d", len(parsed.Flags))
 		}
 	})
 
 	t.Run("configuration deletion", func(t *testing.T) {
 		provider := newDatadogProvider(ProviderConfig{})
 
-		// First set a configuration
-		config := &universalFlagsConfiguration{
+		// First set a configuration via the callback
+		config := universalFlagsConfiguration{
 			Format: "SERVER",
 			Flags: map[string]*flag{
 				"test-flag": {
@@ -472,12 +469,13 @@ func TestProcessConfigUpdate(t *testing.T) {
 				},
 			},
 		}
-		provider.updateConfiguration(config)
+		data, _ := json.Marshal(config)
+		provider.rcCallback(remoteconfig.ProductUpdate{"test-path": data})
 
 		// Now send a deletion (nil data)
-		status := processConfigUpdate(provider, "test-path", nil)
-		if status.State != rc.ApplyStateAcknowledged {
-			t.Errorf("expected ApplyStateAcknowledged, got %v", status.State)
+		statuses := provider.rcCallback(remoteconfig.ProductUpdate{"test-path": nil})
+		if statuses["test-path"].State != rc.ApplyStateAcknowledged {
+			t.Errorf("expected ApplyStateAcknowledged, got %v", statuses["test-path"].State)
 		}
 
 		// Verify configuration was cleared
@@ -488,10 +486,8 @@ func TestProcessConfigUpdate(t *testing.T) {
 	})
 
 	t.Run("invalid JSON", func(t *testing.T) {
-		provider := newDatadogProvider(ProviderConfig{})
-
 		invalidJSON := []byte("{invalid json")
-		status := processConfigUpdate(provider, "test-path", invalidJSON)
+		_, status := processConfigUpdate("test-path", invalidJSON)
 
 		if status.State != rc.ApplyStateError {
 			t.Errorf("expected ApplyStateError, got %v", status.State)
@@ -502,15 +498,13 @@ func TestProcessConfigUpdate(t *testing.T) {
 	})
 
 	t.Run("invalid configuration", func(t *testing.T) {
-		provider := newDatadogProvider(ProviderConfig{})
-
 		config := universalFlagsConfiguration{
 			Format: "INVALID",
 			Flags:  map[string]*flag{},
 		}
 
 		data, _ := json.Marshal(config)
-		status := processConfigUpdate(provider, "test-path", data)
+		_, status := processConfigUpdate("test-path", data)
 
 		if status.State != rc.ApplyStateError {
 			t.Errorf("expected ApplyStateError, got %v", status.State)
@@ -626,7 +620,7 @@ func TestRemoteConfigIntegration(t *testing.T) {
 			t.Error("expected first update to be acknowledged")
 		}
 
-		// Second update (replaces first)
+		// Second update (merges with first)
 		update2 := remoteconfig.ProductUpdate{
 			"config2": data2,
 		}
@@ -635,10 +629,13 @@ func TestRemoteConfigIntegration(t *testing.T) {
 			t.Error("expected second update to be acknowledged")
 		}
 
-		// Verify the provider has the latest configuration
+		// Verify the provider has merged configuration from both updates
 		finalConfig := provider.getConfiguration()
 		if finalConfig == nil {
 			t.Fatal("expected configuration to be set")
+		}
+		if _, exists := finalConfig.Flags["flag1"]; !exists {
+			t.Error("expected flag1 to be present in final configuration")
 		}
 		if _, exists := finalConfig.Flags["flag2"]; !exists {
 			t.Error("expected flag2 to be present in final configuration")
@@ -739,4 +736,143 @@ func TestConfigurationPersistence(t *testing.T) {
 			t.Errorf("expected flag %s after update %d", expectedFlagKey, i)
 		}
 	}
+}
+
+func makeSingleFlagConfig(flagKey string, varType valueType, varValue any) universalFlagsConfiguration {
+	return universalFlagsConfiguration{
+		Format: "SERVER",
+		Flags: map[string]*flag{
+			flagKey: {
+				Key:           flagKey,
+				Enabled:       true,
+				VariationType: varType,
+				Variations:    map[string]*variant{"v": {Key: "v", Value: varValue}},
+				Allocations:   []*allocation{},
+			},
+		},
+	}
+}
+
+func TestStatefulMerge(t *testing.T) {
+	t.Run("two configs in single callback", func(t *testing.T) {
+		provider := newDatadogProvider(ProviderConfig{})
+
+		data1, _ := json.Marshal(makeSingleFlagConfig("flag-a", valueTypeBoolean, true))
+		data2, _ := json.Marshal(makeSingleFlagConfig("flag-b", valueTypeString, "hello"))
+
+		statuses := provider.rcCallback(remoteconfig.ProductUpdate{
+			"path/env1": data1,
+			"path/env2": data2,
+		})
+
+		require.Equal(t, rc.ApplyStateAcknowledged, statuses["path/env1"].State)
+		require.Equal(t, rc.ApplyStateAcknowledged, statuses["path/env2"].State)
+
+		merged := provider.getConfiguration()
+		require.NotNil(t, merged)
+		require.Contains(t, merged.Flags, "flag-a")
+		require.Contains(t, merged.Flags, "flag-b")
+	})
+
+	t.Run("delta update merges configs", func(t *testing.T) {
+		provider := newDatadogProvider(ProviderConfig{})
+
+		data1, _ := json.Marshal(makeSingleFlagConfig("flag-a", valueTypeBoolean, true))
+		data2, _ := json.Marshal(makeSingleFlagConfig("flag-b", valueTypeString, "hello"))
+
+		provider.rcCallback(remoteconfig.ProductUpdate{"path/env1": data1})
+		provider.rcCallback(remoteconfig.ProductUpdate{"path/env2": data2})
+
+		merged := provider.getConfiguration()
+		require.NotNil(t, merged)
+		require.Contains(t, merged.Flags, "flag-a")
+		require.Contains(t, merged.Flags, "flag-b")
+	})
+
+	t.Run("delete one config preserves other", func(t *testing.T) {
+		provider := newDatadogProvider(ProviderConfig{})
+
+		data1, _ := json.Marshal(makeSingleFlagConfig("flag-a", valueTypeBoolean, true))
+		data2, _ := json.Marshal(makeSingleFlagConfig("flag-b", valueTypeString, "hello"))
+
+		provider.rcCallback(remoteconfig.ProductUpdate{"path/env1": data1, "path/env2": data2})
+		provider.rcCallback(remoteconfig.ProductUpdate{"path/env1": nil})
+
+		merged := provider.getConfiguration()
+		require.NotNil(t, merged)
+		require.NotContains(t, merged.Flags, "flag-a")
+		require.Contains(t, merged.Flags, "flag-b")
+	})
+
+	t.Run("update one config reflects in merge", func(t *testing.T) {
+		provider := newDatadogProvider(ProviderConfig{})
+
+		data1, _ := json.Marshal(makeSingleFlagConfig("flag-a", valueTypeBoolean, true))
+		data2, _ := json.Marshal(makeSingleFlagConfig("flag-b", valueTypeString, "hello"))
+
+		provider.rcCallback(remoteconfig.ProductUpdate{"path/env1": data1, "path/env2": data2})
+
+		data1Updated, _ := json.Marshal(makeSingleFlagConfig("flag-a-v2", valueTypeBoolean, false))
+		provider.rcCallback(remoteconfig.ProductUpdate{"path/env1": data1Updated})
+
+		merged := provider.getConfiguration()
+		require.NotNil(t, merged)
+		require.NotContains(t, merged.Flags, "flag-a")
+		require.Contains(t, merged.Flags, "flag-a-v2")
+		require.Contains(t, merged.Flags, "flag-b")
+	})
+
+	t.Run("delete all configs clears configuration", func(t *testing.T) {
+		provider := newDatadogProvider(ProviderConfig{})
+
+		data, _ := json.Marshal(makeSingleFlagConfig("flag-a", valueTypeBoolean, true))
+
+		provider.rcCallback(remoteconfig.ProductUpdate{"path/env1": data})
+		require.NotNil(t, provider.getConfiguration())
+
+		provider.rcCallback(remoteconfig.ProductUpdate{"path/env1": nil})
+		require.Nil(t, provider.getConfiguration())
+	})
+
+	t.Run("invalid update preserves existing config", func(t *testing.T) {
+		provider := newDatadogProvider(ProviderConfig{})
+
+		data, _ := json.Marshal(makeSingleFlagConfig("flag-a", valueTypeBoolean, true))
+		provider.rcCallback(remoteconfig.ProductUpdate{"path/env1": data})
+
+		// Send invalid data for the same path
+		statuses := provider.rcCallback(remoteconfig.ProductUpdate{"path/env1": []byte("{bad json")})
+		require.Equal(t, rc.ApplyStateError, statuses["path/env1"].State)
+
+		// Original config must survive
+		merged := provider.getConfiguration()
+		require.NotNil(t, merged)
+		require.Contains(t, merged.Flags, "flag-a")
+	})
+
+	t.Run("mixed batch applies only acknowledged deltas", func(t *testing.T) {
+		provider := newDatadogProvider(ProviderConfig{})
+
+		data1, _ := json.Marshal(makeSingleFlagConfig("flag-a", valueTypeBoolean, true))
+		data2, _ := json.Marshal(makeSingleFlagConfig("flag-b", valueTypeString, "hello"))
+		provider.rcCallback(remoteconfig.ProductUpdate{"path/env1": data1, "path/env2": data2})
+
+		// Batch: delete env1, send invalid update for env2, add valid env3
+		data3, _ := json.Marshal(makeSingleFlagConfig("flag-c", valueTypeBoolean, false))
+		statuses := provider.rcCallback(remoteconfig.ProductUpdate{
+			"path/env1": nil,
+			"path/env2": []byte("{bad"),
+			"path/env3": data3,
+		})
+
+		require.Equal(t, rc.ApplyStateAcknowledged, statuses["path/env1"].State)
+		require.Equal(t, rc.ApplyStateError, statuses["path/env2"].State)
+		require.Equal(t, rc.ApplyStateAcknowledged, statuses["path/env3"].State)
+
+		merged := provider.getConfiguration()
+		require.NotNil(t, merged)
+		require.NotContains(t, merged.Flags, "flag-a") // deleted
+		require.Contains(t, merged.Flags, "flag-b")    // preserved (invalid update skipped)
+		require.Contains(t, merged.Flags, "flag-c")    // added
+	})
 }
