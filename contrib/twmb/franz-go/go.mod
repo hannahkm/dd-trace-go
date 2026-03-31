@@ -86,7 +86,6 @@ require (
 	github.com/secure-systems-lab/go-securesystemslib v0.10.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.2 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
-	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/testcontainers/testcontainers-go v0.37.0 // indirect
 	github.com/testcontainers/testcontainers-go/modules/kafka v0.37.0 // indirect
 	github.com/testcontainers/testcontainers-go/modules/mongodb v0.37.0 // indirect

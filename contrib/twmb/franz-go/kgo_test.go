@@ -19,6 +19,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/DataDog/dd-trace-go/instrumentation/testutils/containers/v2"
+
 	"github.com/DataDog/dd-trace-go/v2/datastreams"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
