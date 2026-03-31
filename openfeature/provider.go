@@ -108,9 +108,8 @@ func newDatadogProvider(config ProviderConfig) *DatadogProvider {
 	return p
 }
 
-// updateConfiguration sets the provider's merged configuration directly.
-// Used by tests to set up evaluation state without going through the RC callback path.
-// Production code should use applyConfigUpdate instead.
+// updateConfiguration updates the provider's flag configuration.
+// This is called by the Remote Config callback when new configuration is received.
 func (p *DatadogProvider) updateConfiguration(config *universalFlagsConfiguration) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

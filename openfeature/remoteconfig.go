@@ -44,6 +44,7 @@ func (p *DatadogProvider) rcCallback(update remoteconfig.ProductUpdate) map[stri
 	statuses := make(map[string]rc.ApplyStatus, len(update))
 	parsed := make(map[string]*universalFlagsConfiguration, len(update))
 
+	// Process each configuration file in the update
 	for path, data := range update {
 		config, status := processConfigUpdate(path, data)
 		statuses[path] = status
@@ -67,6 +68,7 @@ func processConfigUpdate(path string, data []byte) (*universalFlagsConfiguration
 		return nil, rc.ApplyStatus{State: rc.ApplyStateAcknowledged}
 	}
 
+	// Parse the configuration
 	log.Debug("openfeature: remote config: processing configuration update %q", path)
 
 	var config universalFlagsConfiguration
@@ -78,6 +80,7 @@ func processConfigUpdate(path string, data []byte) (*universalFlagsConfiguration
 		}
 	}
 
+	// Validate the configuration
 	err := validateConfiguration(&config)
 	if err != nil {
 		log.Error("openfeature: remote config: invalid configuration %q: %v", path, err.Error())
