@@ -7,19 +7,18 @@ package kgo
 
 import (
 	"context"
-	"log"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/dd-trace-go/contrib/twmb/franz-go/v2/internal/tracing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 
+	"github.com/DataDog/dd-trace-go/instrumentation/testutils/containers/v2"
 	"github.com/DataDog/dd-trace-go/v2/datastreams"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
@@ -30,97 +29,10 @@ const (
 	testGroupID = "kgo-test-group-id"
 )
 
-var (
-	seedBrokers = []string{"localhost:9092", "localhost:9093", "localhost:9094"}
-)
-
-// topicName returns a unique topic name for the current test.
-func topicName(t *testing.T) string {
-	return strings.ReplaceAll("twmb_franz-go_"+t.Name(), "/", "_")
-}
-
-func TestMain(m *testing.M) {
-	_, ok := os.LookupEnv("INTEGRATION")
-	if !ok {
-		log.Println("🚧 Skipping integration test (INTEGRATION environment variable is not set)")
-		os.Exit(0)
-	}
-	os.Exit(m.Run())
-}
-
-// createTopicWithCleanup creates a topic and registers cleanup with t.Cleanup.
-func createTopicWithCleanup(t *testing.T, topic string) {
-	t.Helper()
-
-	cl, err := kgo.NewClient(kgo.SeedBrokers(seedBrokers...))
-	require.NoError(t, err)
-
-	admCl := kadm.NewClient(cl)
-	ctx := context.Background()
-
-	// Delete if exists, ignore errors
-	_, _ = admCl.DeleteTopics(ctx, topic)
-
-	_, err = admCl.CreateTopic(ctx, 1, 1, nil, topic)
-	require.NoError(t, err)
-
-	// Wait for topic to be ready
-	err = ensureTopicReady(topic)
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		_, err := admCl.DeleteTopics(context.Background(), topic)
-		if err != nil {
-			log.Printf("failed to delete topic %s: %v", topic, err)
-		} else {
-			log.Printf("deleted topic %s", topic)
-		}
-		admCl.Close()
-		cl.Close()
-	})
-}
-
-func ensureTopicReady(topic string) error {
-	cl, err := kgo.NewClient(kgo.SeedBrokers(seedBrokers...))
-	if err != nil {
-		return err
-	}
-	defer cl.Close()
-
-	admCl := kadm.NewClient(cl)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	for {
-		metadata, err := admCl.Metadata(ctx, topic)
-		if err != nil {
-			return err
-		}
-
-		topicMeta, ok := metadata.Topics[topic]
-		if ok && len(topicMeta.Partitions) > 0 && topicMeta.Err == nil {
-			return nil
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
-}
-
-type producedRecords struct {
-	records []*kgo.Record
-}
-
-func (r *producedRecords) OnProduceRecordUnbuffered(record *kgo.Record, err error) {
-	r.records = append(r.records, record)
-}
-
 func TestProduceFunctional(t *testing.T) {
+	brokers := startKafka(t)
 	topic := topicName(t)
-	createTopicWithCleanup(t, topic)
+	createTopicWithCleanup(t, topic, brokers)
 
 	mt := mocktracer.Start()
 	defer mt.Stop()
@@ -136,10 +48,12 @@ func TestProduceFunctional(t *testing.T) {
 		producedRecords = &producedRecords{}
 	)
 
-	producerCl, err := NewClient(
-		kgo.SeedBrokers(seedBrokers...),
-		// Hook so we can capture the produced records
-		kgo.WithHooks(producedRecords),
+	producerCl, err := NewClientWithTracing(
+		[]kgo.Opt{
+			kgo.SeedBrokers(brokers...),
+			// Hook so we can capture the produced records
+			kgo.WithHooks(producedRecords),
+		},
 	)
 	require.NoError(t, err)
 	defer producerCl.Close()
@@ -181,8 +95,9 @@ func TestProduceFunctional(t *testing.T) {
 }
 
 func TestProduceConsumeFunctional(t *testing.T) {
+	brokers := startKafka(t)
 	topic := topicName(t)
-	createTopicWithCleanup(t, topic)
+	createTopicWithCleanup(t, topic, brokers)
 
 	mt := mocktracer.Start()
 	defer mt.Stop()
@@ -198,16 +113,20 @@ func TestProduceConsumeFunctional(t *testing.T) {
 		producedRecords = &producedRecords{}
 	)
 
-	consumerCl, err := NewClient(
-		kgo.SeedBrokers(seedBrokers...),
-		kgo.ConsumeTopics(topic),
-		kgo.ConsumerGroup(testGroupID),
+	consumerCl, err := NewClientWithTracing(
+		[]kgo.Opt{
+			kgo.SeedBrokers(brokers...),
+			kgo.ConsumeTopics(topic),
+			kgo.ConsumerGroup(testGroupID),
+		},
 	)
 	require.NoError(t, err)
 
-	producerCl, err := NewClient(
-		kgo.SeedBrokers(seedBrokers...),
-		kgo.WithHooks(producedRecords),
+	producerCl, err := NewClientWithTracing(
+		[]kgo.Opt{
+			kgo.SeedBrokers(brokers...),
+			kgo.WithHooks(producedRecords),
+		},
 	)
 	require.NoError(t, err)
 	defer producerCl.Close()
@@ -255,15 +174,18 @@ func TestProduceConsumeFunctional(t *testing.T) {
 }
 
 func TestProduceErrorFunctional(t *testing.T) {
+	brokers := startKafka(t)
 	topic := topicName(t)
-	createTopicWithCleanup(t, topic)
+	createTopicWithCleanup(t, topic, brokers)
 
 	mt := mocktracer.Start()
 	defer mt.Stop()
 
-	producerCl, err := NewClient(
-		kgo.SeedBrokers(seedBrokers...),
-		kgo.RecordPartitioner(kgo.ManualPartitioner()),
+	producerCl, err := NewClientWithTracing(
+		[]kgo.Opt{
+			kgo.SeedBrokers(brokers...),
+			kgo.RecordPartitioner(kgo.ManualPartitioner()),
+		},
 	)
 	require.NoError(t, err)
 	defer producerCl.Close()
@@ -290,22 +212,25 @@ func TestProduceErrorFunctional(t *testing.T) {
 }
 
 func TestConsumeSpansFinishedOnNextPoll(t *testing.T) {
+	brokers := startKafka(t)
 	topic := topicName(t)
-	createTopicWithCleanup(t, topic)
+	createTopicWithCleanup(t, topic, brokers)
 
 	mt := mocktracer.Start()
 	defer mt.Stop()
 
-	consumerCl, err := NewClient(
-		kgo.SeedBrokers(seedBrokers...),
-		kgo.ConsumeTopics(topic),
-		kgo.ConsumerGroup(testGroupID),
+	consumerCl, err := NewClientWithTracing(
+		[]kgo.Opt{
+			kgo.SeedBrokers(brokers...),
+			kgo.ConsumeTopics(topic),
+			kgo.ConsumerGroup(testGroupID),
+		},
 	)
 	require.NoError(t, err)
 	defer consumerCl.Close()
 
-	producerCl, err := NewClient(
-		kgo.SeedBrokers(seedBrokers...),
+	producerCl, err := NewClientWithTracing(
+		[]kgo.Opt{kgo.SeedBrokers(brokers...)},
 	)
 	require.NoError(t, err)
 	defer producerCl.Close()
@@ -349,21 +274,24 @@ func TestConsumeSpansFinishedOnNextPoll(t *testing.T) {
 }
 
 func TestConsumeSpansFinishedOnClose(t *testing.T) {
+	brokers := startKafka(t)
 	topic := topicName(t)
-	createTopicWithCleanup(t, topic)
+	createTopicWithCleanup(t, topic, brokers)
 
 	mt := mocktracer.Start()
 	defer mt.Stop()
 
-	consumerCl, err := NewClient(
-		kgo.SeedBrokers(seedBrokers...),
-		kgo.ConsumeTopics(topic),
-		kgo.ConsumerGroup(testGroupID),
+	consumerCl, err := NewClientWithTracing(
+		[]kgo.Opt{
+			kgo.SeedBrokers(brokers...),
+			kgo.ConsumeTopics(topic),
+			kgo.ConsumerGroup(testGroupID),
+		},
 	)
 	require.NoError(t, err)
 
-	producerCl, err := NewClient(
-		kgo.SeedBrokers(seedBrokers...),
+	producerCl, err := NewClientWithTracing(
+		[]kgo.Opt{kgo.SeedBrokers(brokers...)},
 	)
 	require.NoError(t, err)
 	defer producerCl.Close()
@@ -394,20 +322,22 @@ func TestConsumeSpansFinishedOnClose(t *testing.T) {
 }
 
 func TestProduceDSMPathway(t *testing.T) {
+	brokers := startKafka(t)
 	topic := topicName(t)
-	createTopicWithCleanup(t, topic)
+	createTopicWithCleanup(t, topic, brokers)
 
 	mt := mocktracer.Start()
 	defer mt.Stop()
 
+	t.Setenv("DD_DATA_STREAMS_ENABLED", "true")
+
 	producedRecords := &producedRecords{}
 
 	producerCl, err := NewClientWithTracing(
-		ClientOptions(
-			kgo.SeedBrokers(seedBrokers...),
+		[]kgo.Opt{
+			kgo.SeedBrokers(brokers...),
 			kgo.WithHooks(producedRecords),
-		),
-		tracing.WithDataStreams(),
+		},
 	)
 	require.NoError(t, err)
 	defer producerCl.Close()
@@ -422,7 +352,7 @@ func TestProduceDSMPathway(t *testing.T) {
 	record := producedRecords.records[0]
 
 	// Extract pathway from record headers
-	carrier := tracing.NewKafkaHeadersCarrier(wrapRecord(record))
+	carrier := newKafkaHeadersCarrier(record)
 	got, ok := datastreams.PathwayFromContext(datastreams.ExtractFromBase64Carrier(
 		context.Background(),
 		carrier,
@@ -441,26 +371,27 @@ func TestProduceDSMPathway(t *testing.T) {
 }
 
 func TestConsumeDSMPathway(t *testing.T) {
+	brokers := startKafka(t)
 	topic := topicName(t)
-	createTopicWithCleanup(t, topic)
+	createTopicWithCleanup(t, topic, brokers)
 
 	mt := mocktracer.Start()
 	defer mt.Stop()
 
+	t.Setenv("DD_DATA_STREAMS_ENABLED", "true")
+
 	producerCl, err := NewClientWithTracing(
-		ClientOptions(kgo.SeedBrokers(seedBrokers...)),
-		tracing.WithDataStreams(),
+		[]kgo.Opt{kgo.SeedBrokers(brokers...)},
 	)
 	require.NoError(t, err)
 	defer producerCl.Close()
 
 	consumerCl, err := NewClientWithTracing(
-		ClientOptions(
-			kgo.SeedBrokers(seedBrokers...),
+		[]kgo.Opt{
+			kgo.SeedBrokers(brokers...),
 			kgo.ConsumeTopics(topic),
 			kgo.ConsumerGroup(testGroupID),
-		),
-		tracing.WithDataStreams(),
+		},
 	)
 	require.NoError(t, err)
 	defer consumerCl.Close()
@@ -477,13 +408,13 @@ func TestConsumeDSMPathway(t *testing.T) {
 	require.Len(t, records, 1)
 
 	// Get the actual group ID that franz-go reports (used for DSM checkpoint)
-	actualGroupID, _ := consumerCl.Client.GroupMetadata()
+	actualGroupID, _ := consumerCl.GroupMetadata()
 	require.NotEmpty(t, actualGroupID, "consumer should have joined a group")
 
 	record := records[0]
 
 	// Extract pathway from consumed record headers
-	carrier := tracing.NewKafkaHeadersCarrier(wrapRecord(record))
+	carrier := newKafkaHeadersCarrier(record)
 	got, ok := datastreams.PathwayFromContext(datastreams.ExtractFromBase64Carrier(
 		context.Background(),
 		carrier,
@@ -504,4 +435,91 @@ func TestConsumeDSMPathway(t *testing.T) {
 
 	assert.NotEqual(t, uint64(0), want.GetHash())
 	assert.Equal(t, want.GetHash(), got.GetHash())
+}
+
+// topicName returns a unique topic name for the current test.
+func topicName(t *testing.T) string {
+	return strings.ReplaceAll("twmb_franz-go_"+t.Name(), "/", "_")
+}
+
+// startKafka skips the test if INTEGRATION is not set, then starts a Kafka
+// test container and returns the broker addresses.
+func startKafka(t *testing.T) []string {
+	t.Helper()
+	if _, ok := os.LookupEnv("INTEGRATION"); !ok {
+		t.Skip("🚧 Skipping integration test (INTEGRATION environment variable is not set)")
+	}
+	containers.SkipIfProviderIsNotHealthy(t)
+	_, addr := containers.StartKafkaTestContainer(t, nil)
+	return []string{addr}
+}
+
+// createTopicWithCleanup creates a topic and registers cleanup with t.Cleanup.
+func createTopicWithCleanup(t *testing.T, topic string, brokers []string) {
+	t.Helper()
+
+	cl, err := kgo.NewClient(kgo.SeedBrokers(brokers...))
+	require.NoError(t, err)
+
+	admCl := kadm.NewClient(cl)
+	ctx := context.Background()
+
+	// Delete if exists, ignore errors
+	_, _ = admCl.DeleteTopics(ctx, topic)
+
+	_, err = admCl.CreateTopic(ctx, 1, 1, nil, topic)
+	require.NoError(t, err)
+
+	// Wait for topic to be ready
+	err = ensureTopicReady(topic, brokers)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_, err := admCl.DeleteTopics(context.Background(), topic)
+		if err != nil {
+			t.Logf("failed to delete topic %s: %v", topic, err)
+		} else {
+			t.Logf("deleted topic %s", topic)
+		}
+		admCl.Close()
+		cl.Close()
+	})
+}
+
+func ensureTopicReady(topic string, brokers []string) error {
+	cl, err := kgo.NewClient(kgo.SeedBrokers(brokers...))
+	if err != nil {
+		return err
+	}
+	defer cl.Close()
+
+	admCl := kadm.NewClient(cl)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for {
+		metadata, err := admCl.Metadata(ctx, topic)
+		if err != nil {
+			return err
+		}
+
+		topicMeta, ok := metadata.Topics[topic]
+		if ok && len(topicMeta.Partitions) > 0 && topicMeta.Err == nil {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
+type producedRecords struct {
+	records []*kgo.Record
+}
+
+func (r *producedRecords) OnProduceRecordUnbuffered(record *kgo.Record, err error) {
+	r.records = append(r.records, record)
 }
