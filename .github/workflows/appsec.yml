@@ -102,6 +102,21 @@ jobs:
         env:
           GOMODCACHE: ${{ github.workspace }}/${{ steps.cfg.outputs.path }}
         run: go mod download -x
+  
+  get-credentials:
+    runs-on: ubuntu-latest
+    outputs:
+      dd-api-key: ${{ steps.dd-sts.outputs.api_key }}
+    steps:
+      - name: Get Datadog credentials
+        id: dd-sts
+        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75
+        with:
+          policy: dd-trace-go
+
+      - name: Get Credentials
+        run: |
+          echo "DD_API_KEY=${{ steps.dd-sts.outputs.api_key }}" >> "$GITHUB_ENV"
 
   macos:
     name: ${{ matrix.runs-on }} go${{ matrix.go-version }}
@@ -205,7 +220,7 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/dd-ci-upload
         with:
-          dd-api-key: ${{ secrets.DD_CI_API_KEY }}
+          dd-api-key: ${{ needs.get-credentials.outputs.dd-api-key }}
           path: tmp_appsec
           tags: go:${{ matrix.go-version }},arch:${{ runner.arch }},os:${{ runner.os }}
 
@@ -288,7 +303,7 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/dd-ci-upload
         with:
-          dd-api-key: ${{ secrets.DD_CI_API_KEY }}
+          dd-api-key: ${{ needs.get-credentials.outputs.dd-api-key }}
           path: tmp_appsec
           tags: go:,arch:${{ runner.arch }},os:${{ runner.os }}
 
@@ -444,7 +459,7 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/dd-ci-upload
         with:
-          dd-api-key: ${{ secrets.DD_CI_API_KEY }}
+          dd-api-key: ${{ needs.get-credentials.outputs.dd-api-key }}
           path: tmp_appsec
           tags: go:${{ matrix.go-version }},arch:${{ runner.arch }},os:${{ runner.os }}
 
