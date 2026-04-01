@@ -250,6 +250,7 @@ jobs:
     needs:
       - build-service-extensions-callout
       - build-haproxy
+      - warm-repo-cache
     strategy:
       fail-fast: false
       matrix:
