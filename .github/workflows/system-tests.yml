@@ -157,10 +157,17 @@ jobs:
     env:
       TEST_LIBRARY: golang
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
-      DD_API_KEY: ${{ needs.warm-repo-cache.outputs.dd-api-key }}
-      SYSTEM_TESTS_E2E_DD_API_KEY: ${{ needs.warm-repo-cache.outputs.system-tests-e2e-dd-api-key }}
     name: Test (${{ matrix.weblog-variant }}, ${{ matrix.scenario }})
     steps:
+      - name: Get Datadog credentials
+        id: dd-sts
+        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75
+        with:
+          policy: dd-trace-go
+      - name: Set credentials
+        run: |
+          echo "DD_API_KEY=${{ steps.dd-sts.outputs.api_key }}" >> "$GITHUB_ENV"
+          echo "SYSTEM_TESTS_E2E_DD_API_KEY=${{ steps.dd-sts.outputs.api_key }}" >> "$GITHUB_ENV"
       - name: Restore repo cache
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
@@ -196,7 +203,7 @@ jobs:
         if: ${{ always() }}
         uses: DataDog/system-tests/.github/actions/push_to_test_optim@b5df157a67a0bd5ce78a7d775ddea7b621fcbb61
         with:
-          datadog_api_key: ${{ needs.warm-repo-cache.outputs.dd-api-key }}
+          datadog_api_key: ${{ steps.dd-sts.outputs.api_key }}
 
       - name: Compress artifact
         if: ${{ always() }}
@@ -304,6 +311,15 @@ jobs:
       - name: Build agent
         run: ./build.sh -i agent
 
+      - name: Get Datadog credentials
+        id: dd-sts
+        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75
+        with:
+          policy: dd-trace-go
+      - name: Set credentials
+        run: |
+          echo "DD_API_KEY=${{ steps.dd-sts.outputs.api_key }}" >> "$GITHUB_ENV"
+
       - name: Run
         run: ./run.sh ${{ matrix.scenario }}
         env:
@@ -313,7 +329,7 @@ jobs:
         if: ${{ always() }}
         uses: DataDog/system-tests/.github/actions/push_to_test_optim@b5df157a67a0bd5ce78a7d775ddea7b621fcbb61
         with:
-          datadog_api_key: ${{ needs.warm-repo-cache.outputs.dd-api-key }}
+          datadog_api_key: ${{ steps.dd-sts.outputs.api_key }}
 
       - name: Compress artifact
         if: ${{ always() }}
@@ -333,6 +349,7 @@ jobs:
 
   tracer-release:
     if: github.event_name == 'schedule'
+    needs: warm-repo-cache
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
     secrets:
       DD_API_KEY: ${{ needs.warm-repo-cache.outputs.dd-api-key }}
