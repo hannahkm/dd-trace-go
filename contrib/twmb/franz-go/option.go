@@ -10,6 +10,7 @@ import "github.com/DataDog/dd-trace-go/v2/instrumentation"
 type config struct {
 	consumerServiceName string
 	producerServiceName string
+	serviceSource       string
 	consumerSpanName    string
 	producerSpanName    string
 	dataStreamsEnabled  bool
@@ -18,6 +19,7 @@ type config struct {
 func defaults(cfg *config) {
 	cfg.consumerServiceName = instr.ServiceName(instrumentation.ComponentConsumer, nil)
 	cfg.producerServiceName = instr.ServiceName(instrumentation.ComponentProducer, nil)
+	cfg.serviceSource = string(instrumentation.PackageTwmbFranzGo)
 	cfg.consumerSpanName = instr.OperationName(instrumentation.ComponentConsumer, nil)
 	cfg.producerSpanName = instr.OperationName(instrumentation.ComponentProducer, nil)
 	cfg.dataStreamsEnabled = instr.DataStreamsEnabled()
@@ -38,6 +40,7 @@ func WithService(serviceName string) Option {
 	return OptionFn(func(cfg *config) {
 		cfg.consumerServiceName = serviceName
 		cfg.producerServiceName = serviceName
+		cfg.serviceSource = instrumentation.ServiceSourceWithServiceOption
 	})
 }
 

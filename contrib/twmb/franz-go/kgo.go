@@ -124,7 +124,7 @@ func (h *tracingHook) OnFetchRecordUnbuffered(r *kgo.Record, polled bool) {
 
 func (h *tracingHook) startConsumeSpan(ctx context.Context, r *kgo.Record) *tracer.Span {
 	opts := []tracer.StartSpanOption{
-		tracer.ServiceName(h.cfg.consumerServiceName),
+		instrumentation.ServiceNameWithSource(h.cfg.consumerServiceName, h.cfg.serviceSource),
 		tracer.ResourceName("Consume Topic " + r.Topic),
 		tracer.SpanType(ext.SpanTypeMessageConsumer),
 		tracer.Tag(ext.MessagingKafkaPartition, r.Partition),
@@ -154,7 +154,7 @@ func (h *tracingHook) startConsumeSpan(ctx context.Context, r *kgo.Record) *trac
 
 func (h *tracingHook) startProduceSpan(ctx context.Context, r *kgo.Record) *tracer.Span {
 	opts := []tracer.StartSpanOption{
-		tracer.ServiceName(h.cfg.producerServiceName),
+		instrumentation.ServiceNameWithSource(h.cfg.producerServiceName, h.cfg.serviceSource),
 		tracer.ResourceName("Produce Topic " + r.Topic),
 		tracer.SpanType(ext.SpanTypeMessageProducer),
 		tracer.Tag(ext.Component, componentName),
