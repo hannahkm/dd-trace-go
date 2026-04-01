@@ -7,7 +7,6 @@ package kgo
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	kgo "github.com/twmb/franz-go/pkg/kgo"
@@ -43,18 +42,10 @@ func newTracingHook(opts ...Option) *tracingHook {
 	return &tracingHook{cfg: cfg}
 }
 
-// NewClientWithTracing creates a kgo.Client with distributed tracing enabled.
-func NewClientWithTracing(kgoOpts []kgo.Opt, opts ...Option) (*kgo.Client, error) {
-	hook := newTracingHook(opts...)
-	kgoOpts = append(kgoOpts, kgo.WithHooks(hook))
-
-	client, err := kgo.NewClient(kgoOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create kgo.Client: %w", err)
-	}
-	hook.client = client
-
-	return client, nil
+// WithTracing creates return a kgo.Hook enabling
+// tracing on the client
+func WithTracing(opts ...Option) kgo.Opt {
+	return kgo.WithHooks(newTracingHook(opts...))
 }
 
 func (h *tracingHook) finishAndClearActiveSpans() {
@@ -64,6 +55,15 @@ func (h *tracingHook) finishAndClearActiveSpans() {
 	}
 	h.activeSpans = h.activeSpans[:0]
 	h.activeSpansMu.Unlock()
+}
+
+// OnNewClient is a kgo hook called when the client is initialized
+// before any client goroutines are started.
+//
+// We need a reference to the client in the TracingHook
+// in order to retrieve metadata later on for DSM
+func (h *tracingHook) OnNewClient(c *kgo.Client) {
+	h.client = c
 }
 
 // OnPollRecordsStart is a kgo hook called at the start of every PollFetches or
@@ -182,12 +182,19 @@ func (h *tracingHook) setConsumeDSMCheckpoint(r *kgo.Record) {
 		return
 	}
 	edges := []string{"direction:in", "topic:" + r.Topic, "type:kafka"}
-	// GroupMetadata uses an atomic load internally, so it is safe to call
-	// concurrently without additional locking.
-	groupID, _ := h.client.GroupMetadata()
-	if groupID != "" {
-		edges = append(edges, "group:"+groupID)
+
+	// The client should never be nil when we reach that point
+	// but still checking to avoid a panic.
+	var groupID string
+	if h.client != nil {
+		// GroupMetadata uses an atomic load internally, so it is safe to call
+		// concurrently without additional locking.
+		groupID, _ = h.client.GroupMetadata()
+		if groupID != "" {
+			edges = append(edges, "group:"+groupID)
+		}
 	}
+
 	carrier := newKafkaHeadersCarrier(r)
 	ctx, ok := tracer.SetDataStreamsCheckpointWithParams(
 		datastreams.ExtractFromBase64Carrier(r.Context, carrier),
