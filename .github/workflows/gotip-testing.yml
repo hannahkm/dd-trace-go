@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  get-credientials:
+  get-credentials:
     runs-on: ubuntu-latest
     outputs:
       dd-api-key: ${{ steps.dd-sts.outputs.api_key }}
@@ -24,9 +24,6 @@ jobs:
         with:
           policy: dd-trace-go
 
-      - name: Get Credentials
-        run: |
-          echo "DD_API_KEY=${{ steps.dd-sts.outputs.api_key }}" >> "$GITHUB_ENV"
   test-tip:
     runs-on: ubuntu-latest
     needs: get-credentials
@@ -41,12 +38,6 @@ jobs:
           DD_TEST_AGENT_HOST: "localhost"
           DD_TEST_AGENT_PORT: 9126
     steps:
-      - name: Get Datadog credentials
-        id: dd-sts
-        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75
-        with:
-          policy: dd-trace-go
-
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -79,7 +70,7 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/dd-ci-upload
         with:
-          dd-api-key: ${{ steps.dd-sts.outputs.api_key }}
+          dd-api-key: ${{ needs.get-credentials.outputs.dd-api-key }}
           path: ${{ env.TEST_RESULTS }}
           tags: go:gotip,arch:${{ runner.arch }},os:${{ runner.os }}
 
