@@ -156,6 +156,7 @@ jobs:
       fail-fast: false
     env:
       TEST_LIBRARY: golang
+      DD_API_KEY: ${{ needs.warm-repo-cache.outputs.dd-api-key }}
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
     name: Test (${{ matrix.weblog-variant }}, ${{ matrix.scenario }})
     steps:
