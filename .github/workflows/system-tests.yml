@@ -29,6 +29,7 @@ on:
     - cron:  '00 04 * * *'
 
 permissions:
+  id-token: write
   contents: read
   packages: write
 

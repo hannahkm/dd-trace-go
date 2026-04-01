@@ -29,6 +29,7 @@ env:
   TEST_RESULTS: /tmp/test-results # path to where test results will be saved
 
 permissions:
+  id-token: write
   contents: read
 
 jobs:

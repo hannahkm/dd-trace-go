@@ -49,6 +49,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
 
 permissions:
+  id-token: write
   contents: read
 
 jobs:
