@@ -103,28 +103,13 @@ jobs:
         env:
           GOMODCACHE: ${{ github.workspace }}/${{ steps.cfg.outputs.path }}
         run: go mod download -x
-  
-  get-credentials:
-    runs-on: ubuntu-latest
-    outputs:
-      dd-api-key: ${{ steps.dd-sts.outputs.api_key }}
-    steps:
-      - name: Get Datadog credentials
-        id: dd-sts
-        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75
-        with:
-          policy: dd-trace-go
 
-      - name: Get Credentials
-        run: |
-          echo "DD_API_KEY=${{ steps.dd-sts.outputs.api_key }}" >> "$GITHUB_ENV"
 
   macos:
     name: ${{ matrix.runs-on }} go${{ matrix.go-version }}
     runs-on: ${{ matrix.runs-on }}
     needs: 
       - go-mod-caching
-      - get-credentials
     strategy:
       matrix:
         runs-on: [ macos-14, macos-latest ] # oldest and newest macos runners available
@@ -212,6 +197,11 @@ jobs:
             done
           done
           exit $report_error
+      - name: Get Datadog credentials
+        id: dd-sts
+        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75
+        with:
+          policy: dd-trace-go
       - name: Upload Coverage
         if: always()
         continue-on-error: true
@@ -223,7 +213,7 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/dd-ci-upload
         with:
-          dd-api-key: ${{ needs.get-credentials.outputs.dd-api-key }}
+          dd-api-key: ${{ steps.dd-sts.outputs.api_key }}
           path: tmp_appsec
           tags: go:${{ matrix.go-version }},arch:${{ runner.arch }},os:${{ runner.os }}
 
@@ -232,7 +222,6 @@ jobs:
     name: ${{ matrix.runs-on }} (AppSec disabled)
     needs: 
       - go-mod-caching
-      - get-credentials
     runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
@@ -243,6 +232,11 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.ref || github.ref }}
+      - name: Get Datadog credentials
+        id: dd-sts
+        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75
+        with:
+          policy: dd-trace-go
 
       - name: Restore Go modules cache
         uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -308,7 +302,7 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/dd-ci-upload
         with:
-          dd-api-key: ${{ needs.get-credentials.outputs.dd-api-key }}
+          dd-api-key: ${{ steps.dd-sts.outputs.api_key }}
           path: tmp_appsec
           tags: go:,arch:${{ runner.arch }},os:${{ runner.os }}
 
@@ -319,7 +313,6 @@ jobs:
     runs-on: ${{ matrix.platform == 'linux/amd64' && 'ubuntu-latest-16-cores' || 'ubuntu-24.04-arm' }}
     needs: 
       - go-mod-caching
-      - get-credentials
     strategy:
       matrix:
         go-version: [ "1.26", "1.25" ]
@@ -455,6 +448,11 @@ jobs:
         run: |
           sudo docker exec -i test.runner bash -c "go run ./scripts/configinverter/main.go check"
       
+      - name: Get Datadog credentials
+        id: dd-sts
+        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75
+        with:
+          policy: dd-trace-go
       - name: Upload Coverage
         if: always()
         continue-on-error: true
@@ -466,7 +464,7 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/dd-ci-upload
         with:
-          dd-api-key: ${{ needs.get-credentials.outputs.dd-api-key }}
+          dd-api-key: ${{ steps.dd-sts.outputs.api_key }}
           path: tmp_appsec
           tags: go:${{ matrix.go-version }},arch:${{ runner.arch }},os:${{ runner.os }}
 
