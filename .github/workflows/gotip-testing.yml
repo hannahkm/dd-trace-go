@@ -4,7 +4,6 @@ on:
   schedule: # nightly
     - cron: "0 0 * * *"
   workflow_dispatch: { } # manually
-  pull_request: # temporary for testing
 
 env:
   TEST_RESULTS: /tmp/tip-results # path to where test results will be saved
