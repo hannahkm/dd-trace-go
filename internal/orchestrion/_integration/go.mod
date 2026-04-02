@@ -11,7 +11,7 @@ require (
 	github.com/DataDog/dd-trace-go/orchestrion/all/v2 v2.9.0-dev
 	github.com/DataDog/dd-trace-go/v2 v2.9.0-dev
 	github.com/DataDog/go-libddwaf/v4 v4.9.0
-	github.com/DataDog/orchestrion v1.8.1-0.20260312121543-8093b0b4eec9
+	github.com/DataDog/orchestrion v1.9.0
 	github.com/IBM/sarama v1.44.0
 	github.com/Shopify/sarama v1.38.1
 	github.com/aws/aws-sdk-go v1.55.5
@@ -139,6 +139,7 @@ require (
 	github.com/DataDog/dd-trace-go/contrib/segmentio/kafka-go/v2 v2.9.0-dev // indirect
 	github.com/DataDog/dd-trace-go/contrib/sirupsen/logrus/v2 v2.9.0-dev // indirect
 	github.com/DataDog/dd-trace-go/contrib/twitchtv/twirp/v2 v2.9.0-dev // indirect
+	github.com/DataDog/dd-trace-go/contrib/twmb/franz-go/v2 v2.9.0-dev // indirect
 	github.com/DataDog/dd-trace-go/contrib/valkey-io/valkey-go/v2 v2.9.0-dev // indirect
 	github.com/DataDog/dd-trace-go/contrib/valyala/fasthttp/v2 v2.9.0-dev // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
@@ -150,7 +151,7 @@ require (
 	github.com/Microsoft/hcsshim v0.11.7 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
-	github.com/antithesishq/antithesis-sdk-go v0.6.0 // indirect
+	github.com/antithesishq/antithesis-sdk-go v0.7.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.11 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.32 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.36 // indirect
@@ -262,7 +263,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.18.4 // indirect
+	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
@@ -275,7 +276,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.21 // indirect
 	github.com/mdelapenya/tlscert v0.2.0 // indirect
-	github.com/minio/highwayhash v1.0.4-0.20251030100505-070ab1a87a76 // indirect
+	github.com/minio/highwayhash v1.0.4 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
@@ -468,6 +469,8 @@ replace github.com/DataDog/dd-trace-go/contrib/segmentio/kafka-go/v2 => ../../..
 
 replace github.com/DataDog/dd-trace-go/contrib/sirupsen/logrus/v2 => ../../../contrib/sirupsen/logrus
 
+replace github.com/DataDog/dd-trace-go/contrib/twmb/franz-go/v2 => ../../../contrib/twmb/franz-go
+
 replace github.com/DataDog/dd-trace-go/contrib/twitchtv/twirp/v2 => ../../../contrib/twitchtv/twirp
 
 replace github.com/DataDog/dd-trace-go/contrib/valkey-io/valkey-go/v2 => ../../../contrib/valkey-io/valkey-go
@@ -483,3 +486,5 @@ replace google.golang.org/grpc => google.golang.org/grpc v1.70.0
 replace github.com/DataDog/dd-trace-go/contrib/go.mongodb.org/mongo-driver.v2/v2 => ../../../contrib/go.mongodb.org/mongo-driver.v2
 
 replace github.com/DataDog/dd-trace-go/instrumentation/testutils/containers/v2 => ../../../instrumentation/testutils/containers
+
+replace github.com/twmb/franz-go => github.com/rarguelloF/franz-go v0.0.0-20260319182938-eb35008e6cae
