@@ -18,7 +18,6 @@ permissions:
 jobs:
   test-tip:
     runs-on: ubuntu-latest
-    needs: get-credentials
     services:
       datadog-agent:
         image: datadog/agent-dev:master-py3
