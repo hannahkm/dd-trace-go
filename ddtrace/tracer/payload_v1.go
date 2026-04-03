@@ -1039,15 +1039,15 @@ func (s *stringValue) decode(buf []byte) ([]byte, error) {
 var errUnableDecodeString = errors.New("unable to read string value")
 
 type stringTable struct {
-	strings   []stringValue         // list of strings
-	indices   map[stringValue]index // map strings to their indices
-	nextIndex index                 // last index of the stringTable
+	strings   []stringValue    // list of strings
+	indices   map[string]index // map strings to their indices
+	nextIndex index            // last index of the stringTable
 }
 
 func newStringTable() *stringTable {
 	st := &stringTable{
 		strings:   make([]stringValue, 1, 64),
-		indices:   make(map[stringValue]index, 64),
+		indices:   make(map[string]index, 64),
 		nextIndex: 1,
 	}
 	st.strings[0] = ""
@@ -1065,12 +1065,15 @@ func (st *stringTable) reset() {
 
 // Adds a string to the string table if it does not already exist.
 func (st *stringTable) serialize(value string, buf []byte) []byte {
-	sv := stringValue(value)
-	if idx, ok := st.indices[sv]; ok {
+	if value == "" {
+		return msgp.AppendUint32(buf, 0)
+	}
+	if idx, ok := st.indices[value]; ok {
 		return idx.encode(buf)
 	}
+	sv := stringValue(value)
 	buf = sv.encode(buf)
-	st.indices[sv] = st.nextIndex
+	st.indices[value] = st.nextIndex
 	st.strings = append(st.strings, sv)
 	st.nextIndex++
 	return buf
