@@ -99,6 +99,21 @@ func TestConvertSpan(t *testing.T) {
 	assert.Equal(t, 42.5, attrs["metric.key"])
 }
 
+func TestConvertSpanParentSpanId(t *testing.T) {
+	t.Run("set when parent_id is non-zero", func(t *testing.T) {
+		s := newSpan("op", "svc", "res", 100, 200, 50)
+		otlp := convertSpan(s, "svc")
+		require.NotNil(t, otlp.ParentSpanId)
+		assert.Equal(t, uint64(50), binary.BigEndian.Uint64(otlp.ParentSpanId))
+	})
+
+	t.Run("omitted when parent_id is zero", func(t *testing.T) {
+		s := newSpan("op", "svc", "res", 100, 200, 0)
+		otlp := convertSpan(s, "svc")
+		assert.Nil(t, otlp.ParentSpanId, "ParentSpanId must be omitted for root spans")
+	})
+}
+
 func TestConvertSpanFiltersUnsampled(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -202,6 +217,7 @@ func TestConvertSpanAttributes(t *testing.T) {
 	assert.Equal(t, 10.0, m["count"])
 	assert.Equal(t, 0.5, m["rate"])
 	assert.Equal(t, "op", m["operation.name"])
+	assert.Contains(t, m, "resource.name")
 	assert.Contains(t, m, "span.type")
 }
 
@@ -261,6 +277,7 @@ func TestConvertSpanAttributesPriorityOrder(t *testing.T) {
 	m := keyValuesToMap(attrs)
 
 	assert.Equal(t, "op", m["operation.name"], "operation.name should always be present")
+	assert.Contains(t, m, "resource.name", "resource.name should always be present")
 	assert.Contains(t, m, "span.type", "span.type should always be present")
 	assert.NotContains(t, m, "should-be-dropped", "metrics should be dropped when meta fills the limit")
 	assert.Equal(t, maxAttributesCount, len(attrs))

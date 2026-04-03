@@ -58,7 +58,7 @@ func convertSpan(s *Span, defaultServiceName string) *otlptrace.Span {
 	return &otlptrace.Span{
 		TraceId:           convertTraceID(s.context.traceID.Upper(), s.context.traceID.Lower()),
 		SpanId:            convertSpanID(s.spanID),
-		ParentSpanId:      convertSpanID(s.parentID),
+		ParentSpanId:      convertParentSpanID(s.parentID),
 		Name:              s.resource,
 		Kind:              convertSpanKind(getSpanKind(s)),
 		StartTimeUnixNano: uint64(s.start),
@@ -129,6 +129,13 @@ func convertSpanID(spanID uint64) []byte {
 	return b
 }
 
+func convertParentSpanID(parentID uint64) []byte {
+	if parentID == 0 {
+		return nil
+	}
+	return convertSpanID(parentID)
+}
+
 func convertSpanKind(spanKind string) otlptrace.Span_SpanKind {
 	switch spanKind {
 	case ext.SpanKindInternal:
@@ -164,7 +171,7 @@ func addAttribute(attrs *[]*otlpcommon.KeyValue, key string, val *otlpcommon.Any
 
 // +checklocksignore — Post-finish: reads finished span fields during payload encoding.
 func convertSpanAttributes(s *Span, defaultServiceName string) []*otlpcommon.KeyValue {
-	n := len(s.meta) + len(s.metrics) + len(s.metaStruct) + 2
+	n := len(s.meta) + len(s.metrics) + len(s.metaStruct) + 3
 	if s.service != defaultServiceName {
 		n++
 	}
@@ -173,8 +180,16 @@ func convertSpanAttributes(s *Span, defaultServiceName string) []*otlpcommon.Key
 	if !addAttribute(&attrs, "operation.name", otlpStringValue(s.name)) {
 		return attrs
 	}
+	if !addAttribute(&attrs, "resource.name", otlpStringValue(s.resource)) {
+		return attrs
+	}
 	if !addAttribute(&attrs, "span.type", otlpStringValue(s.spanType)) {
 		return attrs
+	}
+	if s.service != defaultServiceName {
+		if !addAttribute(&attrs, "service.name", otlpStringValue(s.service)) {
+			return attrs
+		}
 	}
 	for key, value := range s.meta {
 		if !addAttribute(&attrs, key, otlpStringValue(value)) {
@@ -188,11 +203,6 @@ func convertSpanAttributes(s *Span, defaultServiceName string) []*otlpcommon.Key
 	}
 	for key, value := range s.metaStruct {
 		if !addAttribute(&attrs, key, anyToOTLPValue(value)) {
-			return attrs
-		}
-	}
-	if s.service != defaultServiceName {
-		if !addAttribute(&attrs, "service.name", otlpStringValue(s.service)) {
 			return attrs
 		}
 	}
