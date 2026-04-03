@@ -7,19 +7,39 @@ package config
 
 import (
 	"sync"
+
+	configtelemetry "github.com/DataDog/dd-trace-go/v2/internal/config/configtelemetry"
+	"github.com/DataDog/dd-trace-go/v2/internal/telemetry"
 )
 
 // ProfilerConfig holds profiler-specific configuration. It embeds a pointer
 // to the shared BaseConfig so shared field accessors are promoted.
-//
-// Shadow fields will be added here as the profiler's programmatic API
-// (e.g. profiler.WithService) is wired through internal/config.
 type ProfilerConfig struct {
 	*BaseConfig
 
-	pmu sync.RWMutex // protects ProfilerConfig fields only
+	pmu sync.RWMutex
+
+	env *string
 }
 
 func loadProfilerConfig(g *BaseConfig) *ProfilerConfig {
 	return &ProfilerConfig{BaseConfig: g}
+}
+
+func (p *ProfilerConfig) Env() string {
+	p.pmu.RLock()
+	if p.env != nil {
+		v := *p.env
+		p.pmu.RUnlock()
+		return v
+	}
+	p.pmu.RUnlock()
+	return p.BaseConfig.Env()
+}
+
+func (p *ProfilerConfig) SetEnv(env string, origin telemetry.Origin) {
+	p.pmu.Lock()
+	p.env = &env
+	p.pmu.Unlock()
+	configtelemetry.Report("DD_ENV.profiler", env, origin)
 }

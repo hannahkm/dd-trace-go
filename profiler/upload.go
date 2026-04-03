@@ -170,8 +170,8 @@ func encode(bat batch, cfg *config) (contentType string, body io.Reader, err err
 	// If the user did not configure an "env" in the client, we should omit
 	// the tag so that the agent has a chance to supply a default tag.
 	// Otherwise, the tag supplied by the client will have priority.
-	if cfg.env != "" {
-		tags = append(tags, fmt.Sprintf("env:%s", cfg.env))
+	if e := cfg.internalConfig.Env(); e != "" {
+		tags = append(tags, fmt.Sprintf("env:%s", e))
 	}
 	if bat.host != "" {
 		tags = append(tags, fmt.Sprintf("host:%s", bat.host))
