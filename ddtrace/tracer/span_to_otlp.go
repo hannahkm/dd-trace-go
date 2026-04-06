@@ -58,7 +58,7 @@ func convertSpan(s *Span, defaultServiceName string) *otlptrace.Span {
 	return &otlptrace.Span{
 		TraceId:           convertTraceID(s.context.traceID.Upper(), s.context.traceID.Lower()),
 		SpanId:            convertSpanID(s.spanID),
-		ParentSpanId:      convertSpanID(s.parentID),
+		ParentSpanId:      convertParentSpanID(s.parentID),
 		Name:              s.resource,
 		Kind:              convertSpanKind(getSpanKind(s)),
 		StartTimeUnixNano: uint64(s.start),
@@ -87,7 +87,7 @@ func convertSpanLinks(links []SpanLink) []*otlptrace.Span_Link {
 	if len(links) == 0 {
 		return nil
 	}
-	otlpLinks := make([]*otlptrace.Span_Link, 0)
+	otlpLinks := make([]*otlptrace.Span_Link, 0, len(links))
 	for _, link := range links {
 		otlpLinks = append(otlpLinks, &otlptrace.Span_Link{
 			TraceId:    convertTraceID(link.TraceIDHigh, link.TraceID),
@@ -105,7 +105,7 @@ func convertEvents(s *Span) []*otlptrace.Span_Event {
 	if len(s.spanEvents) == 0 {
 		return nil
 	}
-	events := make([]*otlptrace.Span_Event, 0)
+	events := make([]*otlptrace.Span_Event, 0, len(s.spanEvents))
 	for _, event := range s.spanEvents {
 		events = append(events, &otlptrace.Span_Event{
 			Name:         event.Name,
@@ -127,6 +127,13 @@ func convertSpanID(spanID uint64) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, spanID)
 	return b
+}
+
+func convertParentSpanID(parentID uint64) []byte {
+	if parentID == 0 {
+		return nil
+	}
+	return convertSpanID(parentID)
 }
 
 func convertSpanKind(spanKind string) otlptrace.Span_SpanKind {
@@ -153,41 +160,51 @@ func getSpanKind(s *Span) string { return s.meta[ext.SpanKind] }
 // Attribute conversion (DD → OTLP KeyValue / AnyValue)
 // -----------------------------------------------------------------------------
 
+// addAttribute appends a key-value pair to attrs and returns true if there is
+// still room for more attributes.
+func addAttribute(attrs *[]*otlpcommon.KeyValue, key string, val *otlpcommon.AnyValue) bool {
+	if val != nil {
+		*attrs = append(*attrs, &otlpcommon.KeyValue{Key: key, Value: val})
+	}
+	return len(*attrs) < maxAttributesCount
+}
+
 // +checklocksignore — Post-finish: reads finished span fields during payload encoding.
 func convertSpanAttributes(s *Span, defaultServiceName string) []*otlpcommon.KeyValue {
-	n := len(s.meta) + len(s.metrics) + len(s.metaStruct) + 2
+	n := len(s.meta) + len(s.metrics) + len(s.metaStruct) + 3
 	if s.service != defaultServiceName {
 		n++
 	}
 	attrs := make([]*otlpcommon.KeyValue, 0, min(n, maxAttributesCount))
 
-	// add appends a key-value pair and returns true if there is still room.
-	add := func(key string, val *otlpcommon.AnyValue) bool {
-		if val != nil {
-			attrs = append(attrs, &otlpcommon.KeyValue{Key: key, Value: val})
-		}
-		return len(attrs) < maxAttributesCount
+	if !addAttribute(&attrs, "operation.name", otlpStringValue(s.name)) {
+		return attrs
 	}
-
-	add("operation.name", otlpStringValue(s.name))
-	add("span.type", otlpStringValue(s.spanType))
+	if !addAttribute(&attrs, "resource.name", otlpStringValue(s.resource)) {
+		return attrs
+	}
+	if !addAttribute(&attrs, "span.type", otlpStringValue(s.spanType)) {
+		return attrs
+	}
+	if s.service != defaultServiceName {
+		if !addAttribute(&attrs, "service.name", otlpStringValue(s.service)) {
+			return attrs
+		}
+	}
 	for key, value := range s.meta {
-		if !add(key, otlpStringValue(value)) {
+		if !addAttribute(&attrs, key, otlpStringValue(value)) {
 			return attrs
 		}
 	}
 	for key, value := range s.metrics {
-		if !add(key, otlpDoubleValue(value)) {
+		if !addAttribute(&attrs, key, otlpDoubleValue(value)) {
 			return attrs
 		}
 	}
 	for key, value := range s.metaStruct {
-		if !add(key, anyToOTLPValue(value)) {
+		if !addAttribute(&attrs, key, anyToOTLPValue(value)) {
 			return attrs
 		}
-	}
-	if s.service != defaultServiceName {
-		add("service.name", otlpStringValue(s.service))
 	}
 	return attrs
 }
