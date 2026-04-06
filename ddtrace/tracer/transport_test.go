@@ -124,8 +124,8 @@ func TestResolveAgentAddr(t *testing.T) {
 			// Use CreateNew directly to test URL resolution without triggering
 			// loadAgentFeatures, which would make real HTTP calls to the configured URL.
 			c := new(config)
-		c.internalConfig = internalconfig.GetTracerConfig()
-		if tt.inOpt != nil {
+			c.internalConfig = internalconfig.GetTracerConfig()
+			if tt.inOpt != nil {
 				tt.inOpt(c)
 			}
 			assert.Equal(t, tt.out, c.internalConfig.RawAgentURL())
