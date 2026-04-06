@@ -392,27 +392,27 @@ func newConfig(opts ...StartOption) (*config, error) {
 	if c.internalConfig.Env() == "" {
 		if v, ok := globalTags["env"]; ok {
 			if e, ok := v.(string); ok {
-				c.internalConfig.SetEnv(e, c.globalTags.Origin())
+				c.internalConfig.SetEnv(e, c.globalTags.Origin(), internalconfig.ProductTracer)
 			}
 		}
 	}
 	if c.internalConfig.Version() == "" {
 		if v, ok := globalTags["version"]; ok {
 			if ver, ok := v.(string); ok {
-				c.internalConfig.SetVersion(ver, c.globalTags.Origin())
+				c.internalConfig.SetVersion(ver, c.globalTags.Origin(), internalconfig.ProductTracer)
 			}
 		}
 	}
 	if c.internalConfig.ServiceName() == "" {
 		if v, ok := globalTags["service"]; ok {
 			if s, ok := v.(string); ok {
-				c.internalConfig.SetServiceName(s, c.globalTags.Origin())
-				globalconfig.SetServiceName(s)
-			}
-		} else {
-			// There is not an explicit service set, default to binary name.
-			// In this case, don't set a global service name so the contribs continue using their defaults.
-			c.internalConfig.SetServiceName(filepath.Base(os.Args[0]), internalconfig.OriginDefault)
+			c.internalConfig.SetServiceName(s, c.globalTags.Origin(), internalconfig.ProductTracer)
+			globalconfig.SetServiceName(s)
+		}
+	} else {
+		// There is not an explicit service set, default to binary name.
+		// In this case, don't set a global service name so the contribs continue using their defaults.
+		c.internalConfig.SetServiceName(filepath.Base(os.Args[0]), internalconfig.OriginDefault, internalconfig.ProductTracer)
 		}
 	} else {
 		globalconfig.SetServiceName(c.internalConfig.ServiceName())
@@ -976,7 +976,7 @@ func WithPropagator(p Propagator) StartOption {
 // WithService sets the default service name for the program.
 func WithService(name string) StartOption {
 	return func(c *config) {
-		c.internalConfig.SetServiceName(name, internalconfig.OriginCode)
+		c.internalConfig.SetServiceName(name, internalconfig.OriginCode, internalconfig.ProductTracer)
 		globalconfig.SetServiceName(name)
 	}
 }
@@ -1047,7 +1047,7 @@ func WithAgentTimeout(timeout int) StartOption {
 // The default value is the environment variable DD_ENV, if it is set.
 func WithEnv(env string) StartOption {
 	return func(c *config) {
-		c.internalConfig.SetEnv(env, telemetry.OriginCode)
+		c.internalConfig.SetEnv(env, telemetry.OriginCode, internalconfig.ProductTracer)
 	}
 }
 
@@ -1201,7 +1201,7 @@ func WithSamplingRules(rules []SamplingRule) StartOption {
 // span service name and config service name match. Do NOT use with WithUniversalVersion.
 func WithServiceVersion(version string) StartOption {
 	return func(cfg *config) {
-		cfg.internalConfig.SetVersion(version, telemetry.OriginCode)
+		cfg.internalConfig.SetVersion(version, telemetry.OriginCode, internalconfig.ProductTracer)
 		cfg.universalVersion = false
 	}
 }
@@ -1211,7 +1211,7 @@ func WithServiceVersion(version string) StartOption {
 // See: WithService, WithServiceVersion. Do NOT use with WithServiceVersion.
 func WithUniversalVersion(version string) StartOption {
 	return func(c *config) {
-		c.internalConfig.SetVersion(version, telemetry.OriginCode)
+		c.internalConfig.SetVersion(version, telemetry.OriginCode, internalconfig.ProductTracer)
 		c.universalVersion = true
 	}
 }
