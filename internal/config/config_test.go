@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,225 +22,183 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/telemetrytest"
 )
 
-func TestGet(t *testing.T) {
-	t.Run("returns non-nil config", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+func TestGetBaseConfig(t *testing.T) {
+	t.Run("returns non-nil", func(t *testing.T) {
+		ResetConfig()
+		defer ResetConfig()
 
-		cfg := Get()
-		assert.NotNil(t, cfg, "Get() should never return nil")
+		cfg := GetBaseConfig()
+		assert.NotNil(t, cfg)
 	})
 
-	t.Run("singleton behavior - returns same instance", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+	t.Run("singleton - returns same instance", func(t *testing.T) {
+		ResetConfig()
+		defer ResetConfig()
 
-		cfg1 := Get()
-		cfg2 := Get()
-		cfg3 := Get()
-
-		// All calls should return the same instance
-		assert.Same(t, cfg1, cfg2, "First and second Get() calls should return the same instance")
-		assert.Same(t, cfg1, cfg3, "First and third Get() calls should return the same instance")
+		cfg1 := GetBaseConfig()
+		cfg2 := GetBaseConfig()
+		assert.Same(t, cfg1, cfg2)
 	})
 
-	t.Run("fresh config flag forces new instance", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+	t.Run("ResetConfig resets singleton", func(t *testing.T) {
+		ResetConfig()
+		defer ResetConfig()
 
-		// Get the first instance
-		cfg1 := Get()
+		cfg1 := GetBaseConfig()
 		require.NotNil(t, cfg1)
 
-		// Enable fresh config to allow us to create new instances
-		SetUseFreshConfig(true)
+		ResetConfig()
 
-		// Get should now return a new instance
-		cfg2 := Get()
+		cfg2 := GetBaseConfig()
 		require.NotNil(t, cfg2)
-		assert.NotSame(t, cfg1, cfg2, "With useFreshConfig=true, Get() should return a new instance")
-
-		// Another call with useFreshConfig still true should return another new instance
-		cfg3 := Get()
-		require.NotNil(t, cfg3)
-		assert.NotSame(t, cfg2, cfg3, "With useFreshConfig=true, each Get() call should return a new instance")
-
-		// Disable fresh config to allow us to cache the same instance
-		SetUseFreshConfig(false)
-
-		// Now it should cache the same instance
-		cfg4 := Get()
-		cfg5 := Get()
-		assert.Same(t, cfg4, cfg5, "With useFreshConfig=false, Get() should cache the same instance")
-	})
-
-	t.Run("GetNew forces new instance", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		// Get the first instance
-		cfg1 := Get()
-		require.NotNil(t, cfg1)
-
-		// Get should return the same instance
-		cfg2 := Get()
-		require.NotNil(t, cfg2)
-		assert.Same(t, cfg1, cfg2, "Get() should return the same instance")
-
-		// CreateNew should return a new instance
-		cfg3 := CreateNew()
-		require.NotNil(t, cfg3)
-		assert.NotSame(t, cfg2, cfg3, "CreateNew() should return a new instance")
-
-		// Now it should cache the same instance
-		cfg4 := Get()
-		assert.Same(t, cfg3, cfg4, "Get() should return the same instance")
-		assert.NotSame(t, cfg1, cfg4, "Get() should not return the same instance as the first one")
+		assert.NotSame(t, cfg1, cfg2, "ResetConfig should reset the BaseConfig singleton")
 	})
 
 	t.Run("concurrent access is safe", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		const numGoroutines = 100
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines)
 
-		// All goroutines should get a non-nil config
-		configs := make([]*Config, numGoroutines)
-
+		configs := make([]*BaseConfig, numGoroutines)
 		for i := range numGoroutines {
 			go func(j int) {
 				defer wg.Done()
-				configs[j] = Get()
+				configs[j] = GetBaseConfig()
 			}(i)
 		}
-
 		wg.Wait()
 
-		// All configs should be non-nil
 		for i, cfg := range configs {
 			assert.NotNil(t, cfg, "Config at index %d should not be nil", i)
 		}
-
-		// All configs should be the same instance (singleton)
-		firstConfig := configs[0]
 		for i, cfg := range configs[1:] {
-			assert.Same(t, firstConfig, cfg, "Config at index %d should be the same instance", i+1)
+			assert.Same(t, configs[0], cfg, "Config at index %d should be the same instance", i+1)
 		}
 	})
 
-	t.Run("concurrent access with fresh config", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+	t.Run("loads values from env", func(t *testing.T) {
+		ResetConfig()
+		defer ResetConfig()
 
-		// Enable fresh config to allow us to create new instances
-		SetUseFreshConfig(true)
-
-		const numGoroutines = 50
-		var wg sync.WaitGroup
-		wg.Add(numGoroutines)
-
-		// Track if we get different instances (which is expected with useFreshConfig=true)
-		var uniqueInstances sync.Map
-		var configCount atomic.Int32
-
-		for range numGoroutines {
-			go func() {
-				defer wg.Done()
-				cfg := Get()
-				require.NotNil(t, cfg, "Get() should not return nil even under concurrent access")
-
-				// Track unique instances
-				if _, loaded := uniqueInstances.LoadOrStore(cfg, true); !loaded {
-					configCount.Add(1)
-				}
-			}()
-		}
-
-		wg.Wait()
-
-		// With useFreshConfig=true, we should get multiple different instances
-		count := configCount.Load()
-		assert.Greater(t, count, int32(1), "With useFreshConfig=true, should get multiple different instances")
-	})
-
-	t.Run("config is properly initialized with values", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		// Set an environment variable to ensure it's loaded
 		t.Setenv("DD_TRACE_DEBUG", "true")
 
-		cfg := Get()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
-
-		// Verify that config values are accessible (using the Debug() method)
-		debug := cfg.Debug()
-		assert.True(t, debug, "Config should have loaded DD_TRACE_DEBUG=true")
+		assert.True(t, cfg.Debug())
 	})
 
-	t.Run("Setter methods update config and maintain thread-safety", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+	t.Run("setters update config thread-safely", func(t *testing.T) {
+		ResetConfig()
+		defer ResetConfig()
 
-		cfg := Get()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		initialDebug := cfg.Debug()
 		cfg.SetDebug(!initialDebug, "test")
-		assert.Equal(t, !initialDebug, cfg.Debug(), "Debug setting should have changed")
-
-		// Verify concurrent reads don't panic
-		const numReaders = 100
-		var wg sync.WaitGroup
-		wg.Add(numReaders)
-
-		for range numReaders {
-			go func() {
-				defer wg.Done()
-				_ = cfg.Debug()
-			}()
-		}
-
-		wg.Wait()
-	})
-
-	t.Run("SetDebug concurrent with reads is safe", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		cfg := Get()
-		require.NotNil(t, cfg)
+		assert.Equal(t, !initialDebug, cfg.Debug())
 
 		var wg sync.WaitGroup
 		const numOperations = 100
 
-		// Start readers
-		wg.Add(numOperations)
+		wg.Add(numOperations * 2)
 		for range numOperations {
 			go func() {
 				defer wg.Done()
 				_ = cfg.Debug()
 			}()
 		}
-
-		// Start writers
-		wg.Add(numOperations)
 		for i := range numOperations {
 			go func(val bool) {
 				defer wg.Done()
 				cfg.SetDebug(val, "test")
 			}(i%2 == 0)
 		}
-
 		wg.Wait()
 
-		// Should not panic and should have a valid boolean value
-		finalDebug := cfg.Debug()
-		assert.IsType(t, true, finalDebug)
+		assert.IsType(t, true, cfg.Debug())
 	})
 }
+
+func TestGetProfilerConfig(t *testing.T) {
+	t.Run("returns non-nil", func(t *testing.T) {
+		ResetConfig()
+		defer ResetConfig()
+
+		cfg := GetProfilerConfig()
+		assert.NotNil(t, cfg)
+	})
+
+	t.Run("shares same BaseConfig as tracer", func(t *testing.T) {
+		ResetConfig()
+		defer ResetConfig()
+
+		tc := GetTracerConfig()
+		pc := GetProfilerConfig()
+		assert.Same(t, tc.BaseConfig, pc.BaseConfig)
+	})
+}
+
+// TestSharedSettersReportTelemetry verifies all Set* methods on BaseConfig report telemetry.
+func TestSharedSettersReportTelemetry(t *testing.T) {
+	configType := reflect.TypeFor[*BaseConfig]()
+
+	for i := 0; i < configType.NumMethod(); i++ {
+		method := configType.Method(i)
+		methodName := method.Name
+
+		if len(methodName) < 3 || methodName[:3] != "Set" {
+			continue
+		}
+		if reason, excluded := settersWithoutTelemetry[methodName]; excluded {
+			t.Logf("Skipping %s: %s", methodName, reason)
+			continue
+		}
+
+		t.Run(methodName, func(t *testing.T) {
+			ResetConfig()
+			defer ResetConfig()
+
+			telemetryClient := new(telemetrytest.MockClient)
+			telemetryClient.On("RegisterAppConfigs", mock.Anything).Return().Maybe()
+			defer telemetry.MockClient(telemetryClient)()
+
+			cfg := GetBaseConfig()
+			testOrigin := telemetry.OriginCode
+
+			if callFunc, isSpecial := specialCaseSetters[methodName]; isSpecial {
+				callFunc(cfg, testOrigin)
+			} else {
+				callSetter(t, cfg, method, testOrigin)
+			}
+
+			foundTelemetry := false
+			for _, call := range telemetryClient.Calls {
+				if call.Method == "RegisterAppConfigs" {
+					if len(call.Arguments) > 0 {
+						if configs, ok := call.Arguments[0].([]telemetry.Configuration); ok && len(configs) > 0 {
+							if configs[0].Origin == testOrigin {
+								foundTelemetry = true
+								break
+							}
+						}
+					}
+				}
+			}
+
+			assert.True(t, foundTelemetry,
+				"%s: no telemetry with origin=%v. Fix: call configtelemetry.Report() OR add to settersWithoutTelemetry",
+				methodName, testOrigin)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Shared test helpers (used by config_test.go and tracerconfig_test.go)
+// ---------------------------------------------------------------------------
 
 // settersWithoutTelemetry lists Set methods that don't report telemetry.
 // Add your setter here with a reason if telemetry reporting is not needed.
@@ -252,88 +209,26 @@ var settersWithoutTelemetry = map[string]string{
 
 // specialCaseSetters handles setters with non-standard signatures.
 // Add here if signature is not: SetX(value T, origin telemetry.Origin)
-var specialCaseSetters = map[string]func(*Config, telemetry.Origin){
-	"SetServiceMapping": func(c *Config, origin telemetry.Origin) {
-		c.SetServiceMapping("from-service", "to-service", origin)
+var specialCaseSetters = map[string]func(any, telemetry.Origin){
+	"SetServiceMapping": func(cfg any, origin telemetry.Origin) {
+		reflect.ValueOf(cfg).MethodByName("SetServiceMapping").Call([]reflect.Value{
+			reflect.ValueOf("from-service"),
+			reflect.ValueOf("to-service"),
+			reflect.ValueOf(origin),
+		})
 	},
 }
 
-// TestAllSettersReportTelemetry verifies Set* methods report telemetry with seqID > defaultSeqID.
-// If this fails: call reportTelemetry() in your setter, OR add to settersWithoutTelemetry, OR add to specialCaseSetters.
-func TestAllSettersReportTelemetry(t *testing.T) {
-	// Get all methods on *Config
-	configType := reflect.TypeFor[*Config]()
-
-	for i := 0; i < configType.NumMethod(); i++ {
-		// Capture method
-		method := configType.Method(i)
-		methodName := method.Name
-
-		// Skip if not a Set method
-		if len(methodName) < 3 || methodName[:3] != "Set" {
-			continue
-		}
-
-		// Skip if in exclusion list
-		if reason, excluded := settersWithoutTelemetry[methodName]; excluded {
-			t.Logf("Skipping %s: %s", methodName, reason)
-			continue
-		}
-
-		t.Run(methodName, func(t *testing.T) {
-			resetGlobalState()
-			defer resetGlobalState()
-
-			// Mock telemetry client
-			telemetryClient := new(telemetrytest.MockClient)
-			telemetryClient.On("RegisterAppConfigs", mock.Anything).Return().Maybe()
-			defer telemetry.MockClient(telemetryClient)()
-
-			cfg := Get()
-			testOrigin := telemetry.OriginCode
-
-			// Check if this is a special case
-			if callFunc, isSpecial := specialCaseSetters[methodName]; isSpecial {
-				callFunc(cfg, testOrigin)
-			} else {
-				// Try to call the method generically
-				callSetter(t, cfg, method, testOrigin)
-			}
-
-			// Verify telemetry was reported with seqID > defaultSeqID
-			foundTelemetry := false
-			for _, call := range telemetryClient.Calls {
-				if call.Method == "RegisterAppConfigs" {
-					if len(call.Arguments) > 0 {
-						if configs, ok := call.Arguments[0].([]telemetry.Configuration); ok && len(configs) > 0 {
-							config := configs[0]
-							if config.Origin == testOrigin {
-								foundTelemetry = true
-								break
-							}
-						}
-					}
-				}
-			}
-
-			assert.True(t, foundTelemetry,
-				"%s: no telemetry with origin=%v. Fix: call configtelemetry.Report() OR add to settersWithoutTelemetry/specialCaseSetters",
-				methodName, testOrigin)
-		})
-	}
-}
-
-// callSetter attempts to call a setter method with appropriate test values
-func callSetter(t *testing.T, cfg *Config, method reflect.Method, origin telemetry.Origin) {
+// callSetter attempts to call a setter method with appropriate test values.
+// cfg must be a pointer to the config struct that owns the method.
+func callSetter(t *testing.T, cfg any, method reflect.Method, origin telemetry.Origin) {
 	methodType := method.Type
 
-	// Verify it has the right number of parameters (receiver + value param(s) + origin)
 	if methodType.NumIn() < 3 {
 		t.Fatalf("%s: expected ≥3 params (receiver, value, origin), got %d. Add to specialCaseSetters if non-standard.",
 			method.Name, methodType.NumIn())
 	}
 
-	// Last parameter should be telemetry.Origin
 	originType := reflect.TypeFor[telemetry.Origin]()
 	lastParamType := methodType.In(methodType.NumIn() - 1)
 	if lastParamType != originType {
@@ -341,27 +236,19 @@ func callSetter(t *testing.T, cfg *Config, method reflect.Method, origin telemet
 			method.Name, lastParamType)
 	}
 
-	// Build arguments
 	args := []reflect.Value{reflect.ValueOf(cfg)}
-
-	// Add value parameters (all except receiver and origin)
 	for i := 1; i < methodType.NumIn()-1; i++ {
 		paramType := methodType.In(i)
 		testValue := getTestValueForType(paramType)
 		args = append(args, reflect.ValueOf(testValue))
 	}
-
-	// Add origin parameter
 	args = append(args, reflect.ValueOf(origin))
-
-	// Call the method
 	method.Func.Call(args)
 }
 
 // getTestValueForType generates appropriate test values based on parameter type.
 // Add support for new types here as setters with new parameter types are added.
 func getTestValueForType(t reflect.Type) any {
-	// Check for specific named types first (before kind checks)
 	if t == reflect.TypeFor[time.Duration]() {
 		return 10 * time.Second
 	}
@@ -369,7 +256,6 @@ func getTestValueForType(t reflect.Type) any {
 		return &url.URL{Scheme: "http", Host: "test-agent:8126"}
 	}
 
-	// Then check by kind
 	switch t.Kind() {
 	case reflect.Bool:
 		return true
@@ -389,21 +275,18 @@ func getTestValueForType(t reflect.Type) any {
 		". Add support for this type in getTestValueForType() or add your setter to specialCaseSetters.")
 }
 
-// resetGlobalState resets all global singleton state for testing
-func resetGlobalState() {
-	mu = sync.Mutex{}
-	instance = nil
-	useFreshConfig = false
-}
+// ---------------------------------------------------------------------------
+// BaseConfig-specific tests
+// ---------------------------------------------------------------------------
 
 func TestSetFeatureFlagsReportsFullList(t *testing.T) {
-	resetGlobalState()
-	defer resetGlobalState()
+	ResetConfig()
+	defer ResetConfig()
 
 	rec := new(telemetrytest.RecordClient)
 	defer telemetry.MockClient(rec)()
 
-	cfg := Get()
+	cfg := GetBaseConfig()
 	require.NotNil(t, cfg)
 
 	cfg.SetFeatureFlags([]string{"b", "a"}, telemetry.OriginCode)
@@ -428,69 +311,36 @@ func TestSetFeatureFlagsReportsFullList(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "c"}, parts)
 }
 
-func TestSetServiceMappingReportsFullList(t *testing.T) {
-	resetGlobalState()
-	defer resetGlobalState()
-
-	rec := new(telemetrytest.RecordClient)
-	defer telemetry.MockClient(rec)()
-
-	cfg := Get()
-	require.NotNil(t, cfg)
-
-	cfg.SetServiceMapping("b", "2", telemetry.OriginCode)
-	cfg.SetServiceMapping("a", "1", telemetry.OriginCode)
-	cfg.SetServiceMapping("a", "3", telemetry.OriginCode) // update existing
-
-	var (
-		found bool
-		got   telemetry.Configuration
-	)
-	for i := len(rec.Configuration) - 1; i >= 0; i-- {
-		c := rec.Configuration[i]
-		if c.Name == "DD_SERVICE_MAPPING" && c.Origin == telemetry.OriginCode {
-			found = true
-			got = c
-			break
-		}
-	}
-	require.True(t, found, "expected telemetry to include DD_SERVICE_MAPPING with OriginCode")
-	require.IsType(t, "", got.Value)
-	parts := strings.Split(got.Value.(string), ",")
-	sort.Strings(parts)
-	assert.Equal(t, []string{"a:3", "b:2"}, parts)
-}
-
 func TestOTLPTraceURLResolution(t *testing.T) {
 	t.Run("default OTLP port from agent host", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
-		cfg := Get()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Contains(t, cfg.OTLPTraceURL(), ":4318/v1/traces")
 	})
 
 	t.Run("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT overrides", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://collector:4318/v1/traces")
 
-		cfg := Get()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Equal(t, "http://collector:4318/v1/traces", cfg.OTLPTraceURL())
 	})
 
 	t.Run("uses agent host when no OTLP endpoint configured", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("DD_AGENT_HOST", "custom-agent")
 
-		cfg := Get()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Equal(t, "http://custom-agent:4318/v1/traces", cfg.OTLPTraceURL())
@@ -499,10 +349,10 @@ func TestOTLPTraceURLResolution(t *testing.T) {
 
 func TestOTLPHeaders(t *testing.T) {
 	t.Run("always populated with at least Content-Type", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
-		cfg := Get()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		headers := cfg.OTLPHeaders()
@@ -512,12 +362,12 @@ func TestOTLPHeaders(t *testing.T) {
 	})
 
 	t.Run("OTEL_EXPORTER_OTLP_TRACES_HEADERS parsed into map", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("OTEL_EXPORTER_OTLP_TRACES_HEADERS", "api-key=secret,x-custom=value")
 
-		cfg := Get()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		headers := cfg.OTLPHeaders()
@@ -525,107 +375,14 @@ func TestOTLPHeaders(t *testing.T) {
 		assert.Equal(t, "value", headers["x-custom"])
 		assert.Equal(t, OTLPContentTypeHeader, headers["Content-Type"])
 	})
-
-}
-
-func TestOTLPExportMode(t *testing.T) {
-	t.Run("disabled by default", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		cfg := Get()
-		require.NotNil(t, cfg)
-
-		assert.False(t, cfg.OTLPExportMode())
-	})
-
-	t.Run("enabled by OTEL_TRACES_EXPORTER=otlp", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
-
-		cfg := Get()
-		require.NotNil(t, cfg)
-
-		assert.True(t, cfg.OTLPExportMode())
-	})
-
-	t.Run("not enabled by unsupported exporter value", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		t.Setenv("OTEL_TRACES_EXPORTER", "jaeger")
-
-		cfg := Get()
-		require.NotNil(t, cfg)
-
-		assert.False(t, cfg.OTLPExportMode())
-	})
-
-	t.Run("not enabled by OTEL_TRACES_EXPORTER=none", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		t.Setenv("OTEL_TRACES_EXPORTER", "none")
-
-		cfg := Get()
-		require.NotNil(t, cfg)
-
-		assert.False(t, cfg.OTLPExportMode())
-	})
-
-	t.Run("DD_TRACE_AGENT_PROTOCOL_VERSION overrides OTEL_TRACES_EXPORTER", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
-		t.Setenv("DD_TRACE_AGENT_PROTOCOL_VERSION", "1.0")
-
-		cfg := Get()
-		require.NotNil(t, cfg)
-
-		assert.False(t, cfg.OTLPExportMode(), "otlpExportMode should be false when DD_TRACE_AGENT_PROTOCOL_VERSION is explicitly set")
-		assert.Equal(t, TraceProtocolV1, cfg.TraceProtocol())
-	})
-
-	t.Run("DD_TRACE_AGENT_PROTOCOL_VERSION=0.4 still overrides OTEL_TRACES_EXPORTER", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
-		t.Setenv("DD_TRACE_AGENT_PROTOCOL_VERSION", "0.4")
-
-		cfg := Get()
-		require.NotNil(t, cfg)
-
-		assert.False(t, cfg.OTLPExportMode(), "otlpExportMode should be false when DD_TRACE_AGENT_PROTOCOL_VERSION is explicitly set, even to the default value")
-		assert.Equal(t, TraceProtocolV04, cfg.TraceProtocol())
-	})
-
-	t.Run("SetOTLPExportMode toggles mode", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
-
-		cfg := Get()
-		require.NotNil(t, cfg)
-
-		assert.False(t, cfg.OTLPExportMode())
-
-		cfg.SetOTLPExportMode(true, telemetry.OriginCode)
-		assert.True(t, cfg.OTLPExportMode())
-
-		cfg.SetOTLPExportMode(false, telemetry.OriginCode)
-		assert.False(t, cfg.OTLPExportMode())
-	})
 }
 
 func TestHostnameConfiguration(t *testing.T) {
 	t.Run("default behavior - hostname empty when not configured", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
-		cfg := Get()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Empty(t, cfg.Hostname(), "Hostname should be empty by default")
@@ -633,12 +390,12 @@ func TestHostnameConfiguration(t *testing.T) {
 	})
 
 	t.Run("DD_TRACE_REPORT_HOSTNAME=true enables hostname lookup", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("DD_TRACE_REPORT_HOSTNAME", "true")
 
-		cfg := Get()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.NotEmpty(t, cfg.Hostname(), "Hostname should be set when DD_TRACE_REPORT_HOSTNAME=true")
@@ -647,12 +404,12 @@ func TestHostnameConfiguration(t *testing.T) {
 	})
 
 	t.Run("DD_TRACE_REPORT_HOSTNAME=false keeps hostname empty", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("DD_TRACE_REPORT_HOSTNAME", "false")
 
-		cfg := Get()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Empty(t, cfg.Hostname(), "Hostname should be empty when DD_TRACE_REPORT_HOSTNAME=false")
@@ -660,12 +417,12 @@ func TestHostnameConfiguration(t *testing.T) {
 	})
 
 	t.Run("DD_TRACE_SOURCE_HOSTNAME sets explicit hostname", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("DD_TRACE_SOURCE_HOSTNAME", "custom-hostname")
 
-		cfg := Get()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Equal(t, "custom-hostname", cfg.Hostname(), "Hostname should match DD_TRACE_SOURCE_HOSTNAME")
@@ -673,13 +430,13 @@ func TestHostnameConfiguration(t *testing.T) {
 	})
 
 	t.Run("DD_TRACE_SOURCE_HOSTNAME takes precedence over DD_TRACE_REPORT_HOSTNAME", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("DD_TRACE_REPORT_HOSTNAME", "true")
 		t.Setenv("DD_TRACE_SOURCE_HOSTNAME", "override-hostname")
 
-		cfg := Get()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
 		assert.Equal(t, "override-hostname", cfg.Hostname(), "DD_TRACE_SOURCE_HOSTNAME should take precedence")
@@ -687,16 +444,15 @@ func TestHostnameConfiguration(t *testing.T) {
 	})
 
 	t.Run("empty DD_TRACE_SOURCE_HOSTNAME is used when explicitly set", func(t *testing.T) {
-		resetGlobalState()
-		defer resetGlobalState()
+		ResetConfig()
+		defer ResetConfig()
 
 		t.Setenv("DD_TRACE_REPORT_HOSTNAME", "true")
 		t.Setenv("DD_TRACE_SOURCE_HOSTNAME", "")
 
-		cfg := Get()
+		cfg := GetBaseConfig()
 		require.NotNil(t, cfg)
 
-		// Empty string explicitly set should override the looked-up hostname
 		assert.Empty(t, cfg.Hostname(), "Empty DD_TRACE_SOURCE_HOSTNAME should override hostname lookup")
 		assert.True(t, cfg.ReportHostname(), "ReportHostname should be true when DD_TRACE_SOURCE_HOSTNAME is explicitly set")
 	})

@@ -141,7 +141,7 @@ const (
 // config holds the tracer configuration.
 type config struct {
 	// internalConfig holds a reference to the global configuration singleton.
-	internalConfig *internalconfig.Config
+	internalConfig *internalconfig.TracerConfig
 
 	// appsecStartOptions controls the options used when starting appsec features.
 	appsecStartOptions []appsecconfig.StartOption
@@ -283,7 +283,7 @@ const maxPropagatedTagsLength = 512
 // and passed user opts.
 func newConfig(opts ...StartOption) (*config, error) {
 	c := new(config)
-	c.internalConfig = internalconfig.CreateNew()
+	c.internalConfig = internalconfig.GetTracerConfig()
 
 	// If this was built with a recent-enough version of Orchestrion, force the orchestrion config to
 	// the baked-in values. We do this early so that opts can be used to override the baked-in values,
@@ -531,7 +531,7 @@ func apmTracingDisabled(c *config) {
 
 // resolveTraceTransport returns the trace URL and headers for the transport
 // based on whether OTLP export mode is active.
-func resolveTraceTransport(cfg *internalconfig.Config) (traceURL string, headers map[string]string) {
+func resolveTraceTransport(cfg *internalconfig.TracerConfig) (traceURL string, headers map[string]string) {
 	if cfg.OTLPExportMode() {
 		return cfg.OTLPTraceURL(), cfg.OTLPHeaders()
 	}
