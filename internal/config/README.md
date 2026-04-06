@@ -15,7 +15,7 @@ Configuration is split into two layers:
 
 A shadow field is a local override pointer (`*bool`, `*string`, etc.) on the product config; `nil` means "use the `BaseConfig` value." The getter checks the local override first and falls through to `BaseConfig` if unset.
 
-This rule is intentionally simple: there are no judgment calls about whether a field is "inherently global" or "product-specific." If it has a programmatic API, it's a shadow.
+This rule is intentionally simple: there are no judgment calls about whether a field is "inherently global" or "product-specific." If it has a programmatic API, it can be updated independently of other products, so it's a shadow.
 
 Environment variables and Remote Config updates flow through `BaseConfig` and affect all products automatically, while a product-level programmatic override only affects the calling product.
 
