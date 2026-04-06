@@ -183,7 +183,7 @@ func TestGetCITagsUsesGitEnrichmentOutsidePayloadFilesMode(t *testing.T) {
 	assert.Equal(t, "true", tags["env.applied"])
 }
 
-func TestGetCITagsKeepsInternalEnrichmentInPayloadFilesMode(t *testing.T) {
+func TestGetCITagsSkipsGitEnrichmentInPayloadFilesMode(t *testing.T) {
 	ResetCITags()
 	ResetTestOptimizationModeForTesting()
 	t.Cleanup(ResetCITags)
@@ -236,19 +236,26 @@ func TestGetCITagsKeepsInternalEnrichmentInPayloadFilesMode(t *testing.T) {
 	}
 	applyEnvironmentalDataIfRequiredFunc = func(tags map[string]string) {
 		applyEnvironmentalDataCalls++
+		tags[constants.CIWorkspacePath] = "/tmp/workspace-from-env"
+		tags[constants.GitRepositoryURL] = "https://example.com/repo-from-env.git"
+		tags[constants.GitCommitSHA] = "commit-sha-from-env"
+		tags[constants.GitBranch] = "main-from-env"
+		tags[constants.GitCommitMessage] = "commit-message-from-env"
 		tags["env.applied"] = "true"
 	}
 
 	tags := GetCITags()
-	assert.Equal(t, 1, getLocalGitDataCalls)
-	assert.Equal(t, 1, fetchCommitDataCalls)
+	assert.Equal(t, 0, getLocalGitDataCalls)
+	assert.Equal(t, 0, fetchCommitDataCalls)
 	assert.Equal(t, 1, applyEnvironmentalDataCalls)
 	assert.Contains(t, tags, constants.TestCommand)
 	assert.Contains(t, tags, constants.TestSessionName)
-	assert.Equal(t, "/tmp/workspace", tags[constants.CIWorkspacePath])
-	assert.Equal(t, "https://example.com/repo.git", tags[constants.GitRepositoryURL])
-	assert.Equal(t, "commit-sha", tags[constants.GitCommitSHA])
-	assert.Equal(t, "head-message", tags[constants.GitHeadMessage])
+	assert.Equal(t, "/tmp/workspace-from-env", tags[constants.CIWorkspacePath])
+	assert.Equal(t, "https://example.com/repo-from-env.git", tags[constants.GitRepositoryURL])
+	assert.Equal(t, "commit-sha-from-env", tags[constants.GitCommitSHA])
+	assert.Equal(t, "main-from-env", tags[constants.GitBranch])
+	assert.Equal(t, "commit-message-from-env", tags[constants.GitCommitMessage])
+	assert.NotContains(t, tags, constants.GitHeadMessage)
 	assert.Equal(t, "true", tags["env.applied"])
 	assert.Equal(t, "job-name-"+tags[constants.TestCommand], tags[constants.TestSessionName])
 }

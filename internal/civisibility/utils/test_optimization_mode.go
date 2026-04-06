@@ -65,6 +65,11 @@ func IsPayloadFilesModeEnabled() bool {
 	return CurrentTestOptimizationMode().PayloadFilesEnabled
 }
 
+// IsGitCLIDisabled returns true when the current Test Optimization mode must not invoke the Git CLI.
+func IsGitCLIDisabled() bool {
+	return CurrentTestOptimizationMode().PayloadFilesEnabled
+}
+
 // CacheHTTPFile returns the expected cache/http file path in manifest mode.
 func CacheHTTPFile(name string) (string, bool) {
 	mode := CurrentTestOptimizationMode()

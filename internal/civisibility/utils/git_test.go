@@ -107,6 +107,19 @@ func TestFilterSensitiveInfo(t *testing.T) {
 	}
 }
 
+func TestExecGitStringDisabledInPayloadFilesMode(t *testing.T) {
+	t.Setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
+	t.Setenv("TEST_UNDECLARED_OUTPUTS_DIR", t.TempDir())
+
+	ResetTestOptimizationModeForTesting()
+	t.Cleanup(ResetTestOptimizationModeForTesting)
+
+	out, err := execGitString(telemetry.NotSpecifiedCommandsType, "--version")
+	assert.Empty(t, out)
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "git CLI is disabled in payload-file mode")
+}
+
 func TestGetLocalGitData(t *testing.T) {
 	data, err := getLocalGitData()
 	if err != nil && acceptableError(err) {
