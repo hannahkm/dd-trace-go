@@ -23,6 +23,7 @@ import (
 	"unicode"
 
 	"github.com/DataDog/dd-trace-go/v2/internal"
+	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
 	"github.com/DataDog/dd-trace-go/v2/internal/env"
 	"github.com/DataDog/dd-trace-go/v2/internal/globalconfig"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
@@ -88,14 +89,15 @@ var defaultClient = &http.Client{
 var defaultProfileTypes = []ProfileType{MetricsProfile, CPUProfile, HeapProfile}
 
 type config struct {
-	apiKey    string
-	agentless bool
+	internalConfig *internalconfig.ProfilerConfig
+	apiKey         string
+	agentless      bool
 	// targetURL is the upload destination URL. It will be set by the profiler on start to either apiURL or agentURL
 	// based on the other options.
 	targetURL            string
 	apiURL               string // apiURL is the Datadog intake API URL
 	agentURL             string // agentURL is the Datadog agent profiling URL
-	service, env         string
+	service              string
 	version              string
 	hostname             string
 	statsd               StatsdClient
@@ -131,7 +133,7 @@ func logStartup(c *config) {
 		"lang_version":               runtime.Version(),
 		"hostname":                   c.hostname,
 		"service":                    c.service,
-		"env":                        c.env,
+		"env":                        c.internalConfig.Env(),
 		"target_url":                 c.targetURL,
 		"tags":                       c.tags.Slice(),
 		"custom_profiler_label_keys": c.customProfilerLabels,
@@ -176,6 +178,7 @@ func (c *config) addProfileType(t ProfileType) {
 
 func defaultConfig() (*config, error) {
 	c := config{
+		internalConfig:       internalconfig.GetProfilerConfig(),
 		apiURL:               defaultAPIURL,
 		service:              filepath.Base(os.Args[0]),
 		statsd:               &statsd.NoOpClient{},
@@ -383,7 +386,7 @@ func WithService(name string) Option {
 // WithEnv specifies the environment to which these profiles should be registered.
 func WithEnv(env string) Option {
 	return func(cfg *config) {
-		cfg.env = env
+		cfg.internalConfig.SetEnv(env, internalconfig.OriginCode)
 	}
 }
 

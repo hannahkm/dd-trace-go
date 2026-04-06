@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
 	"github.com/DataDog/dd-trace-go/v2/internal/globalconfig"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -170,17 +171,22 @@ func TestOptions(t *testing.T) {
 	})
 
 	t.Run("WithEnv", func(t *testing.T) {
-		var cfg config
-		WithEnv("envName")(&cfg)
-		assert.Equal(t, "envName", cfg.env)
+		internalconfig.ResetConfig()
+		defer internalconfig.ResetConfig()
+		cfg, err := defaultConfig()
+		require.NoError(t, err)
+		WithEnv("envName")(cfg)
+		assert.Equal(t, "envName", cfg.internalConfig.Env())
 	})
 
 	t.Run("WithEnv/override", func(t *testing.T) {
+		internalconfig.ResetConfig()
+		defer internalconfig.ResetConfig()
 		t.Setenv("DD_ENV", "envEnv")
 		cfg, err := defaultConfig()
 		require.NoError(t, err)
 		WithEnv("envName")(cfg)
-		assert.Equal(t, "envName", cfg.env)
+		assert.Equal(t, "envName", cfg.internalConfig.Env())
 	})
 
 	t.Run("WithVersion", func(t *testing.T) {
@@ -297,7 +303,7 @@ func TestEnvVars(t *testing.T) {
 		t.Setenv("DD_ENV", "someEnv")
 		cfg, err := defaultConfig()
 		require.NoError(t, err)
-		assert.Equal(t, "someEnv", cfg.env)
+		assert.Equal(t, "someEnv", cfg.internalConfig.Env())
 	})
 
 	t.Run("DD_SERVICE", func(t *testing.T) {
@@ -350,7 +356,7 @@ func TestDefaultConfig(t *testing.T) {
 		assert := assert.New(t)
 		assert.Equal(defaultAPIURL, cfg.apiURL)
 		assert.Equal(defaultAgentURL, cfg.agentURL)
-		assert.Equal("", cfg.env)
+		assert.Equal("", cfg.internalConfig.Env())
 		assert.Equal(filepath.Base(os.Args[0]), cfg.service)
 		assert.Equal(len(defaultProfileTypes), len(cfg.types))
 		for _, pt := range defaultProfileTypes {

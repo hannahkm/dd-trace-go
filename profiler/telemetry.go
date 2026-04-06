@@ -24,7 +24,7 @@ func startTelemetry(c *config) {
 	telemetry.ProductStarted(telemetry.NamespaceProfilers)
 	telemetry.RegisterAppConfigs(telemetryConfiguration(c)...)
 	if telemetry.GlobalClient() == nil {
-		client, err := telemetry.NewClient(c.service, c.env, c.version, telemetry.ClientConfig{
+		client, err := telemetry.NewClient(c.service, c.internalConfig.Env(), c.version, telemetry.ClientConfig{
 			HTTPClient: c.httpClient,
 			APIKey:     c.apiKey,
 			AgentURL:   c.agentURL,
