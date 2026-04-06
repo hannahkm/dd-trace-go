@@ -91,6 +91,39 @@ func TestCurrentTestOptimizationMode_RunfilesManifestResolution(t *testing.T) {
 	}
 }
 
+func TestCurrentTestOptimizationMode_RunfilesManifestMissingEntryFallsBackToTestSrcDir(t *testing.T) {
+	ResetTestOptimizationModeForTesting()
+	t.Cleanup(ResetTestOptimizationModeForTesting)
+
+	testSrcDir := t.TempDir()
+	manifestRel := filepath.Join("workspace", ".testoptimization", "manifest.txt")
+	manifestPath := filepath.Join(testSrcDir, manifestRel)
+	if err := os.MkdirAll(filepath.Dir(manifestPath), 0o755); err != nil {
+		t.Fatalf("mkdir manifest dir: %v", err)
+	}
+	if err := os.WriteFile(manifestPath, []byte("1\n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	runfilesManifest := filepath.Join(t.TempDir(), "MANIFEST")
+	runfilesBody := "malformed-line-without-space\nworkspace/other /tmp/other-manifest.txt\n"
+	if err := os.WriteFile(runfilesManifest, []byte(runfilesBody), 0o644); err != nil {
+		t.Fatalf("write runfiles manifest: %v", err)
+	}
+
+	t.Setenv(constants.CIVisibilityManifestFilePath, manifestRel)
+	t.Setenv("RUNFILES_MANIFEST_FILE", runfilesManifest)
+	t.Setenv("TEST_SRCDIR", testSrcDir)
+
+	mode := CurrentTestOptimizationMode()
+	if !mode.ManifestEnabled {
+		t.Fatalf("expected manifest mode enabled")
+	}
+	if mode.ManifestPath != manifestPath {
+		t.Fatalf("unexpected manifest path: %s", mode.ManifestPath)
+	}
+}
+
 func TestCurrentTestOptimizationMode_TestSrcDirResolution(t *testing.T) {
 	ResetTestOptimizationModeForTesting()
 	t.Cleanup(ResetTestOptimizationModeForTesting)
@@ -194,6 +227,51 @@ func TestCurrentTestOptimizationMode_ManifestVersionAssignmentWithSpacesIsSuppor
 	mode := CurrentTestOptimizationMode()
 	if !mode.ManifestEnabled {
 		t.Fatalf("expected manifest mode enabled when version line is version = 1")
+	}
+}
+
+func TestIsManifestModeEnabled(t *testing.T) {
+	ResetTestOptimizationModeForTesting()
+	t.Cleanup(ResetTestOptimizationModeForTesting)
+
+	if IsManifestModeEnabled() {
+		t.Fatal("expected manifest mode disabled by default")
+	}
+
+	ResetTestOptimizationModeForTesting()
+	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
+	if err := os.WriteFile(manifestPath, []byte("1\n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+
+	if !IsManifestModeEnabled() {
+		t.Fatal("expected manifest mode helper to report enabled")
+	}
+	if IsPayloadFilesModeEnabled() {
+		t.Fatal("expected payload-files mode helper to report disabled")
+	}
+	if IsGitCLIDisabled() {
+		t.Fatal("expected git cli helper to report enabled outside payload-files mode")
+	}
+}
+
+func TestPayloadFilesModeHelpers(t *testing.T) {
+	ResetTestOptimizationModeForTesting()
+	t.Cleanup(ResetTestOptimizationModeForTesting)
+
+	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
+	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
+
+	if IsManifestModeEnabled() {
+		t.Fatal("expected manifest mode helper to report disabled")
+	}
+	if !IsPayloadFilesModeEnabled() {
+		t.Fatal("expected payload-files mode helper to report enabled")
+	}
+	if !IsGitCLIDisabled() {
+		t.Fatal("expected git cli helper to report disabled in payload-files mode")
 	}
 }
 
@@ -339,6 +417,53 @@ func TestWritePayloadFileInvalidKind(t *testing.T) {
 	}
 }
 
+func TestWritePayloadFileMissingOutputDir(t *testing.T) {
+	ResetTestOptimizationModeForTesting()
+	t.Cleanup(ResetTestOptimizationModeForTesting)
+
+	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
+
+	err := WritePayloadFile("tests", []byte(`{"ok":true}`))
+	if err == nil {
+		t.Fatal("expected missing output dir error")
+	}
+	if !strings.Contains(err.Error(), constants.CIVisibilityUndeclaredOutputsDir) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestCurrentTestOptimizationMode_EmptyManifestDisablesMode(t *testing.T) {
+	ResetTestOptimizationModeForTesting()
+	t.Cleanup(ResetTestOptimizationModeForTesting)
+
+	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
+	if err := os.WriteFile(manifestPath, nil, 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+
+	if mode := CurrentTestOptimizationMode(); mode.ManifestEnabled {
+		t.Fatal("expected empty manifest to disable manifest mode")
+	}
+}
+
+func TestCurrentTestOptimizationMode_InvalidManifestAssignmentDisablesMode(t *testing.T) {
+	ResetTestOptimizationModeForTesting()
+	t.Cleanup(ResetTestOptimizationModeForTesting)
+
+	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
+	if err := os.WriteFile(manifestPath, []byte("version = nope\n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+
+	if mode := CurrentTestOptimizationMode(); mode.ManifestEnabled {
+		t.Fatal("expected invalid version assignment to disable manifest mode")
+	}
+}
+
 func TestCacheHTTPFile(t *testing.T) {
 	ResetTestOptimizationModeForTesting()
 	t.Cleanup(ResetTestOptimizationModeForTesting)
@@ -361,6 +486,27 @@ func TestCacheHTTPFile(t *testing.T) {
 	}
 }
 
+func TestCacheHTTPFileDisabledOrBlankName(t *testing.T) {
+	ResetTestOptimizationModeForTesting()
+	t.Cleanup(ResetTestOptimizationModeForTesting)
+
+	if cacheFile, ok := CacheHTTPFile("settings.json"); ok || cacheFile != "" {
+		t.Fatalf("expected cache resolution disabled without manifest mode, got %q %t", cacheFile, ok)
+	}
+
+	ResetTestOptimizationModeForTesting()
+	manifestDir := t.TempDir()
+	manifestPath := filepath.Join(manifestDir, "manifest.txt")
+	if err := os.WriteFile(manifestPath, []byte("1\n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+
+	if cacheFile, ok := CacheHTTPFile("   "); ok || cacheFile != "" {
+		t.Fatalf("expected blank cache file name to be rejected, got %q %t", cacheFile, ok)
+	}
+}
+
 func TestMsgpackToJSON(t *testing.T) {
 	payload := msgp.AppendMapHeader(nil, 1)
 	payload = msgp.AppendString(payload, "k")
@@ -372,6 +518,60 @@ func TestMsgpackToJSON(t *testing.T) {
 	}
 	if !strings.Contains(string(jsonPayload), "\"k\"") || !strings.Contains(string(jsonPayload), "\"v\"") {
 		t.Fatalf("unexpected json payload: %s", string(jsonPayload))
+	}
+}
+
+func TestMsgpackToJSONRejectsEmptyPayload(t *testing.T) {
+	jsonPayload, err := MsgpackToJSON(nil)
+	if err == nil {
+		t.Fatal("expected empty payload error")
+	}
+	if jsonPayload != nil {
+		t.Fatalf("expected nil json payload, got %q", string(jsonPayload))
+	}
+}
+
+func TestMsgpackToJSONRejectsInvalidPayload(t *testing.T) {
+	jsonPayload, err := MsgpackToJSON([]byte{0xc1})
+	if err == nil {
+		t.Fatal("expected invalid payload error")
+	}
+	if jsonPayload != nil {
+		t.Fatalf("expected nil json payload, got %q", string(jsonPayload))
+	}
+}
+
+func TestIsManifestVersionSupportedRejectsManifestWithoutVersionLine(t *testing.T) {
+	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
+	if err := os.WriteFile(manifestPath, []byte("\n \n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	if isManifestVersionSupported(manifestPath) {
+		t.Fatal("expected manifest without version line to be unsupported")
+	}
+}
+
+func TestParseManifestVersionPreservesNonVersionAssignments(t *testing.T) {
+	if version := parseManifestVersion("manifest = 1"); version != "manifest = 1" {
+		t.Fatalf("expected non-version assignment to be preserved, got %q", version)
+	}
+}
+
+func TestIsGitCLIDisabled(t *testing.T) {
+	ResetTestOptimizationModeForTesting()
+	t.Cleanup(ResetTestOptimizationModeForTesting)
+
+	if IsGitCLIDisabled() {
+		t.Fatal("expected git cli enabled by default")
+	}
+
+	ResetTestOptimizationModeForTesting()
+	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
+	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
+
+	if !IsGitCLIDisabled() {
+		t.Fatal("expected git cli disabled in payload-files mode")
 	}
 }
 

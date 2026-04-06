@@ -71,6 +71,64 @@ func TestCoverageApiRequest(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestNewClientForCodeCoverage(t *testing.T) {
+	origEnv := saveEnv()
+	path := os.Getenv("PATH")
+	defer restoreEnv(origEnv)
+
+	setCiVisibilityEnv(path, "https://custom.agentless.url")
+
+	cInterface := NewClientForCodeCoverage()
+	assert.NotNil(t, cInterface)
+	assert.IsType(t, &client{}, cInterface)
+}
+
+func TestCoverageApiRequestJSONFormat(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reader, err := r.MultipartReader()
+		if err != nil {
+			http.Error(w, "failed to read body", http.StatusBadRequest)
+			return
+		}
+
+		containsDummyEvent := false
+		containsCoverage := false
+		for {
+			part, errPart := reader.NextPart()
+			if errPart == io.EOF {
+				break
+			}
+			partName := part.FormName()
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(part)
+			if partName == "event" {
+				assert.Equal(t, ContentTypeJSON, part.Header.Get(HeaderContentType))
+				assert.Equal(t, "{\"dummy\": true}", string(buf.Bytes()))
+				containsDummyEvent = true
+			} else if partName == "coveragex" {
+				assert.Equal(t, ContentTypeJSON, part.Header.Get(HeaderContentType))
+				assert.Equal(t, "filecoveragex.json", part.FileName())
+				assert.JSONEq(t, `{"version":2,"metadata":{},"coverages":[]}`, buf.String())
+				containsCoverage = true
+			}
+		}
+
+		assert.True(t, containsDummyEvent)
+		assert.True(t, containsCoverage)
+	}))
+	defer server.Close()
+
+	origEnv := saveEnv()
+	path := os.Getenv("PATH")
+	defer restoreEnv(origEnv)
+
+	setCiVisibilityEnv(path, server.URL)
+
+	cInterface := NewClient()
+	err := cInterface.SendCoveragePayloadWithFormat(bytes.NewReader([]byte(`{"version":2,"metadata":{},"coverages":[]}`)), FormatJSON)
+	assert.NoError(t, err)
+}
+
 func TestCoverageApiRequestPayloadFilesModeWritesJSON(t *testing.T) {
 	civisibilityutils.ResetTestOptimizationModeForTesting()
 	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
@@ -171,6 +229,56 @@ func TestCoverageApiRequestPayloadFilesModeWritesJSONFormatPayload(t *testing.T)
 	assert.Contains(t, payloadMap, "coverages")
 }
 
+func TestCoverageApiRequestPayloadFilesModeRejectsInvalidJSONFormatPayload(t *testing.T) {
+	civisibilityutils.ResetTestOptimizationModeForTesting()
+	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
+
+	outDir := t.TempDir()
+
+	origEnv := saveEnv()
+	path := os.Getenv("PATH")
+	defer restoreEnv(origEnv)
+
+	setCiVisibilityEnv(path, "http://127.0.0.1:1")
+	os.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
+	os.Setenv(constants.CIVisibilityUndeclaredOutputsDir, outDir)
+	civisibilityutils.ResetTestOptimizationModeForTesting()
+
+	cInterface := NewClient()
+	err := cInterface.SendCoveragePayloadWithFormat(bytes.NewReader([]byte(`{"version":2,`)), FormatJSON)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid coverage json payload")
+
+	matches, globErr := filepath.Glob(filepath.Join(outDir, "payloads", "coverage", "coverage-*.json"))
+	assert.NoError(t, globErr)
+	assert.Empty(t, matches)
+}
+
+func TestCoverageApiRequestPayloadFilesModeRejectsUnsupportedFormat(t *testing.T) {
+	civisibilityutils.ResetTestOptimizationModeForTesting()
+	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
+
+	outDir := t.TempDir()
+
+	origEnv := saveEnv()
+	path := os.Getenv("PATH")
+	defer restoreEnv(origEnv)
+
+	setCiVisibilityEnv(path, "http://127.0.0.1:1")
+	os.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
+	os.Setenv(constants.CIVisibilityUndeclaredOutputsDir, outDir)
+	civisibilityutils.ResetTestOptimizationModeForTesting()
+
+	cInterface := NewClient()
+	err := cInterface.SendCoveragePayloadWithFormat(bytes.NewReader([]byte(`{}`)), "yaml")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported format: yaml")
+
+	matches, globErr := filepath.Glob(filepath.Join(outDir, "payloads", "coverage", "coverage-*.json"))
+	assert.NoError(t, globErr)
+	assert.Empty(t, matches)
+}
+
 func TestCoverageApiRequestPayloadFilesModeMissingOutputDirMsgpack(t *testing.T) {
 	civisibilityutils.ResetTestOptimizationModeForTesting()
 	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
@@ -235,6 +343,52 @@ func TestCoverageApiRequestPayloadFilesModeMissingOutputDirJSON(t *testing.T) {
 	matches, globErr := filepath.Glob(filepath.Join(tempDir, "payloads", "coverage", "coverage-*.json"))
 	assert.NoError(t, globErr)
 	assert.Empty(t, matches)
+}
+
+func TestCoverageApiRequestUnexpectedStatusCode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "backend rejected payload", http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	origEnv := saveEnv()
+	path := os.Getenv("PATH")
+	defer restoreEnv(origEnv)
+
+	setCiVisibilityEnv(path, server.URL)
+
+	cInterface := NewClient()
+	err := cInterface.SendCoveragePayloadWithFormat(bytes.NewReader(testCoverageMsgpackPayload()), FormatMessagePack)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unexpected response code 400")
+}
+
+func TestCoverageApiRequestRejectsNilPayload(t *testing.T) {
+	c := &client{}
+	err := c.SendCoveragePayloadWithFormat(nil, FormatJSON)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "coverage payload is nil")
+}
+
+func TestCoverageApiRequestRejectsUnsupportedFormatBeforeSending(t *testing.T) {
+	var hits int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		http.Error(w, "unexpected network call", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	origEnv := saveEnv()
+	path := os.Getenv("PATH")
+	defer restoreEnv(origEnv)
+
+	setCiVisibilityEnv(path, server.URL)
+
+	cInterface := NewClient()
+	err := cInterface.SendCoveragePayloadWithFormat(bytes.NewReader([]byte("{}")), "yaml")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported format: yaml")
+	assert.Equal(t, 0, hits)
 }
 
 func testCoverageMsgpackPayload() []byte {
