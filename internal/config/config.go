@@ -25,10 +25,17 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/internal/traceprof"
 )
 
+var (
+	globalInstance *BaseConfig
+	globalMu       sync.Mutex
+	useFreshConfig bool
+)
+
 // Origin represents where a configuration value came from.
 // Re-exported so callers don't need to import internal/telemetry.
 type Origin = telemetry.Origin
 
+// Re-exported so callers don't need to import internal/telemetry.
 const (
 	OriginCode       = telemetry.OriginCode
 	OriginCalculated = telemetry.OriginCalculated
@@ -39,8 +46,8 @@ const (
 // BaseConfig
 // ---------------------------------------------------------------------------
 
-// BaseConfig holds all configuration loaded once from init-time config sources (env,
-// OTEL, declarative, defaults, RC). A single instance is created lazily and
+// BaseConfig holds global configuration loaded once from init-time config sources (env,
+// declarative, defaults). A single instance is created lazily and
 // shared by all product configs via pointer.
 type BaseConfig struct {
 	mu sync.RWMutex
@@ -88,6 +95,8 @@ type BaseConfig struct {
 	profilingEnabled              bool
 }
 
+// loadBaseConfig initializes and returns a new BaseConfig by reading from all configured sources.
+// This function is NOT thread-safe and should only be called by initGlobal.
 func loadBaseConfig() *BaseConfig {
 	p := provider.New()
 	cfg := new(BaseConfig)
@@ -114,6 +123,7 @@ func loadBaseConfig() *BaseConfig {
 		}
 	}
 
+	// TODO: Is it possible that we can just use `v != ""` to configure one setting, `lambdaMode` instead
 	if v, ok := env.Lookup("AWS_LAMBDA_FUNCTION_NAME"); ok {
 		cfg.logToStdout = true
 		if v != "" {
@@ -179,12 +189,6 @@ func loadBaseConfig() *BaseConfig {
 // ---------------------------------------------------------------------------
 // Singletons & constructors
 // ---------------------------------------------------------------------------
-
-var (
-	globalInstance *BaseConfig
-	globalMu       sync.Mutex
-	useFreshConfig bool
-)
 
 // initGlobal lazily initializes the BaseConfig singleton.
 // When useFreshConfig is true, the singleton is re-created on every call
