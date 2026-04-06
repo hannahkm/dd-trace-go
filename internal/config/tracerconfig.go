@@ -52,6 +52,7 @@ type TracerConfig struct {
 	logToStdout             *bool
 	agentURL                **url.URL
 	hostname                *string
+	reportHostname          *bool
 	logStartup              *bool
 	featureFlags            map[string]struct{} // nil = use BaseConfig
 }
@@ -533,8 +534,21 @@ func (t *TracerConfig) Hostname() string {
 func (t *TracerConfig) SetHostname(name string, origin telemetry.Origin) {
 	t.tmu.Lock()
 	t.hostname = &name
+	report := true
+	t.reportHostname = &report
 	t.tmu.Unlock()
 	configtelemetry.Report("DD_TRACE_SOURCE_HOSTNAME", name, origin)
+}
+
+func (t *TracerConfig) ReportHostname() bool {
+	t.tmu.RLock()
+	if t.reportHostname != nil {
+		v := *t.reportHostname
+		t.tmu.RUnlock()
+		return v
+	}
+	t.tmu.RUnlock()
+	return t.BaseConfig.ReportHostname()
 }
 
 func (t *TracerConfig) LogStartup() bool {
