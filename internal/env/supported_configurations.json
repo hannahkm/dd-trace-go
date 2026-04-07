@@ -774,7 +774,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": ""
+        "default": null
       }
     ],
     "DD_SERVICE_MAPPING": [
