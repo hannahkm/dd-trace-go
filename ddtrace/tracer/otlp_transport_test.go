@@ -111,7 +111,7 @@ func TestOTLPTransportConnectionReuse(t *testing.T) {
 	}
 
 	tr := newOTLPTransport(srv.Client(), srv.URL, nil)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		require.NoError(t, tr.send([]byte("data")))
 	}
 	assert.Equal(t, int64(1), atomic.LoadInt64(&connCount),
