@@ -8,6 +8,7 @@ package tracer
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -40,6 +41,7 @@ func (t *otlpTransport) send(data []byte) error {
 	if err != nil {
 		return err
 	}
+	_, _ = io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
 	if code := resp.StatusCode; code >= 400 {
 		return fmt.Errorf("HTTP %d: %s", code, http.StatusText(code))

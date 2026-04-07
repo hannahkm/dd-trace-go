@@ -7,8 +7,10 @@ package tracer
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -94,4 +96,24 @@ func TestOTLPTransportSendConnectionError(t *testing.T) {
 	tr := newOTLPTransport(http.DefaultClient, "http://127.0.0.1:0/nonexistent", nil)
 	err := tr.send([]byte("data"))
 	require.Error(t, err)
+}
+
+func TestOTLPTransportConnectionReuse(t *testing.T) {
+	var connCount int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("response body that must be drained"))
+	}))
+	defer srv.Close()
+	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			atomic.AddInt64(&connCount, 1)
+		}
+	}
+
+	tr := newOTLPTransport(srv.Client(), srv.URL, nil)
+	for i := 0; i < 5; i++ {
+		require.NoError(t, tr.send([]byte("data")))
+	}
+	assert.Equal(t, int64(1), atomic.LoadInt64(&connCount),
+		"expected a single connection to be reused across sends")
 }
