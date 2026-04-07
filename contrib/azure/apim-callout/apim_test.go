@@ -810,4 +810,3 @@ func TestPhaseMismatchProcessesCorrectly(t *testing.T) {
 	result := decodeResult(t, rr)
 	assert.Nil(t, result.Block) // Should process correctly despite phase mismatch
 }
-

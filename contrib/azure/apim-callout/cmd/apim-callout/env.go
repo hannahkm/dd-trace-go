@@ -25,7 +25,7 @@ func intEnv(key string, def int) int {
 	}
 	v, err := strconv.Atoi(vv)
 	if err != nil {
-		log.Warn("Non-integer value for env var %s, defaulting to %d. Parse failed with error: %v", key, def, err)
+		log.Warn("Non-integer value for env var %s, defaulting to %d. Parse failed with error: %v", key, def, err.Error())
 		apimcallout.Instrumentation().TelemetryRegisterAppConfig(key, def, instrumentation.TelemetryOriginDefault)
 		return def
 	}
@@ -71,7 +71,7 @@ func durationEnv(key string, def time.Duration) time.Duration {
 	}
 	v, err := time.ParseDuration(vv)
 	if err != nil {
-		log.Warn("Invalid duration for env var %s, defaulting to %s. Parse failed with error: %v", key, def.String(), err)
+		log.Warn("Invalid duration for env var %s, defaulting to %s. Parse failed with error: %v", key, def.String(), err.Error())
 		apimcallout.Instrumentation().TelemetryRegisterAppConfig(key, def.String(), instrumentation.TelemetryOriginDefault)
 		return def
 	}
@@ -88,7 +88,7 @@ func boolEnv(key string, def bool) bool {
 	}
 	v, err := strconv.ParseBool(vv)
 	if err != nil {
-		log.Warn("Non-boolean value for env var %s, defaulting to %v. Parse failed with error: %v", key, def, err)
+		log.Warn("Non-boolean value for env var %s, defaulting to %v. Parse failed with error: %v", key, def, err.Error())
 		apimcallout.Instrumentation().TelemetryRegisterAppConfig(key, def, instrumentation.TelemetryOriginDefault)
 		return def
 	}
