@@ -100,15 +100,16 @@ func TestOTLPTransportSendConnectionError(t *testing.T) {
 
 func TestOTLPTransportConnectionReuse(t *testing.T) {
 	var connCount int64
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("response body that must be drained"))
 	}))
-	defer srv.Close()
 	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
 		if state == http.StateNew {
 			atomic.AddInt64(&connCount, 1)
 		}
 	}
+	srv.Start()
+	defer srv.Close()
 
 	tr := newOTLPTransport(srv.Client(), srv.URL, nil)
 	for range 5 {
