@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/globalconfig"
 	"github.com/DataDog/dd-trace-go/v2/internal/osinfo"
 	"github.com/DataDog/dd-trace-go/v2/internal/synctest"
@@ -100,6 +101,18 @@ func TestNewClient(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewClient_FileSinkModeWithoutEndpoints(t *testing.T) {
+	t.Setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
+	t.Setenv("TEST_UNDECLARED_OUTPUTS_DIR", t.TempDir())
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
+
+	c, err := NewClient("test-service", "test-env", "1.0.0", ClientConfig{})
+	require.NoError(t, err)
+	require.NotNil(t, c)
+	defer c.Close()
 }
 
 func TestAutoFlush(t *testing.T) {
@@ -1384,6 +1397,48 @@ func TestSendingFailures(t *testing.T) {
 	assert.Len(t, logs.Logs, 1)
 	assert.Equal(t, transport.LogLevelError, logs.Logs[0].Level)
 	assert.Equal(t, "test", logs.Logs[0].Message)
+}
+
+func TestComputeFlushMetrics_FileSinkSkipsMetrics(t *testing.T) {
+	c, err := newClient(internal.TracerConfig{
+		Service: "test-service",
+		Env:     "test-env",
+		Version: "1.0.0",
+	}, defaultConfig(ClientConfig{
+		AgentURL: "http://localhost:8126",
+	}))
+	require.NoError(t, err)
+	defer c.Close()
+
+	c.computeFlushMetrics([]internal.EndpointRequestResult{{
+		PayloadByteSize: 123,
+		CallDuration:    time.Second,
+		Sink:            internal.EndpointSinkFile,
+	}}, nil)
+
+	assert.Nil(t, c.metrics.Payload())
+	assert.Nil(t, c.distributions.Payload())
+}
+
+func TestComputeFlushMetrics_UnattemptedRequestSkipsMetrics(t *testing.T) {
+	c, err := newClient(internal.TracerConfig{
+		Service: "test-service",
+		Env:     "test-env",
+		Version: "1.0.0",
+	}, defaultConfig(ClientConfig{
+		AgentURL: "http://localhost:8126",
+	}))
+	require.NoError(t, err)
+	defer c.Close()
+
+	c.computeFlushMetrics([]internal.EndpointRequestResult{{
+		Error:            errors.New("encode failed"),
+		RequestAttempted: false,
+		Sink:             internal.EndpointSinkAgent,
+	}}, errors.New("encode failed"))
+
+	assert.Nil(t, c.metrics.Payload())
+	assert.Nil(t, c.distributions.Payload())
 }
 
 func BenchmarkLogs(b *testing.B) {

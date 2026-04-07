@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/internal"
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils/impactedtests"
@@ -72,6 +73,7 @@ var (
 	uploadRepositoryChangesFunc = uploadRepositoryChanges
 )
 
+// ensureSettingsInitialization performs the one-time settings bootstrap, including any git upload work required before a final settings read.
 func ensureSettingsInitialization(serviceName string) {
 	settingsInitializationOnce.Do(func() {
 		log.Debug("civisibility: initializing settings")
@@ -84,11 +86,11 @@ func ensureSettingsInitialization(serviceName string) {
 			return
 		}
 
-		testOptimizationMode := utils.CurrentTestOptimizationMode()
+		testOptimizationMode := bazel.CurrentMode()
 		var uploadChannel = make(chan struct{})
 		uploadEnabled := !testOptimizationMode.ManifestEnabled && !testOptimizationMode.PayloadFilesEnabled
 		log.Debug("civisibility: settings initialization mode [manifest:%t payload_files:%t manifest_file:%s payload_root:%s repository_upload_enabled:%t]",
-			testOptimizationMode.ManifestEnabled, testOptimizationMode.PayloadFilesEnabled, utils.TestOptimizationPathForLog(testOptimizationMode.ManifestPath), testOptimizationMode.PayloadsRoot, uploadEnabled)
+			testOptimizationMode.ManifestEnabled, testOptimizationMode.PayloadFilesEnabled, bazel.TestOptimizationPathForLog(testOptimizationMode.ManifestPath), testOptimizationMode.PayloadsRoot, uploadEnabled)
 		if uploadEnabled {
 			// upload the repository changes
 			go func() {
@@ -219,7 +221,7 @@ func ensureSettingsInitialization(serviceName string) {
 	})
 }
 
-// ensureAdditionalFeaturesInitialization initialize all the additional features
+// ensureAdditionalFeaturesInitialization loads CI Visibility features that depend on the previously fetched settings.
 func ensureAdditionalFeaturesInitialization(_ string) {
 	additionalFeaturesInitializationOnce.Do(func() {
 		log.Debug("civisibility: initializing additional features")
@@ -375,6 +377,7 @@ func GetImpactedTestsAnalyzer() *impactedtests.ImpactedTestAnalyzer {
 	return ciVisibilityImpactedTestsAnalyzer
 }
 
+// uploadRepositoryChanges discovers the commits and packfiles that must be uploaded so backend features can reason about the current repo state.
 func uploadRepositoryChanges() (bytes int64, err error) {
 	// get the search commits response
 	initialCommitData, err := getSearchCommits()
@@ -469,6 +472,7 @@ func (r *searchCommitsResponse) missingCommits() []string {
 	return missingCommits
 }
 
+// sendObjectsPackFile uploads one packfile chunk for the requested commit graph slice and reports the number of bytes sent.
 func sendObjectsPackFile(commitSha string, commitsToInclude []string, commitsToExclude []string) (bytes int64, err error) {
 	// get the pack files to send
 	packFiles := utils.CreatePackFiles(commitsToInclude, commitsToExclude)

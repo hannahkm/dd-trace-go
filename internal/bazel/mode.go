@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026 Datadog, Inc.
 
-package utils
+// Package bazel contains Bazel-specific compatibility helpers used by CI Visibility
+// and other payload-file based flows.
+package bazel
 
 import (
 	"bufio"
@@ -20,59 +22,87 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
-	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	"github.com/DataDog/dd-trace-go/v2/internal/env"
 	logger "github.com/DataDog/dd-trace-go/v2/internal/log"
 )
 
-type (
-	// TestOptimizationMode stores the process-level mode settings for Bazel-compatible Test Optimization flows.
-	TestOptimizationMode struct {
-		ManifestEnabled     bool
-		PayloadFilesEnabled bool
-		ManifestPath        string
-		ManifestDir         string
-		PayloadsRoot        string
-	}
+const (
+	// manifestFilePathEnv points to the runfiles manifest or manifest rlocation used by offline Bazel mode.
+	manifestFilePathEnv = "DD_TEST_OPTIMIZATION_MANIFEST_FILE"
+	// payloadsInFilesEnv enables writing CI Visibility and telemetry payloads to undeclared output files.
+	payloadsInFilesEnv = "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES"
+	// undeclaredOutputsDirEnv points to Bazel's undeclared outputs root where payload files are stored.
+	undeclaredOutputsDirEnv = "TEST_UNDECLARED_OUTPUTS_DIR"
 )
+
+// PayloadKind identifies the payload subdirectory and naming strategy used for
+// Bazel payload-file mode.
+type PayloadKind string
+
+const (
+	// PayloadKindTests writes CI Visibility test event payloads.
+	PayloadKindTests PayloadKind = "tests"
+	// PayloadKindCoverage writes CI Visibility coverage payloads.
+	PayloadKindCoverage PayloadKind = "coverage"
+	// PayloadKindTelemetry writes raw top-level telemetry request bodies.
+	PayloadKindTelemetry PayloadKind = "telemetry"
+)
+
+// Mode stores the process-level Bazel compatibility settings.
+type Mode struct {
+	// ManifestEnabled reports whether a supported manifest was found and can be used for offline cache reads.
+	ManifestEnabled bool
+	// PayloadFilesEnabled reports whether Bazel payload-file mode is enabled.
+	PayloadFilesEnabled bool
+	// ManifestPath is the resolved absolute path to the Bazel manifest file when manifest mode is enabled.
+	ManifestPath string
+	// ManifestDir is the directory that contains the resolved manifest and its cache tree.
+	ManifestDir string
+	// PayloadsRoot is the root directory that contains per-kind payload output subdirectories.
+	PayloadsRoot string
+}
 
 var (
-	testOptimizationModeMu   sync.Mutex
-	testOptimizationModeOnce sync.Once
-	currentTestOptimization  TestOptimizationMode
-	payloadFileCounter       uint64 = 0
+	// modeMu protects the lazy resolution state so tests can safely reset it.
+	modeMu sync.Mutex
+	// modeOnce resolves the process-wide Bazel mode exactly once per environment configuration.
+	modeOnce sync.Once
+	// currentMode caches the resolved Bazel mode for the current process.
+	currentMode Mode
+	// payloadFileCount keeps payload filenames unique within a process and orders telemetry files deterministically.
+	payloadFileCount uint64
 )
 
-// CurrentTestOptimizationMode returns the resolved process-wide Test Optimization mode.
-func CurrentTestOptimizationMode() TestOptimizationMode {
-	testOptimizationModeMu.Lock()
-	defer testOptimizationModeMu.Unlock()
+// CurrentMode returns the resolved process-wide Bazel mode.
+func CurrentMode() Mode {
+	modeMu.Lock()
+	defer modeMu.Unlock()
 
-	testOptimizationModeOnce.Do(func() {
-		currentTestOptimization = resolveTestOptimizationMode()
+	modeOnce.Do(func() {
+		currentMode = resolveMode()
 	})
 
-	return currentTestOptimization
+	return currentMode
 }
 
 // IsManifestModeEnabled returns true when a compatible manifest has been resolved.
 func IsManifestModeEnabled() bool {
-	return CurrentTestOptimizationMode().ManifestEnabled
+	return CurrentMode().ManifestEnabled
 }
 
 // IsPayloadFilesModeEnabled returns true when payload-file mode is enabled through environment variables.
 func IsPayloadFilesModeEnabled() bool {
-	return CurrentTestOptimizationMode().PayloadFilesEnabled
+	return CurrentMode().PayloadFilesEnabled
 }
 
-// IsGitCLIDisabled returns true when the current Test Optimization mode must not invoke the Git CLI.
+// IsGitCLIDisabled returns true when the current Bazel mode must not invoke the Git CLI.
 func IsGitCLIDisabled() bool {
-	return CurrentTestOptimizationMode().PayloadFilesEnabled
+	return CurrentMode().PayloadFilesEnabled
 }
 
 // CacheHTTPFile returns the expected cache/http file path in manifest mode.
 func CacheHTTPFile(name string) (string, bool) {
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if !mode.ManifestEnabled || strings.TrimSpace(name) == "" {
 		return "", false
 	}
@@ -94,24 +124,24 @@ func MsgpackToJSON(msgpackPayload []byte) ([]byte, error) {
 	return jsonBuf.Bytes(), nil
 }
 
-// WritePayloadFile writes payload JSON in Bazel undeclared outputs.
-func WritePayloadFile(kind string, jsonPayload []byte) error {
-	if kind != "tests" && kind != "coverage" {
+// WritePayloadFile writes a JSON payload under Bazel's undeclared outputs root.
+func WritePayloadFile(kind PayloadKind, jsonPayload []byte) error {
+	if kind != PayloadKindTests && kind != PayloadKindCoverage && kind != PayloadKindTelemetry {
 		logger.Debug("civisibility: refusing to write unsupported payload file kind %q", kind)
 		return fmt.Errorf("unsupported payload file kind %q", kind)
 	}
 
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if !mode.PayloadFilesEnabled {
 		logger.Debug("civisibility: payload-file mode disabled; refusing to write %s payload file", kind)
 		return errors.New("payload file mode is disabled")
 	}
 	if mode.PayloadsRoot == "" {
-		logger.Debug("civisibility: payload-file mode enabled for %s payloads but %s is empty", kind, constants.CIVisibilityUndeclaredOutputsDir)
-		return fmt.Errorf("%s is required when %s is enabled", constants.CIVisibilityUndeclaredOutputsDir, constants.CIVisibilityPayloadsInFiles)
+		logger.Debug("civisibility: payload-file mode enabled for %s payloads but %s is empty", kind, undeclaredOutputsDirEnv)
+		return fmt.Errorf("%s is required when %s is enabled", undeclaredOutputsDirEnv, payloadsInFilesEnv)
 	}
 
-	outDir := filepath.Join(mode.PayloadsRoot, kind)
+	outDir := filepath.Join(mode.PayloadsRoot, string(kind))
 	absoluteOutDir := absolutePathForLog(outDir)
 	logger.Debug("civisibility: ensuring %s payload output directory exists at %s", kind, absoluteOutDir)
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
@@ -119,8 +149,8 @@ func WritePayloadFile(kind string, jsonPayload []byte) error {
 		return fmt.Errorf("creating payload output dir: %w", err)
 	}
 
-	seq := atomic.AddUint64(&payloadFileCounter, 1)
-	fileName := fmt.Sprintf("%s-%d-%d-%d.json", kind, time.Now().UnixNano(), os.Getpid(), seq)
+	seq := atomic.AddUint64(&payloadFileCount, 1)
+	fileName := payloadFileName(kind, seq)
 	filePath := filepath.Join(outDir, fileName)
 	absoluteFilePath := absolutePathForLog(filePath)
 	logger.Debug("civisibility: writing %s payload file to %s", kind, absoluteFilePath)
@@ -133,12 +163,23 @@ func WritePayloadFile(kind string, jsonPayload []byte) error {
 	return nil
 }
 
-func resolveTestOptimizationMode() TestOptimizationMode {
-	mode := TestOptimizationMode{}
+// payloadFileName returns the filename to use for a payload of the given kind.
+// Telemetry filenames are ordinal-first to preserve replay order; tests and coverage keep their historical shape.
+func payloadFileName(kind PayloadKind, seq uint64) string {
+	if kind == PayloadKindTelemetry {
+		// Telemetry replay order matters, so keep filenames lexicographically ordered by emission sequence.
+		return fmt.Sprintf("%s-%020d-%d.json", kind, seq, os.Getpid())
+	}
+	return fmt.Sprintf("%s-%d-%d-%d.json", kind, time.Now().UnixNano(), os.Getpid(), seq)
+}
 
-	manifestRloc := strings.TrimSpace(env.Get(constants.CIVisibilityManifestFilePath))
-	payloadFilesEnv := strings.TrimSpace(env.Get(constants.CIVisibilityPayloadsInFiles))
-	undeclaredOutputsDir := strings.TrimSpace(env.Get(constants.CIVisibilityUndeclaredOutputsDir))
+// resolveMode inspects the Bazel-related environment variables and builds the process-wide compatibility mode.
+func resolveMode() Mode {
+	mode := Mode{}
+
+	manifestRloc := strings.TrimSpace(env.Get(manifestFilePathEnv))
+	payloadFilesEnv := strings.TrimSpace(env.Get(payloadsInFilesEnv))
+	undeclaredOutputsDir := strings.TrimSpace(env.Get(undeclaredOutputsDirEnv))
 	logger.Debug("civisibility: resolving test optimization mode [manifest_env:%q payload_files_env:%q undeclared_outputs_dir:%q]",
 		manifestRloc, payloadFilesEnv, undeclaredOutputsDir)
 
@@ -160,7 +201,7 @@ func resolveTestOptimizationMode() TestOptimizationMode {
 			mode.PayloadsRoot = filepath.Join(undeclaredOutputsDir, "payloads")
 			logger.Debug("civisibility: payload-file mode enabled [root:%s]", absolutePathForLog(mode.PayloadsRoot))
 		} else {
-			logger.Debug("civisibility: payload-file mode enabled but %s is empty", constants.CIVisibilityUndeclaredOutputsDir)
+			logger.Debug("civisibility: payload-file mode enabled but %s is empty", undeclaredOutputsDirEnv)
 		}
 	} else if payloadFilesEnv != "" {
 		logger.Debug("civisibility: payload-file mode disabled after parsing value %q", payloadFilesEnv)
@@ -171,11 +212,13 @@ func resolveTestOptimizationMode() TestOptimizationMode {
 	return mode
 }
 
+// parseBoolEnv accepts the same syntax as strconv.ParseBool while treating invalid values as disabled.
 func parseBoolEnv(raw string) bool {
 	parsed, err := strconv.ParseBool(raw)
 	return err == nil && parsed
 }
 
+// resolveManifestPath resolves a manifest rlocation using direct, runfiles-dir, manifest-file, and test-srcdir lookups.
 func resolveManifestPath(p string) (string, bool) {
 	if normalized, ok := existingFilePath(p); ok {
 		logger.Debug("civisibility: resolved manifest directly from %q to %s", p, TestOptimizationPathForLog(normalized))
@@ -215,6 +258,7 @@ func resolveManifestPath(p string) (string, bool) {
 	return "", false
 }
 
+// existingFilePath returns an absolute path for an existing file, or false when the path does not currently resolve.
 func existingFilePath(path string) (string, bool) {
 	if path == "" {
 		return "", false
@@ -229,6 +273,7 @@ func existingFilePath(path string) (string, bool) {
 	return abs, true
 }
 
+// resolveRunfilesManifestEntry scans a Bazel runfiles manifest for the requested rlocation.
 func resolveRunfilesManifestEntry(manifestFilePath string, rlocation string) (string, bool) {
 	logger.Debug("civisibility: reading runfiles manifest %s for rlocation %s", absolutePathForLog(manifestFilePath), rlocation)
 	file, err := os.Open(manifestFilePath)
@@ -259,6 +304,7 @@ func resolveRunfilesManifestEntry(manifestFilePath string, rlocation string) (st
 	return "", false
 }
 
+// isManifestVersionSupported reads the manifest version line and accepts only formats supported by this library.
 func isManifestVersionSupported(manifestPath string) bool {
 	logger.Debug("civisibility: reading %s", TestOptimizationPathForLog(manifestPath))
 	content, err := os.ReadFile(manifestPath)
@@ -287,6 +333,7 @@ func isManifestVersionSupported(manifestPath string) bool {
 	return false
 }
 
+// parseManifestVersion extracts the manifest version value from either a raw number or a version=<n> assignment.
 func parseManifestVersion(rawLine string) string {
 	line := strings.TrimSpace(rawLine)
 	if line == "" {
@@ -303,6 +350,7 @@ func parseManifestVersion(rawLine string) string {
 	return strings.TrimSpace(value)
 }
 
+// absolutePathForLog best-effort normalizes a path to an absolute form for debug logging.
 func absolutePathForLog(path string) string {
 	if path == "" {
 		return ""
@@ -333,12 +381,12 @@ func TestOptimizationPathForLog(path string) string {
 	return absolutePathForLog(path)
 }
 
-// ResetTestOptimizationModeForTesting resets cached mode state.
+// ResetForTesting resets cached mode state.
 // This helper is intended for tests that set per-test environment combinations.
-func ResetTestOptimizationModeForTesting() {
-	testOptimizationModeMu.Lock()
-	defer testOptimizationModeMu.Unlock()
-	testOptimizationModeOnce = sync.Once{}
-	currentTestOptimization = TestOptimizationMode{}
-	atomic.StoreUint64(&payloadFileCounter, 0)
+func ResetForTesting() {
+	modeMu.Lock()
+	defer modeMu.Unlock()
+	modeOnce = sync.Once{}
+	currentMode = Mode{}
+	atomic.StoreUint64(&payloadFileCount, 0)
 }

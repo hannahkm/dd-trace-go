@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
 )
@@ -114,7 +115,7 @@ func fillCommonTags(opts []tracer.StartSpanOption) []tracer.StartSpanOption {
 		tracer.Tag(ext.ManualKeep, true),
 	}...)
 
-	skipCIGitOSRuntimeTags := utils.IsPayloadFilesModeEnabled()
+	skipCIGitOSRuntimeTags := bazel.IsPayloadFilesModeEnabled()
 
 	// Apply CI tags
 	for k, v := range utils.GetCITags() {

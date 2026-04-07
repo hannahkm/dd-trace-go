@@ -17,6 +17,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
@@ -27,7 +28,7 @@ func TestEnsureSettingsInitializationManifestModeSkipsRepositoryUpload(t *testin
 	t.Cleanup(resetCIVisibilityStateForTesting)
 
 	t.Setenv(constants.CIVisibilityManifestFilePath, writeSettingsManifestCache(t, true, true, true))
-	utils.ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 
 	var uploadCalls int
 	uploadRepositoryChangesFunc = func() (int64, error) {
@@ -50,7 +51,7 @@ func TestEnsureSettingsInitializationPayloadFilesModeSkipsRepositoryUploadAndDis
 	t.Setenv(constants.CIVisibilityManifestFilePath, writeSettingsManifestCache(t, true, true, true))
 	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
 	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
-	utils.ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 
 	var uploadCalls int
 	uploadRepositoryChangesFunc = func() (int64, error) {
@@ -72,7 +73,7 @@ func TestEnsureSettingsInitializationManifestModeAppliesSubtestFeaturesEnvOverri
 
 	t.Setenv(constants.CIVisibilityManifestFilePath, writeSettingsManifestCache(t, true, false, false))
 	t.Setenv(constants.CIVisibilitySubtestFeaturesEnabled, "false")
-	utils.ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 
 	ensureSettingsInitialization("manifest-service")
 
@@ -117,8 +118,8 @@ func TestEnsureSettingsInitializationOnlineSettingsErrorRegistersCloseAction(t *
 
 func TestShouldInitializeCiVisibilityLogsDisablesManifestMode(t *testing.T) {
 	t.Setenv(constants.CIVisibilityManifestFilePath, writeSettingsManifestCache(t, false, false, false))
-	utils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(utils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	assert.False(t, shouldInitializeCiVisibilityLogs(false))
 	assert.False(t, shouldInitializeCiVisibilityLogs(true))
@@ -127,16 +128,16 @@ func TestShouldInitializeCiVisibilityLogsDisablesManifestMode(t *testing.T) {
 func TestShouldInitializeCiVisibilityLogsDisablesPayloadFilesMode(t *testing.T) {
 	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
 	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
-	utils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(utils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	assert.False(t, shouldInitializeCiVisibilityLogs(false))
 	assert.False(t, shouldInitializeCiVisibilityLogs(true))
 }
 
 func TestShouldInitializeCiVisibilityLogsAllowsOnlineEnabledMode(t *testing.T) {
-	utils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(utils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	assert.False(t, shouldInitializeCiVisibilityLogs(false))
 	assert.True(t, shouldInitializeCiVisibilityLogs(true))
@@ -151,8 +152,8 @@ func TestInitializeCiVisibilityLogsSkipsOfflineModes(t *testing.T) {
 
 	t.Run("manifest", func(t *testing.T) {
 		t.Setenv(constants.CIVisibilityManifestFilePath, writeSettingsManifestCache(t, false, false, false))
-		utils.ResetTestOptimizationModeForTesting()
-		t.Cleanup(utils.ResetTestOptimizationModeForTesting)
+		bazel.ResetForTesting()
+		t.Cleanup(bazel.ResetForTesting)
 
 		initializeCiVisibilityLogs("manifest-service")
 
@@ -162,8 +163,8 @@ func TestInitializeCiVisibilityLogsSkipsOfflineModes(t *testing.T) {
 	t.Run("payload-files", func(t *testing.T) {
 		t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
 		t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
-		utils.ResetTestOptimizationModeForTesting()
-		t.Cleanup(utils.ResetTestOptimizationModeForTesting)
+		bazel.ResetForTesting()
+		t.Cleanup(bazel.ResetForTesting)
 
 		initializeCiVisibilityLogs("payload-files-service")
 
@@ -178,8 +179,8 @@ func TestInitializeCiVisibilityLogsReportsDisabledState(t *testing.T) {
 	log.SetLevel(log.LevelDebug)
 	defer log.SetLevel(oldLevel)
 
-	utils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(utils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	initializeCiVisibilityLogs("online-service")
 

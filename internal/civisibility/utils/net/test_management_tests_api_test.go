@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
-	civisibilityutils "github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
 
@@ -147,8 +147,8 @@ func TestTestManagementTestsApiRequestFailToGet(t *testing.T) {
 }
 
 func TestTestManagementTestsApiRequestFromManifestCache(t *testing.T) {
-	civisibilityutils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	var hits int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -214,8 +214,8 @@ func TestTestManagementTestsApiRequestFromManifestCache(t *testing.T) {
 }
 
 func TestTestManagementTestsApiRequestFromManifestCacheMissingFile(t *testing.T) {
-	civisibilityutils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	var hits int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -249,8 +249,8 @@ func TestTestManagementTestsApiRequestFromManifestCacheMissingFile(t *testing.T)
 }
 
 func TestTestManagementTestsApiRequestFromManifestCacheMalformedFile(t *testing.T) {
-	civisibilityutils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	var hits int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

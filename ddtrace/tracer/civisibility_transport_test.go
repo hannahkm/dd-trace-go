@@ -21,9 +21,9 @@ import (
 	"github.com/tinylib/msgp/msgp"
 
 	"github.com/DataDog/dd-trace-go/v2/internal"
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
-	civisibilityutils "github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
 	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
 	"github.com/DataDog/dd-trace-go/v2/internal/urlsanitizer"
@@ -163,13 +163,13 @@ func TestCIVisibilityTransportSecureLogging(t *testing.T) {
 }
 
 func TestCiVisibilityTransportPayloadFilesModeWritesJSON(t *testing.T) {
-	civisibilityutils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	outDir := t.TempDir()
 	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
 	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, outDir)
-	civisibilityutils.ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 
 	var hits int
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
@@ -219,13 +219,13 @@ func TestCiVisibilityTransportPayloadFilesModeWritesJSON(t *testing.T) {
 }
 
 func TestCiVisibilityTransportPayloadFilesModeMissingOutputDir(t *testing.T) {
-	civisibilityutils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	tempDir := t.TempDir()
 	t.Chdir(tempDir)
 	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-	civisibilityutils.ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 
 	var hits int
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {

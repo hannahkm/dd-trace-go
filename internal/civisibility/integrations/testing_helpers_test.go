@@ -8,6 +8,7 @@ package integrations
 import (
 	"sync"
 
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils/net"
 )
@@ -29,5 +30,5 @@ func resetCIVisibilityStateForTesting() {
 
 	utils.ResetCITags()
 	utils.ResetCIMetrics()
-	utils.ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026 Datadog, Inc.
 
-package utils
+package bazel
 
 import (
 	"os"
@@ -13,13 +13,18 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
-	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
 
-func TestCurrentTestOptimizationMode_DirectManifestPath(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+const (
+	testManifestEnv       = "DD_TEST_OPTIMIZATION_MANIFEST_FILE"
+	testPayloadFilesEnv   = "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES"
+	testUndeclaredOutputs = "TEST_UNDECLARED_OUTPUTS_DIR"
+)
+
+func TestCurrentMode_DirectManifestPath(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	tmpDir := t.TempDir()
 	manifestPath := filepath.Join(tmpDir, "manifest.txt")
@@ -27,9 +32,9 @@ func TestCurrentTestOptimizationMode_DirectManifestPath(t *testing.T) {
 		t.Fatalf("write manifest: %v", err)
 	}
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	t.Setenv(testManifestEnv, manifestPath)
 
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if !mode.ManifestEnabled {
 		t.Fatalf("expected manifest mode enabled")
 	}
@@ -38,9 +43,9 @@ func TestCurrentTestOptimizationMode_DirectManifestPath(t *testing.T) {
 	}
 }
 
-func TestCurrentTestOptimizationMode_RunfilesDirResolution(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+func TestCurrentMode_RunfilesDirResolution(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	runfilesDir := t.TempDir()
 	manifestRel := filepath.Join("workspace", ".testoptimization", "manifest.txt")
@@ -52,10 +57,10 @@ func TestCurrentTestOptimizationMode_RunfilesDirResolution(t *testing.T) {
 		t.Fatalf("write manifest: %v", err)
 	}
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestRel)
+	t.Setenv(testManifestEnv, manifestRel)
 	t.Setenv("RUNFILES_DIR", runfilesDir)
 
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if !mode.ManifestEnabled {
 		t.Fatalf("expected manifest mode enabled")
 	}
@@ -64,9 +69,9 @@ func TestCurrentTestOptimizationMode_RunfilesDirResolution(t *testing.T) {
 	}
 }
 
-func TestCurrentTestOptimizationMode_RunfilesManifestResolution(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+func TestCurrentMode_RunfilesManifestResolution(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
 	if err := os.WriteFile(manifestPath, []byte("1\n"), 0o644); err != nil {
@@ -79,10 +84,10 @@ func TestCurrentTestOptimizationMode_RunfilesManifestResolution(t *testing.T) {
 		t.Fatalf("write runfiles manifest: %v", err)
 	}
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestRel)
+	t.Setenv(testManifestEnv, manifestRel)
 	t.Setenv("RUNFILES_MANIFEST_FILE", runfilesManifest)
 
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if !mode.ManifestEnabled {
 		t.Fatalf("expected manifest mode enabled")
 	}
@@ -91,9 +96,9 @@ func TestCurrentTestOptimizationMode_RunfilesManifestResolution(t *testing.T) {
 	}
 }
 
-func TestCurrentTestOptimizationMode_RunfilesManifestMissingEntryFallsBackToTestSrcDir(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+func TestCurrentMode_RunfilesManifestMissingEntryFallsBackToTestSrcDir(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	testSrcDir := t.TempDir()
 	manifestRel := filepath.Join("workspace", ".testoptimization", "manifest.txt")
@@ -111,11 +116,11 @@ func TestCurrentTestOptimizationMode_RunfilesManifestMissingEntryFallsBackToTest
 		t.Fatalf("write runfiles manifest: %v", err)
 	}
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestRel)
+	t.Setenv(testManifestEnv, manifestRel)
 	t.Setenv("RUNFILES_MANIFEST_FILE", runfilesManifest)
 	t.Setenv("TEST_SRCDIR", testSrcDir)
 
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if !mode.ManifestEnabled {
 		t.Fatalf("expected manifest mode enabled")
 	}
@@ -124,9 +129,9 @@ func TestCurrentTestOptimizationMode_RunfilesManifestMissingEntryFallsBackToTest
 	}
 }
 
-func TestCurrentTestOptimizationMode_TestSrcDirResolution(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+func TestCurrentMode_TestSrcDirResolution(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	testSrcDir := t.TempDir()
 	manifestRel := filepath.Join("workspace", ".testoptimization", "manifest.txt")
@@ -138,10 +143,10 @@ func TestCurrentTestOptimizationMode_TestSrcDirResolution(t *testing.T) {
 		t.Fatalf("write manifest: %v", err)
 	}
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestRel)
+	t.Setenv(testManifestEnv, manifestRel)
 	t.Setenv("TEST_SRCDIR", testSrcDir)
 
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if !mode.ManifestEnabled {
 		t.Fatalf("expected manifest mode enabled")
 	}
@@ -150,119 +155,92 @@ func TestCurrentTestOptimizationMode_TestSrcDirResolution(t *testing.T) {
 	}
 }
 
-func TestCurrentTestOptimizationMode_InvalidManifestVersion(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+func TestCurrentMode_InvalidManifestVersion(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
 	if err := os.WriteFile(manifestPath, []byte("2\n"), 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	t.Setenv(testManifestEnv, manifestPath)
 
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if mode.ManifestEnabled {
 		t.Fatalf("expected manifest mode disabled for unsupported version")
 	}
 }
 
-func TestCurrentTestOptimizationMode_MissingManifestDisablesMode(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+func TestCurrentMode_MissingManifestDisablesMode(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, filepath.Join(t.TempDir(), "missing-manifest.txt"))
+	t.Setenv(testManifestEnv, filepath.Join(t.TempDir(), "missing-manifest.txt"))
 
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if mode.ManifestEnabled {
 		t.Fatalf("expected manifest mode disabled for missing manifest")
 	}
 }
 
-func TestCurrentTestOptimizationMode_ManifestVersionUsesFirstNonEmptyLine(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+func TestCurrentMode_ManifestVersionUsesFirstNonEmptyLine(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
 	if err := os.WriteFile(manifestPath, []byte("\n  \n1\n2\n"), 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	t.Setenv(testManifestEnv, manifestPath)
 
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if !mode.ManifestEnabled {
 		t.Fatalf("expected manifest mode enabled when first non-empty line is 1")
 	}
 }
 
-func TestCurrentTestOptimizationMode_ManifestVersionAssignmentIsSupported(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+func TestCurrentMode_ManifestVersionAssignmentIsSupported(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
 	if err := os.WriteFile(manifestPath, []byte("version=1\n"), 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	t.Setenv(testManifestEnv, manifestPath)
 
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if !mode.ManifestEnabled {
 		t.Fatalf("expected manifest mode enabled when version line is version=1")
 	}
 }
 
-func TestCurrentTestOptimizationMode_ManifestVersionAssignmentWithSpacesIsSupported(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+func TestCurrentMode_ManifestVersionAssignmentWithSpacesIsSupported(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
 	if err := os.WriteFile(manifestPath, []byte("version = 1\n"), 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	t.Setenv(testManifestEnv, manifestPath)
 
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if !mode.ManifestEnabled {
-		t.Fatalf("expected manifest mode enabled when version line is version = 1")
-	}
-}
-
-func TestIsManifestModeEnabled(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
-
-	if IsManifestModeEnabled() {
-		t.Fatal("expected manifest mode disabled by default")
-	}
-
-	ResetTestOptimizationModeForTesting()
-	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
-	if err := os.WriteFile(manifestPath, []byte("1\n"), 0o644); err != nil {
-		t.Fatalf("write manifest: %v", err)
-	}
-
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
-
-	if !IsManifestModeEnabled() {
-		t.Fatal("expected manifest mode helper to report enabled")
-	}
-	if IsPayloadFilesModeEnabled() {
-		t.Fatal("expected payload-files mode helper to report disabled")
-	}
-	if IsGitCLIDisabled() {
-		t.Fatal("expected git cli helper to report enabled outside payload-files mode")
+		t.Fatalf("expected manifest mode enabled when version line has spaces")
 	}
 }
 
 func TestPayloadFilesModeHelpers(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
-	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
+	t.Setenv(testPayloadFilesEnv, "true")
+	t.Setenv(testUndeclaredOutputs, t.TempDir())
 
 	if IsManifestModeEnabled() {
 		t.Fatal("expected manifest mode helper to report disabled")
@@ -275,15 +253,15 @@ func TestPayloadFilesModeHelpers(t *testing.T) {
 	}
 }
 
-func TestCurrentTestOptimizationMode_PayloadFiles(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+func TestCurrentMode_PayloadFiles(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	outDir := t.TempDir()
-	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, outDir)
+	t.Setenv(testPayloadFilesEnv, "true")
+	t.Setenv(testUndeclaredOutputs, outDir)
 
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if !mode.PayloadFilesEnabled {
 		t.Fatalf("expected payload-files mode enabled")
 	}
@@ -292,7 +270,7 @@ func TestCurrentTestOptimizationMode_PayloadFiles(t *testing.T) {
 		t.Fatalf("unexpected payload root: %s", mode.PayloadsRoot)
 	}
 
-	if err := WritePayloadFile("tests", []byte(`{"ok":true}`)); err != nil {
+	if err := WritePayloadFile(PayloadKindTests, []byte(`{"ok":true}`)); err != nil {
 		t.Fatalf("write payload file: %v", err)
 	}
 
@@ -305,9 +283,9 @@ func TestCurrentTestOptimizationMode_PayloadFiles(t *testing.T) {
 	}
 }
 
-func TestCurrentTestOptimizationMode_LogsManifestResolutionAndPayloadFileWrite(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+func TestCurrentMode_LogsManifestResolutionAndPayloadFileWrite(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	recordLogger := new(log.RecordLogger)
 	oldLevel := log.GetLevel()
@@ -322,11 +300,11 @@ func TestCurrentTestOptimizationMode_LogsManifestResolutionAndPayloadFileWrite(t
 		t.Fatalf("write manifest: %v", err)
 	}
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
-	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, outDir)
+	t.Setenv(testManifestEnv, manifestPath)
+	t.Setenv(testPayloadFilesEnv, "true")
+	t.Setenv(testUndeclaredOutputs, outDir)
 
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if !mode.ManifestEnabled {
 		t.Fatal("expected manifest mode enabled")
 	}
@@ -334,7 +312,7 @@ func TestCurrentTestOptimizationMode_LogsManifestResolutionAndPayloadFileWrite(t
 		t.Fatal("expected payload-file mode enabled")
 	}
 
-	if err := WritePayloadFile("tests", []byte(`{"ok":true}`)); err != nil {
+	if err := WritePayloadFile(PayloadKindTests, []byte(`{"ok":true}`)); err != nil {
 		t.Fatalf("write payload file: %v", err)
 	}
 
@@ -367,9 +345,9 @@ func TestCurrentTestOptimizationMode_LogsManifestResolutionAndPayloadFileWrite(t
 	}
 }
 
-func TestCurrentTestOptimizationMode_LogsManifestVersionAssignmentParsing(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+func TestCurrentMode_LogsManifestVersionAssignmentParsing(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	recordLogger := new(log.RecordLogger)
 	oldLevel := log.GetLevel()
@@ -382,9 +360,9 @@ func TestCurrentTestOptimizationMode_LogsManifestVersionAssignmentParsing(t *tes
 		t.Fatalf("write manifest: %v", err)
 	}
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	t.Setenv(testManifestEnv, manifestPath)
 
-	mode := CurrentTestOptimizationMode()
+	mode := CurrentMode()
 	if !mode.ManifestEnabled {
 		t.Fatal("expected manifest mode enabled")
 	}
@@ -396,77 +374,107 @@ func TestCurrentTestOptimizationMode_LogsManifestVersionAssignmentParsing(t *tes
 }
 
 func TestWritePayloadFileDisabledMode(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
-	err := WritePayloadFile("tests", []byte(`{"ok":true}`))
+	err := WritePayloadFile(PayloadKindTests, []byte(`{"ok":true}`))
 	if err == nil {
 		t.Fatal("expected payload file mode disabled error")
 	}
 }
 
 func TestWritePayloadFileInvalidKind(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
-	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
+	t.Setenv(testPayloadFilesEnv, "true")
+	t.Setenv(testUndeclaredOutputs, t.TempDir())
 
-	if err := WritePayloadFile("unknown", []byte(`{"ok":true}`)); err == nil {
+	if err := WritePayloadFile(PayloadKind("unknown"), []byte(`{"ok":true}`)); err == nil {
 		t.Fatal("expected unsupported payload file kind error")
 	}
 }
 
 func TestWritePayloadFileMissingOutputDir(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
-	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
+	t.Setenv(testPayloadFilesEnv, "true")
 
-	err := WritePayloadFile("tests", []byte(`{"ok":true}`))
+	err := WritePayloadFile(PayloadKindTests, []byte(`{"ok":true}`))
 	if err == nil {
 		t.Fatal("expected missing output dir error")
 	}
-	if !strings.Contains(err.Error(), constants.CIVisibilityUndeclaredOutputsDir) {
+	if !strings.Contains(err.Error(), testUndeclaredOutputs) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestCurrentTestOptimizationMode_EmptyManifestDisablesMode(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+func TestWritePayloadFileTelemetryOrdering(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
+
+	outDir := t.TempDir()
+	t.Setenv(testPayloadFilesEnv, "true")
+	t.Setenv(testUndeclaredOutputs, outDir)
+
+	if err := WritePayloadFile(PayloadKindTelemetry, []byte(`{"seq":1}`)); err != nil {
+		t.Fatalf("write first telemetry payload: %v", err)
+	}
+	if err := WritePayloadFile(PayloadKindTelemetry, []byte(`{"seq":2}`)); err != nil {
+		t.Fatalf("write second telemetry payload: %v", err)
+	}
+
+	matches, err := filepath.Glob(filepath.Join(outDir, "payloads", "telemetry", "telemetry-*.json"))
+	if err != nil {
+		t.Fatalf("glob telemetry payload files: %v", err)
+	}
+	if len(matches) != 2 {
+		t.Fatalf("expected two telemetry payload files, got %d", len(matches))
+	}
+	if !strings.HasPrefix(filepath.Base(matches[0]), "telemetry-00000000000000000001-") {
+		t.Fatalf("unexpected first telemetry filename: %s", filepath.Base(matches[0]))
+	}
+	if !strings.HasPrefix(filepath.Base(matches[1]), "telemetry-00000000000000000002-") {
+		t.Fatalf("unexpected second telemetry filename: %s", filepath.Base(matches[1]))
+	}
+}
+
+func TestCurrentMode_EmptyManifestDisablesMode(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
 	if err := os.WriteFile(manifestPath, nil, 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	t.Setenv(testManifestEnv, manifestPath)
 
-	if mode := CurrentTestOptimizationMode(); mode.ManifestEnabled {
+	if mode := CurrentMode(); mode.ManifestEnabled {
 		t.Fatal("expected empty manifest to disable manifest mode")
 	}
 }
 
-func TestCurrentTestOptimizationMode_InvalidManifestAssignmentDisablesMode(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+func TestCurrentMode_InvalidManifestAssignmentDisablesMode(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
 	if err := os.WriteFile(manifestPath, []byte("version = nope\n"), 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	t.Setenv(testManifestEnv, manifestPath)
 
-	if mode := CurrentTestOptimizationMode(); mode.ManifestEnabled {
+	if mode := CurrentMode(); mode.ManifestEnabled {
 		t.Fatal("expected invalid version assignment to disable manifest mode")
 	}
 }
 
 func TestCacheHTTPFile(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	manifestDir := t.TempDir()
 	manifestPath := filepath.Join(manifestDir, "manifest.txt")
@@ -474,7 +482,7 @@ func TestCacheHTTPFile(t *testing.T) {
 		t.Fatalf("write manifest: %v", err)
 	}
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	t.Setenv(testManifestEnv, manifestPath)
 
 	cacheFile, ok := CacheHTTPFile("settings.json")
 	if !ok {
@@ -487,20 +495,20 @@ func TestCacheHTTPFile(t *testing.T) {
 }
 
 func TestCacheHTTPFileDisabledOrBlankName(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	if cacheFile, ok := CacheHTTPFile("settings.json"); ok || cacheFile != "" {
 		t.Fatalf("expected cache resolution disabled without manifest mode, got %q %t", cacheFile, ok)
 	}
 
-	ResetTestOptimizationModeForTesting()
+	ResetForTesting()
 	manifestDir := t.TempDir()
 	manifestPath := filepath.Join(manifestDir, "manifest.txt")
 	if err := os.WriteFile(manifestPath, []byte("1\n"), 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
-	t.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	t.Setenv(testManifestEnv, manifestPath)
 
 	if cacheFile, ok := CacheHTTPFile("   "); ok || cacheFile != "" {
 		t.Fatalf("expected blank cache file name to be rejected, got %q %t", cacheFile, ok)
@@ -559,16 +567,16 @@ func TestParseManifestVersionPreservesNonVersionAssignments(t *testing.T) {
 }
 
 func TestIsGitCLIDisabled(t *testing.T) {
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
 
 	if IsGitCLIDisabled() {
 		t.Fatal("expected git cli enabled by default")
 	}
 
-	ResetTestOptimizationModeForTesting()
-	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
+	ResetForTesting()
+	t.Setenv(testPayloadFilesEnv, "true")
+	t.Setenv(testUndeclaredOutputs, t.TempDir())
 
 	if !IsGitCLIDisabled() {
 		t.Fatal("expected git cli disabled in payload-files mode")

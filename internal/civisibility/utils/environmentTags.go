@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	"github.com/DataDog/dd-trace-go/v2/internal/env"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
@@ -263,7 +264,7 @@ func createCITagsMap() map[string]string {
 		localTags[constants.UserProvidedTestServiceTag] = "false"
 	}
 
-	if IsPayloadFilesModeEnabled() {
+	if bazel.IsPayloadFilesModeEnabled() {
 		// Payload-file mode relies on the environmental data file instead of invoking the Git CLI.
 		applyEnvironmentalDataIfRequiredFunc(localTags)
 		log.Debug("civisibility: skipping local git enrichment in payload-file mode")

@@ -16,8 +16,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
-	civisibilityutils "github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
 )
 
 func TestSearchCommitsApiRequest(t *testing.T) {
@@ -109,8 +109,8 @@ func TestSearchCommitsApiRequestFailToGet(t *testing.T) {
 }
 
 func TestSearchCommitsApiRequestManifestModeNoop(t *testing.T) {
-	civisibilityutils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	var hits int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

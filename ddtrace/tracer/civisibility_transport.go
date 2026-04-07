@@ -18,8 +18,8 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
 	"github.com/DataDog/dd-trace-go/v2/internal"
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
-	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils/telemetry"
 	"github.com/DataDog/dd-trace-go/v2/internal/env"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
@@ -136,13 +136,13 @@ func (t *ciVisibilityTransport) send(p payload) (body io.ReadCloser, err error) 
 		return nil, fmt.Errorf("cannot create buffer payload: %v", bufferErr)
 	}
 
-	if utils.IsPayloadFilesModeEnabled() {
+	if bazel.IsPayloadFilesModeEnabled() {
 		log.Debug("civisibility: test event payload transport mode is file; converting msgpack payload to JSON before writing to disk")
-		jsonPayload, err := utils.MsgpackToJSON(buffer.Bytes())
+		jsonPayload, err := bazel.MsgpackToJSON(buffer.Bytes())
 		if err != nil {
 			return nil, fmt.Errorf("cannot convert payload to json: %w", err)
 		}
-		if err := utils.WritePayloadFile("tests", jsonPayload); err != nil {
+		if err := bazel.WritePayloadFile(bazel.PayloadKindTests, jsonPayload); err != nil {
 			return nil, fmt.Errorf("cannot write test payload file: %w", err)
 		}
 		return io.NopCloser(bytes.NewReader(nil)), nil

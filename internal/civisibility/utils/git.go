@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils/telemetry"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
@@ -188,7 +189,7 @@ func execGit(commandType telemetry.CommandType, args ...string) (val []byte, err
 			}
 		}()
 	}
-	if IsGitCLIDisabled() {
+	if bazel.IsGitCLIDisabled() {
 		log.Debug("civisibility.git: skipping git command in payload-file mode: git %s", strings.Join(args, " "))
 		return nil, errGitCLIDisabledInPayloadFilesMode
 	}
@@ -253,6 +254,10 @@ func execGitStringWithInput(commandType telemetry.CommandType, input string, arg
 				log.Debug("civisibility.git.command(input) [%s][%dms]: git %s\n%s", commandType, durationInMs, strings.Join(args, " "), val)
 			}
 		}()
+	}
+	if bazel.IsGitCLIDisabled() {
+		log.Debug("civisibility.git: skipping git command with stdin in payload-file mode: git %s", strings.Join(args, " "))
+		return "", errGitCLIDisabledInPayloadFilesMode
 	}
 	gitCommandMutex.Lock()
 	defer gitCommandMutex.Unlock()

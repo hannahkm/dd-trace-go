@@ -11,7 +11,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils/telemetry"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
@@ -76,9 +76,9 @@ type (
 )
 
 func (c *client) GetSettings() (*SettingsResponseData, error) {
-	if utils.IsManifestModeEnabled() {
-		if cacheFile, ok := utils.CacheHTTPFile("settings.json"); ok {
-			cacheFileForLog := utils.TestOptimizationPathForLog(cacheFile)
+	if bazel.IsManifestModeEnabled() {
+		if cacheFile, ok := bazel.CacheHTTPFile("settings.json"); ok {
+			cacheFileForLog := bazel.TestOptimizationPathForLog(cacheFile)
 			log.Debug("civisibility.settings: reading %s", cacheFileForLog)
 			if raw, err := os.ReadFile(cacheFile); err == nil {
 				log.Debug("civisibility.settings: read %s (%d bytes)", cacheFileForLog, len(raw))

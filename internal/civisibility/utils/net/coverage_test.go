@@ -20,8 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
-	civisibilityutils "github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
 
@@ -130,8 +130,8 @@ func TestCoverageApiRequestJSONFormat(t *testing.T) {
 }
 
 func TestCoverageApiRequestPayloadFilesModeWritesJSON(t *testing.T) {
-	civisibilityutils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	outDir := t.TempDir()
 
@@ -149,7 +149,7 @@ func TestCoverageApiRequestPayloadFilesModeWritesJSON(t *testing.T) {
 	setCiVisibilityEnv(path, server.URL)
 	os.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
 	os.Setenv(constants.CIVisibilityUndeclaredOutputsDir, outDir)
-	civisibilityutils.ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 
 	recordLogger := new(log.RecordLogger)
 	oldLevel := log.GetLevel()
@@ -187,8 +187,8 @@ func TestCoverageApiRequestPayloadFilesModeWritesJSON(t *testing.T) {
 }
 
 func TestCoverageApiRequestPayloadFilesModeWritesJSONFormatPayload(t *testing.T) {
-	civisibilityutils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	outDir := t.TempDir()
 
@@ -206,7 +206,7 @@ func TestCoverageApiRequestPayloadFilesModeWritesJSONFormatPayload(t *testing.T)
 	setCiVisibilityEnv(path, server.URL)
 	os.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
 	os.Setenv(constants.CIVisibilityUndeclaredOutputsDir, outDir)
-	civisibilityutils.ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 
 	cInterface := NewClient()
 	jsonPayload := []byte(`{"version":2,"metadata":{},"coverages":[]}`)
@@ -230,8 +230,8 @@ func TestCoverageApiRequestPayloadFilesModeWritesJSONFormatPayload(t *testing.T)
 }
 
 func TestCoverageApiRequestPayloadFilesModeRejectsInvalidJSONFormatPayload(t *testing.T) {
-	civisibilityutils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	outDir := t.TempDir()
 
@@ -242,7 +242,7 @@ func TestCoverageApiRequestPayloadFilesModeRejectsInvalidJSONFormatPayload(t *te
 	setCiVisibilityEnv(path, "http://127.0.0.1:1")
 	os.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
 	os.Setenv(constants.CIVisibilityUndeclaredOutputsDir, outDir)
-	civisibilityutils.ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 
 	cInterface := NewClient()
 	err := cInterface.SendCoveragePayloadWithFormat(bytes.NewReader([]byte(`{"version":2,`)), FormatJSON)
@@ -255,8 +255,8 @@ func TestCoverageApiRequestPayloadFilesModeRejectsInvalidJSONFormatPayload(t *te
 }
 
 func TestCoverageApiRequestPayloadFilesModeRejectsUnsupportedFormat(t *testing.T) {
-	civisibilityutils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	outDir := t.TempDir()
 
@@ -267,7 +267,7 @@ func TestCoverageApiRequestPayloadFilesModeRejectsUnsupportedFormat(t *testing.T
 	setCiVisibilityEnv(path, "http://127.0.0.1:1")
 	os.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
 	os.Setenv(constants.CIVisibilityUndeclaredOutputsDir, outDir)
-	civisibilityutils.ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 
 	cInterface := NewClient()
 	err := cInterface.SendCoveragePayloadWithFormat(bytes.NewReader([]byte(`{}`)), "yaml")
@@ -280,8 +280,8 @@ func TestCoverageApiRequestPayloadFilesModeRejectsUnsupportedFormat(t *testing.T
 }
 
 func TestCoverageApiRequestPayloadFilesModeMissingOutputDirMsgpack(t *testing.T) {
-	civisibilityutils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	tempDir := t.TempDir()
 	t.Chdir(tempDir)
@@ -299,7 +299,7 @@ func TestCoverageApiRequestPayloadFilesModeMissingOutputDirMsgpack(t *testing.T)
 
 	setCiVisibilityEnv(path, server.URL)
 	os.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-	civisibilityutils.ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 
 	cInterface := NewClient()
 	err := cInterface.SendCoveragePayloadWithFormat(bytes.NewReader(testCoverageMsgpackPayload()), FormatMessagePack)
@@ -313,8 +313,8 @@ func TestCoverageApiRequestPayloadFilesModeMissingOutputDirMsgpack(t *testing.T)
 }
 
 func TestCoverageApiRequestPayloadFilesModeMissingOutputDirJSON(t *testing.T) {
-	civisibilityutils.ResetTestOptimizationModeForTesting()
-	t.Cleanup(civisibilityutils.ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	tempDir := t.TempDir()
 	t.Chdir(tempDir)
@@ -332,7 +332,7 @@ func TestCoverageApiRequestPayloadFilesModeMissingOutputDirJSON(t *testing.T) {
 
 	setCiVisibilityEnv(path, server.URL)
 	os.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-	civisibilityutils.ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 
 	cInterface := NewClient()
 	err := cInterface.SendCoveragePayloadWithFormat(bytes.NewReader([]byte(`{"version":2,"metadata":{},"coverages":[]}`)), FormatJSON)

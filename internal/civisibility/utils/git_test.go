@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils/telemetry"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
@@ -111,8 +112,8 @@ func TestExecGitStringDisabledInPayloadFilesMode(t *testing.T) {
 	t.Setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
 	t.Setenv("TEST_UNDECLARED_OUTPUTS_DIR", t.TempDir())
 
-	ResetTestOptimizationModeForTesting()
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+	bazel.ResetForTesting()
+	t.Cleanup(bazel.ResetForTesting)
 
 	out, err := execGitString(telemetry.NotSpecifiedCommandsType, "--version")
 	assert.Empty(t, out)

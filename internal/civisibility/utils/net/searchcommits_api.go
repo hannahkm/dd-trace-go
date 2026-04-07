@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils/telemetry"
 )
 
@@ -33,7 +33,7 @@ type (
 )
 
 func (c *client) GetCommits(localCommits []string) ([]string, error) {
-	if utils.IsManifestModeEnabled() {
+	if bazel.IsManifestModeEnabled() {
 		return []string{}, nil
 	}
 

@@ -8,6 +8,7 @@ package utils
 import (
 	"testing"
 
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 
 	"github.com/stretchr/testify/assert"
@@ -122,9 +123,9 @@ func TestGetRelativePathFromCITagsSourceRoot(t *testing.T) {
 
 func TestGetCITagsUsesGitEnrichmentOutsidePayloadFilesMode(t *testing.T) {
 	ResetCITags()
-	ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 	t.Cleanup(ResetCITags)
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+	t.Cleanup(bazel.ResetForTesting)
 
 	originalGetProviderTagsFunc := getProviderTagsFunc
 	originalGetLocalGitDataFunc := getLocalGitDataFunc
@@ -185,13 +186,13 @@ func TestGetCITagsUsesGitEnrichmentOutsidePayloadFilesMode(t *testing.T) {
 
 func TestGetCITagsSkipsGitEnrichmentInPayloadFilesMode(t *testing.T) {
 	ResetCITags()
-	ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 	t.Cleanup(ResetCITags)
-	t.Cleanup(ResetTestOptimizationModeForTesting)
+	t.Cleanup(bazel.ResetForTesting)
 
 	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
 	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
-	ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 
 	originalGetProviderTagsFunc := getProviderTagsFunc
 	originalGetLocalGitDataFunc := getLocalGitDataFunc

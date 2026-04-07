@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
+	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
 
@@ -94,11 +95,11 @@ func TestPayloadFilesModeSkipsCIGitOSRuntimeTags(t *testing.T) {
 
 	utils.ResetCITags()
 	utils.ResetCIMetrics()
-	utils.ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 	t.Cleanup(func() {
 		utils.ResetCITags()
 		utils.ResetCIMetrics()
-		utils.ResetTestOptimizationModeForTesting()
+		bazel.ResetForTesting()
 	})
 
 	now := time.Now()
@@ -150,11 +151,11 @@ func TestPayloadFilesModeUsesAvailableWorkspaceMetadataForWorkingDirectory(t *te
 
 	utils.ResetCITags()
 	utils.ResetCIMetrics()
-	utils.ResetTestOptimizationModeForTesting()
+	bazel.ResetForTesting()
 	t.Cleanup(func() {
 		utils.ResetCITags()
 		utils.ResetCIMetrics()
-		utils.ResetTestOptimizationModeForTesting()
+		bazel.ResetForTesting()
 	})
 
 	now := time.Now()
