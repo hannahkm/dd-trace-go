@@ -1411,9 +1411,9 @@ func TestComputeFlushMetrics_FileSinkSkipsMetrics(t *testing.T) {
 	defer c.Close()
 
 	c.computeFlushMetrics([]internal.EndpointRequestResult{{
-		PayloadByteSize: 123,
-		CallDuration:    time.Second,
-		Sink:            internal.EndpointSinkFile,
+		PayloadByteSize:  123,
+		CallDuration:     time.Second,
+		RequestAttempted: false,
 	}}, nil)
 
 	assert.Nil(t, c.metrics.Payload())
@@ -1434,7 +1434,6 @@ func TestComputeFlushMetrics_UnattemptedRequestSkipsMetrics(t *testing.T) {
 	c.computeFlushMetrics([]internal.EndpointRequestResult{{
 		Error:            errors.New("encode failed"),
 		RequestAttempted: false,
-		Sink:             internal.EndpointSinkAgent,
 	}}, errors.New("encode failed"))
 
 	assert.Nil(t, c.metrics.Payload())

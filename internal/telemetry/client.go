@@ -314,7 +314,7 @@ func (c *client) flush(payloads []transport.Payload) (int, error) {
 		failedCalls = append(failedCalls, results[:len(results)-1]...)
 		successfulCall := results[len(results)-1]
 
-		if successfulCall.Sink != internal.EndpointSinkFile && !speedIncreased && successfulCall.PayloadByteSize > c.clientConfig.EarlyFlushPayloadSize {
+		if successfulCall.RequestAttempted && !speedIncreased && successfulCall.PayloadByteSize > c.clientConfig.EarlyFlushPayloadSize {
 			// We increase the speed of the flushTicker to try to flush the remaining bodies faster as we are at risk of sending too large bodies to the backend
 			c.flushTicker.CanIncreaseSpeed()
 			speedIncreased = true
@@ -353,7 +353,7 @@ func (c *client) computeFlushMetrics(results []internal.EndpointRequestResult, r
 	}
 
 	for i, result := range results {
-		if result.Sink == internal.EndpointSinkFile || !result.RequestAttempted {
+		if !result.RequestAttempted {
 			continue
 		}
 		endpoint := "endpoint:" + indexToEndpoint(i)
@@ -379,7 +379,7 @@ func (c *client) computeFlushMetrics(results []internal.EndpointRequestResult, r
 		return
 	}
 
-	if results[len(results)-1].Sink == internal.EndpointSinkFile || !results[len(results)-1].RequestAttempted {
+	if !results[len(results)-1].RequestAttempted {
 		return
 	}
 

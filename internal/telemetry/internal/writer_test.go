@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
-	"github.com/DataDog/dd-trace-go/v2/internal/globalconfig"
 	"github.com/DataDog/dd-trace-go/v2/internal/processtags"
 	"github.com/DataDog/dd-trace-go/v2/internal/telemetry/internal/transport"
 )
@@ -334,7 +333,7 @@ func TestWriter_Flush_FileSinkWritesTelemetryPayload(t *testing.T) {
 	results, err := writer.Flush(&transport.AppStarted{})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
-	assert.Equal(t, EndpointSinkFile, results[0].Sink)
+	assert.False(t, results[0].RequestAttempted)
 	assert.Zero(t, results[0].StatusCode)
 	assert.NotZero(t, results[0].PayloadByteSize)
 	assert.Zero(t, httpCalls.Load())
@@ -386,7 +385,7 @@ func TestWriter_Flush_FileSinkMissingOutputsDir(t *testing.T) {
 	results, err := writer.Flush(&transport.AppClosing{})
 	require.Error(t, err)
 	require.Len(t, results, 1)
-	assert.Equal(t, EndpointSinkFile, results[0].Sink)
+	assert.False(t, results[0].RequestAttempted)
 	assert.ErrorContains(t, err, bazel.UndeclaredOutputsDirEnv)
 }
 
@@ -503,79 +502,4 @@ func TestWriterParallel(t *testing.T) {
 
 	assert.EqualValues(t, numRequests*2, marshalJSONCalled.Load())
 	assert.EqualValues(t, numRequests*2, payloadReceived.Load())
-}
-
-func TestPreBakeRequest_SessionHeaders(t *testing.T) {
-	body := &transport.Body{
-		APIVersion: "v2",
-		RuntimeID:  "test-runtime-id",
-		Application: transport.Application{
-			LanguageName:  "go",
-			TracerVersion: "1.0.0",
-		},
-	}
-
-	endpoint, err := http.NewRequest(http.MethodPost, "http://localhost/telemetry", nil)
-	require.NoError(t, err)
-
-	baked := preBakeRequest(body, endpoint)
-
-	// DD-Session-ID must always be present and equal the runtime ID
-	assert.Equal(t, globalconfig.RuntimeID(), baked.Header.Get("DD-Session-ID"),
-		"DD-Session-ID should equal RuntimeID")
-
-	// DD-Root-Session-ID should only be present when rootSessionID != sessionID
-	if globalconfig.RootSessionID() == globalconfig.RuntimeID() {
-		assert.Empty(t, baked.Header.Get("DD-Root-Session-ID"),
-			"DD-Root-Session-ID should be absent when rootSessionID == runtimeID")
-	} else {
-		assert.Equal(t, globalconfig.RootSessionID(), baked.Header.Get("DD-Root-Session-ID"),
-			"DD-Root-Session-ID should equal RootSessionID when inherited from parent")
-	}
-}
-
-func TestWriter_Flush_SessionHeaders(t *testing.T) {
-	config := WriterConfig{
-		TracerConfig: TracerConfig{
-			Service: "test-service",
-			Env:     "test-env",
-			Version: "1.0.0",
-		},
-	}
-
-	payload := testPayload{
-		RequestTypeValue: "test",
-		marshalJSON: func() ([]byte, error) {
-			return []byte(`{"request_type":"test"}`), nil
-		},
-	}
-
-	var receivedHeaders http.Header
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedHeaders = r.Header.Clone()
-		io.ReadAll(r.Body)
-		r.Body.Close()
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	req, err := http.NewRequest(http.MethodPost, server.URL, nil)
-	require.NoError(t, err)
-
-	config.Endpoints = append(config.Endpoints, req)
-	writer, _ := NewWriter(config)
-
-	_, err = writer.Flush(&payload)
-	require.NoError(t, err)
-
-	assert.Equal(t, globalconfig.RuntimeID(), receivedHeaders.Get("DD-Session-ID"),
-		"DD-Session-ID should equal RuntimeID")
-
-	if globalconfig.RootSessionID() == globalconfig.RuntimeID() {
-		assert.Empty(t, receivedHeaders.Get("DD-Root-Session-ID"),
-			"DD-Root-Session-ID should be absent when rootSessionID == runtimeID")
-	} else {
-		assert.Equal(t, globalconfig.RootSessionID(), receivedHeaders.Get("DD-Root-Session-ID"),
-			"DD-Root-Session-ID should equal RootSessionID when inherited from parent")
-	}
 }

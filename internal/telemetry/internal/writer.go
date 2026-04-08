@@ -29,8 +29,6 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/internal/version"
 )
 
-const telemetryAgentProxyAPIPath = "/telemetry/proxy/api/v2/apmtelemetry"
-
 func newBody(config TracerConfig, debugMode bool) *transport.Body {
 	osHostname, err := os.Hostname()
 	if err != nil {
@@ -87,7 +85,6 @@ type EndpointRequestResult struct {
 	CallDuration time.Duration
 	// StatusCode is the status code of the response from the endpoint even if the call failed but only with an actual HTTP error
 	StatusCode int
-	Sink       EndpointSink
 }
 
 type writer struct {
@@ -96,7 +93,6 @@ type writer struct {
 	bodyMu     sync.Mutex
 	httpClient *http.Client
 	endpoints  []*http.Request
-	sinks      []EndpointSink
 }
 
 type WriterConfig struct {
@@ -130,20 +126,14 @@ func NewWriter(config WriterConfig) (Writer, error) {
 
 	body := newBody(config.TracerConfig, config.Debug)
 	endpoints := make([]*http.Request, len(config.Endpoints))
-	sinks := make([]EndpointSink, len(config.Endpoints))
 	for i, endpoint := range config.Endpoints {
 		endpoints[i] = preBakeRequest(body, endpoint)
-		sinks[i] = EndpointSinkAgentless
-		if endpoint.URL != nil && endpoint.URL.Path == telemetryAgentProxyAPIPath {
-			sinks[i] = EndpointSinkAgent
-		}
 	}
 
 	return &writer{
 		body:       body,
 		httpClient: config.HTTPClient,
 		endpoints:  endpoints,
-		sinks:      sinks,
 	}, nil
 }
 
@@ -157,10 +147,7 @@ func preBakeRequest(body *transport.Body, endpoint *http.Request) *http.Request 
 		clonedEndpoint.Header = make(http.Header, 11)
 	}
 
-	sessionID := globalconfig.RuntimeID()
-	rootSessionID := globalconfig.RootSessionID()
-
-	headers := map[string]string{
+	for key, val := range map[string]string{
 		"Content-Type":               "application/json",
 		"DD-Telemetry-API-Version":   body.APIVersion,
 		"DD-Client-Library-Language": body.Application.LanguageName,
@@ -172,16 +159,9 @@ func preBakeRequest(body *transport.Body, endpoint *http.Request) *http.Request 
 		"DD-Agent-Install-Time":      globalconfig.InstrumentationInstallTime(),
 		"Datadog-Container-ID":       internal.ContainerID(),
 		"Datadog-Entity-ID":          internal.EntityID(),
-		"DD-Session-ID":              sessionID,
 		// TODO: add support for Cloud provider/resource-type/resource-id headers in another PR and package
 		// Described here: https://github.com/DataDog/instrumentation-telemetry-api-docs/blob/cf17b41a30fbf31d54e2cfbfc983875d58b02fe1/GeneratedDocumentation/ApiDocs/v2/overview.md#setting-the-serverless-telemetry-headers
-	}
-
-	if rootSessionID != sessionID {
-		headers["DD-Root-Session-ID"] = rootSessionID
-	}
-
-	for key, val := range headers {
+	} {
 		if val == "" {
 			continue
 		}
@@ -205,6 +185,7 @@ func (w *writer) setPayloadToBody(payload transport.Payload) {
 	w.body.Payload = payload
 }
 
+// marshalBody encodes the current telemetry body into JSON bytes.
 func (w *writer) marshalBody() (body []byte, err error) {
 	defer func() {
 		if panicValue := recover(); panicValue != nil {
@@ -230,6 +211,7 @@ func (w *writer) marshalBody() (body []byte, err error) {
 	return buf.Bytes(), nil
 }
 
+// newRequest creates a new http.Request with the given payload and the necessary headers.
 func (w *writer) newRequest(endpoint *http.Request, requestType transport.RequestType) (*http.Request, int, error) {
 	request := endpoint.Clone(context.Background())
 	request.Header.Set("DD-Telemetry-Request-Type", string(requestType))
@@ -263,31 +245,29 @@ func (w *writer) Flush(payload transport.Payload) ([]EndpointRequestResult, erro
 	if bazel.IsPayloadFilesModeEnabled() {
 		body, err := w.marshalBody()
 		if err != nil {
-			return []EndpointRequestResult{{Error: err, Sink: EndpointSinkFile}}, err
+			return []EndpointRequestResult{{Error: err}}, err
 		}
 
 		if err := bazel.WritePayloadFile(bazel.PayloadKindTelemetry, body); err != nil {
-			return []EndpointRequestResult{{Error: err, Sink: EndpointSinkFile}}, err
+			return []EndpointRequestResult{{Error: err}}, err
 		}
 
 		return []EndpointRequestResult{{
 			PayloadByteSize: len(body),
-			Sink:            EndpointSinkFile,
 		}}, nil
 	}
 
 	var results []EndpointRequestResult
-	for i, endpoint := range w.endpoints {
+	for _, endpoint := range w.endpoints {
 		request, payloadSize, err := w.newRequest(endpoint, requestType)
-
 		if err != nil {
-			return []EndpointRequestResult{{Error: err, Sink: w.sinks[i]}}, err
+			return []EndpointRequestResult{{Error: err}}, err
 		}
 
 		now := time.Now()
 		response, err := w.httpClient.Do(request)
 		if err != nil {
-			results = append(results, EndpointRequestResult{Error: err, RequestAttempted: true, Sink: w.sinks[i]})
+			results = append(results, EndpointRequestResult{Error: err, RequestAttempted: true})
 			continue
 		}
 
@@ -299,7 +279,7 @@ func (w *writer) Flush(payload transport.Payload) ([]EndpointRequestResult, erro
 			results = append(results, EndpointRequestResult{Error: &WriterStatusCodeError{
 				Status: response.Status,
 				Body:   string(respBodyBytes),
-			}, RequestAttempted: true, StatusCode: response.StatusCode, Sink: w.sinks[i]})
+			}, RequestAttempted: true, StatusCode: response.StatusCode})
 			continue
 		}
 
@@ -308,7 +288,6 @@ func (w *writer) Flush(payload transport.Payload) ([]EndpointRequestResult, erro
 			RequestAttempted: true,
 			CallDuration:     time.Since(now),
 			StatusCode:       response.StatusCode,
-			Sink:             w.sinks[i],
 		})
 
 		// We succeeded, no need to try the other endpoints
