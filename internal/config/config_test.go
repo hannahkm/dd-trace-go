@@ -775,7 +775,7 @@ func TestProductConflict(t *testing.T) {
 		assert.Equal(t, "profiler-env", cfg.Env(), "different fields should not conflict")
 	})
 
-	t.Run("same value different products", func(t *testing.T) {
+	t.Run("same value different products is not a conflict", func(t *testing.T) {
 		resetGlobalState()
 		defer resetGlobalState()
 
@@ -785,6 +785,6 @@ func TestProductConflict(t *testing.T) {
 		cfg.SetServiceName("my-svc", OriginCode, ProductProfiler)
 
 		assert.Equal(t, "my-svc", cfg.ServiceName(),
-			"same value from different product is still a conflict (first-in-wins)")
+			"same value from different products should be allowed")
 	})
 }

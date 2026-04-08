@@ -11,6 +11,7 @@ import (
 	"math"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -155,6 +156,9 @@ func (c *Config) productConflict(field string, origin telemetry.Origin, value an
 	}
 	p := product[0]
 	if prev, exists := c.overrides[field]; exists && prev.product != p {
+		if reflect.DeepEqual(prev.value, value) {
+			return false
+		}
 		telemetry.Count(telemetry.NamespaceGeneral, "config.product_conflict", []string{
 			"name:" + field,
 			"first_product:" + string(prev.product),
