@@ -42,7 +42,7 @@ func TestOnRemoteConfigUpdate(t *testing.T) {
 		require.Nil(t, err)
 		defer stop()
 
-		require.Equal(t, telemetry.OriginDefault, tracer.config.traceSampleRate.cfgOrigin)
+		require.Equal(t, telemetry.OriginDefault, tracer.config.internalConfig.GlobalSampleRateConfig().Origin())
 
 		// Apply RC. Assert _dd.rule_psr shows the RC sampling rate (0.5) is applied
 		input := remoteconfig.ProductUpdate{
@@ -111,7 +111,7 @@ func TestOnRemoteConfigUpdate(t *testing.T) {
 		require.Nil(t, err)
 		defer stop()
 
-		require.Equal(t, telemetry.OriginEnvVar, tracer.config.traceSampleRate.cfgOrigin)
+		require.Equal(t, telemetry.OriginEnvVar, tracer.config.internalConfig.GlobalSampleRateConfig().Origin())
 
 		// Apply RC. Assert _dd.rule_psr shows the RC sampling rate (0.2) is applied
 		input := remoteconfig.ProductUpdate{
@@ -156,7 +156,7 @@ func TestOnRemoteConfigUpdate(t *testing.T) {
 		require.Nil(t, err)
 		defer stop()
 
-		require.Equal(t, telemetry.OriginDefault, tracer.config.traceSampleRate.cfgOrigin)
+		require.Equal(t, telemetry.OriginDefault, tracer.config.internalConfig.GlobalSampleRateConfig().Origin())
 
 		s := tracer.StartSpan("web.request")
 		s.Finish()
@@ -353,7 +353,7 @@ func TestOnRemoteConfigUpdate(t *testing.T) {
 		require.Nil(t, err)
 		defer stop()
 
-		require.Equal(t, telemetry.OriginDefault, tracer.config.traceSampleRate.cfgOrigin)
+		require.Equal(t, telemetry.OriginDefault, tracer.config.internalConfig.GlobalSampleRateConfig().Origin())
 
 		// Apply RC. Assert global config shows the RC header tag is applied
 		input := remoteconfig.ProductUpdate{
@@ -392,7 +392,7 @@ func TestOnRemoteConfigUpdate(t *testing.T) {
 		require.Nil(t, err)
 		defer stop()
 
-		require.Equal(t, telemetry.OriginDefault, tr.config.traceSampleRate.cfgOrigin)
+		require.Equal(t, telemetry.OriginDefault, tr.config.internalConfig.GlobalSampleRateConfig().Origin())
 
 		input := remoteconfig.ProductUpdate{
 			"path": []byte(
@@ -547,7 +547,7 @@ func TestOnRemoteConfigUpdate(t *testing.T) {
 		require.Nil(t, err)
 		defer stop()
 
-		require.Equal(t, telemetry.OriginDefault, tracer.config.traceSampleRate.cfgOrigin)
+		require.Equal(t, telemetry.OriginDefault, tracer.config.internalConfig.GlobalSampleRateConfig().Origin())
 
 		input := remoteconfig.ProductUpdate{
 			"path": []byte(
@@ -572,7 +572,7 @@ func TestOnRemoteConfigUpdate(t *testing.T) {
 		require.Nil(t, err)
 		defer stop()
 
-		require.Equal(t, telemetry.OriginDefault, tracer.config.traceSampleRate.cfgOrigin)
+		require.Equal(t, telemetry.OriginDefault, tracer.config.internalConfig.GlobalSampleRateConfig().Origin())
 
 		input := remoteconfig.ProductUpdate{
 			"path": []byte(`{"lib_config": {}, "service_target": {"service": "other-service", "env": "my-env"}}`),
@@ -595,7 +595,7 @@ func TestOnRemoteConfigUpdate(t *testing.T) {
 		require.Nil(t, err)
 		defer stop()
 
-		require.Equal(t, telemetry.OriginDefault, tracer.config.traceSampleRate.cfgOrigin)
+		require.Equal(t, telemetry.OriginDefault, tracer.config.internalConfig.GlobalSampleRateConfig().Origin())
 
 		input := remoteconfig.ProductUpdate{
 			"path": []byte(`{"lib_config": {}, "service_target": {"service": "my-service", "env": "other-env"}}`),
@@ -624,7 +624,7 @@ func TestOnRemoteConfigUpdate(t *testing.T) {
 		require.Nil(t, err)
 		defer stop()
 
-		require.Equal(t, telemetry.OriginDefault, tracer.config.traceSampleRate.cfgOrigin)
+		require.Equal(t, telemetry.OriginDefault, tracer.config.internalConfig.GlobalSampleRateConfig().Origin())
 		require.Equal(t, telemetry.OriginEnvVar, tracer.config.globalTags.cfgOrigin)
 
 		// Apply RC. Assert global tags have the RC tags key3:val3,key4:val4 applied + runtime ID
@@ -754,7 +754,7 @@ func TestOnRemoteConfigUpdate(t *testing.T) {
 				assert.Nil(t, err)
 				defer stop()
 
-				require.Equal(t, telemetry.OriginEnvVar, tracer.config.traceSampleRate.cfgOrigin)
+				require.Equal(t, telemetry.OriginEnvVar, tracer.config.internalConfig.GlobalSampleRateConfig().Origin())
 
 				// Apply RC. Assert configuration is updated to the RC values.
 				initialInput := remoteconfig.ProductUpdate{

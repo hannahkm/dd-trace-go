@@ -86,7 +86,7 @@ type Config struct {
 	// dynamicInstrumentationEnabled controls if the target application can be modified by Dynamic Instrumentation or not.
 	dynamicInstrumentationEnabled bool
 	// globalSampleRate holds the sample rate for the tracer.
-	globalSampleRate float64
+	globalSampleRate *DynamicConfig[float64]
 	// ciVisibilityEnabled controls if the tracer is loaded with CI Visibility mode. default false
 	ciVisibilityEnabled   bool
 	ciVisibilityAgentless bool
@@ -161,7 +161,7 @@ func loadConfig() *Config {
 	cfg.ciVisibilityAgentless = p.GetBool("DD_CIVISIBILITY_AGENTLESS_ENABLED", false)
 	cfg.logDirectory = p.GetString("DD_TRACE_LOG_DIRECTORY", "")
 	cfg.traceRateLimitPerSecond = p.GetFloatWithValidator("DD_TRACE_RATE_LIMIT", DefaultRateLimit, validateRateLimit)
-	cfg.globalSampleRate = p.GetFloatWithValidator("DD_TRACE_SAMPLE_RATE", math.NaN(), validateSampleRate)
+	cfg.globalSampleRate = NewDynamicConfig("trace_sample_rate", p.GetFloatWithValidator("DD_TRACE_SAMPLE_RATE", math.NaN(), validateSampleRate))
 	cfg.debugStack = p.GetBool("DD_TRACE_DEBUG_STACK", true)
 	cfg.retryInterval = p.GetDuration("DD_TRACE_RETRY_INTERVAL", time.Millisecond)
 	cfg.logsOTelEnabled = p.GetBool("DD_LOGS_OTEL_ENABLED", false)
@@ -409,15 +409,17 @@ func (c *Config) SetIsLambdaFunction(enabled bool, origin telemetry.Origin) {
 }
 
 func (c *Config) GlobalSampleRate() float64 {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	return c.globalSampleRate.Get()
+}
+
+// GlobalSampleRateConfig returns the DynamicConfig for the global sample rate.
+// Products use this to apply RC updates and read telemetry snapshots.
+func (c *Config) GlobalSampleRateConfig() *DynamicConfig[float64] {
 	return c.globalSampleRate
 }
 
 func (c *Config) SetGlobalSampleRate(rate float64, origin telemetry.Origin) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.globalSampleRate = rate
+	c.globalSampleRate.Update(rate, origin)
 	configtelemetry.Report("DD_TRACE_SAMPLE_RATE", rate, origin)
 }
 
