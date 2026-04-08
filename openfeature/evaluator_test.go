@@ -651,6 +651,74 @@ func TestValidateVariantType(t *testing.T) {
 	}
 }
 
+func TestEvaluateFlag_VariantTypeMismatchReturnsParseError(t *testing.T) {
+	// When the configuration declares a flag type (e.g., INTEGER) but the variant
+	// value doesn't match (e.g., a string), we should return errParseError so that
+	// toResolutionError maps it to PARSE_ERROR.
+	tests := []struct {
+		name          string
+		variationType valueType
+		variantValue  any
+	}{
+		{
+			name:          "INTEGER flag with string value",
+			variationType: valueTypeInteger,
+			variantValue:  "not-an-integer",
+		},
+		{
+			name:          "BOOLEAN flag with string value",
+			variationType: valueTypeBoolean,
+			variantValue:  "true",
+		},
+		{
+			name:          "NUMERIC flag with string value",
+			variationType: valueTypeNumeric,
+			variantValue:  "42.5",
+		},
+		{
+			name:          "STRING flag with integer value",
+			variationType: valueTypeString,
+			variantValue:  123,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flag := &flag{
+				Key:           "test-flag",
+				Enabled:       true,
+				VariationType: tt.variationType,
+				Variations: map[string]*variant{
+					"v1": {Key: "v1", Value: tt.variantValue},
+				},
+				Allocations: []*allocation{
+					{
+						Key: "allocation1",
+						Splits: []*split{
+							{
+								VariationKey: "v1",
+							},
+						},
+					},
+				},
+			}
+
+			result := evaluateFlag(flag, nil, map[string]any{"targetingKey": "user-123"})
+
+			if result.Reason != of.ErrorReason {
+				t.Errorf("expected ErrorReason, got %s", result.Reason)
+			}
+			if result.Error == nil {
+				t.Fatal("expected error, got nil")
+			}
+			// Verify the error wraps errParseError so toResolutionError maps to PARSE_ERROR
+			if !errors.Is(result.Error, errParseError) {
+				t.Errorf("expected error to wrap errParseError, got: %v", result.Error)
+			}
+		})
+	}
+}
+
 func TestEvaluateFlag_JSONFixtures(t *testing.T) {
 	configData, err := os.ReadFile(filepath.Join("testdata", "ufc-config.json"))
 	if err != nil {
