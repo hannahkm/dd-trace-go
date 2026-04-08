@@ -76,7 +76,7 @@ func (c *client) GetKnownTests() (*KnownTestsResponseData, error) {
 		}
 		// Compatible with Bazel offline mode: missing or invalid cache means empty known tests response.
 		log.Debug("civisibility.known_tests: returning empty known tests because manifest cache is unavailable or invalid")
-		return emptyKnownTestsResponseData(), nil
+		return &KnownTestsResponseData{Tests: KnownTestsResponseDataModules{}}, nil
 	}
 
 	if c.repositoryURL == "" || c.commitSha == "" {
@@ -192,18 +192,10 @@ func loadKnownTestsFromManifestCache() (*KnownTestsResponseData, bool) {
 		return nil, false
 	}
 
-	modules, suites, tests := knownTestsCounts(cachedResponse.Data.Attributes.Tests)
-	log.Debug("civisibility.known_tests: loaded known tests from %s [modules:%d suites:%d tests:%d]", cacheFileForLog, modules, suites, tests)
-	return &cachedResponse.Data.Attributes, true
-}
-
-// emptyKnownTestsResponseData builds the empty response returned when Bazel offline cache loading is unavailable or invalid.
-func emptyKnownTestsResponseData() *KnownTestsResponseData {
-	return &KnownTestsResponseData{Tests: KnownTestsResponseDataModules{}}
-}
-
-func knownTestsCounts(modules KnownTestsResponseDataModules) (moduleCount int, suiteCount int, testCount int) {
-	for _, suites := range modules {
+	moduleCount := 0
+	suiteCount := 0
+	testCount := 0
+	for _, suites := range cachedResponse.Data.Attributes.Tests {
 		moduleCount++
 		if suites == nil {
 			continue
@@ -213,5 +205,6 @@ func knownTestsCounts(modules KnownTestsResponseDataModules) (moduleCount int, s
 			testCount += len(tests)
 		}
 	}
-	return moduleCount, suiteCount, testCount
+	log.Debug("civisibility.known_tests: loaded known tests from %s [modules:%d suites:%d tests:%d]", cacheFileForLog, moduleCount, suiteCount, testCount)
+	return &cachedResponse.Data.Attributes, true
 }
