@@ -332,6 +332,12 @@ func createCITagsMap() map[string]string {
 		applyEnvironmentalDataIfRequiredFunc(localTags)
 	}
 
+	// Apply the Bazel provider fallback only after all other CI provider sources had a chance to populate the tag.
+	mode := bazel.CurrentMode()
+	if (mode.ManifestEnabled || mode.PayloadFilesEnabled) && localTags[constants.CIProviderName] == "" {
+		localTags[constants.CIProviderName] = "bazel"
+	}
+
 	log.Debug("civisibility: workspace directory: %s", localTags[constants.CIWorkspacePath])
 	log.Debug("civisibility: common tags created with %d items", len(localTags))
 	return localTags

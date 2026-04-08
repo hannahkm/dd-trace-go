@@ -6,6 +6,8 @@
 package utils
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
@@ -259,4 +261,153 @@ func TestGetCITagsSkipsGitEnrichmentInPayloadFilesMode(t *testing.T) {
 	assert.NotContains(t, tags, constants.GitHeadMessage)
 	assert.Equal(t, "true", tags["env.applied"])
 	assert.Equal(t, "job-name-"+tags[constants.TestCommand], tags[constants.TestSessionName])
+}
+
+func TestGetCITagsAddsBazelProviderInPayloadFilesModeWithoutProvider(t *testing.T) {
+	ResetCITags()
+	bazel.ResetForTesting()
+	t.Cleanup(ResetCITags)
+	t.Cleanup(bazel.ResetForTesting)
+
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
+	t.Setenv(bazel.UndeclaredOutputsDirEnv, t.TempDir())
+	bazel.ResetForTesting()
+
+	originalGetProviderTagsFunc := getProviderTagsFunc
+	originalApplyEnvironmentalDataIfRequiredFunc := applyEnvironmentalDataIfRequiredFunc
+	t.Cleanup(func() {
+		getProviderTagsFunc = originalGetProviderTagsFunc
+		applyEnvironmentalDataIfRequiredFunc = originalApplyEnvironmentalDataIfRequiredFunc
+	})
+
+	getProviderTagsFunc = func() map[string]string {
+		return map[string]string{}
+	}
+	applyEnvironmentalDataIfRequiredFunc = func(tags map[string]string) {}
+
+	tags := GetCITags()
+	assert.Equal(t, "bazel", tags[constants.CIProviderName])
+}
+
+func TestGetCITagsPreservesDetectedProviderInPayloadFilesMode(t *testing.T) {
+	ResetCITags()
+	bazel.ResetForTesting()
+	t.Cleanup(ResetCITags)
+	t.Cleanup(bazel.ResetForTesting)
+
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
+	t.Setenv(bazel.UndeclaredOutputsDirEnv, t.TempDir())
+	bazel.ResetForTesting()
+
+	originalGetProviderTagsFunc := getProviderTagsFunc
+	originalApplyEnvironmentalDataIfRequiredFunc := applyEnvironmentalDataIfRequiredFunc
+	t.Cleanup(func() {
+		getProviderTagsFunc = originalGetProviderTagsFunc
+		applyEnvironmentalDataIfRequiredFunc = originalApplyEnvironmentalDataIfRequiredFunc
+	})
+
+	getProviderTagsFunc = func() map[string]string {
+		return map[string]string{constants.CIProviderName: "github"}
+	}
+	applyEnvironmentalDataIfRequiredFunc = func(tags map[string]string) {}
+
+	tags := GetCITags()
+	assert.Equal(t, "github", tags[constants.CIProviderName])
+}
+
+func TestGetCITagsPreservesEnvironmentalDataProviderInPayloadFilesMode(t *testing.T) {
+	ResetCITags()
+	bazel.ResetForTesting()
+	t.Cleanup(ResetCITags)
+	t.Cleanup(bazel.ResetForTesting)
+
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
+	t.Setenv(bazel.UndeclaredOutputsDirEnv, t.TempDir())
+	bazel.ResetForTesting()
+
+	originalGetProviderTagsFunc := getProviderTagsFunc
+	originalApplyEnvironmentalDataIfRequiredFunc := applyEnvironmentalDataIfRequiredFunc
+	t.Cleanup(func() {
+		getProviderTagsFunc = originalGetProviderTagsFunc
+		applyEnvironmentalDataIfRequiredFunc = originalApplyEnvironmentalDataIfRequiredFunc
+	})
+
+	getProviderTagsFunc = func() map[string]string {
+		return map[string]string{}
+	}
+	applyEnvironmentalDataIfRequiredFunc = func(tags map[string]string) {
+		tags[constants.CIProviderName] = "github"
+	}
+
+	tags := GetCITags()
+	assert.Equal(t, "github", tags[constants.CIProviderName])
+}
+
+func TestGetCITagsAddsBazelProviderInManifestModeWithoutProvider(t *testing.T) {
+	ResetCITags()
+	bazel.ResetForTesting()
+	t.Cleanup(ResetCITags)
+	t.Cleanup(bazel.ResetForTesting)
+
+	manifestPath := filepath.Join(t.TempDir(), "manifest.txt")
+	assert.NoError(t, os.WriteFile(manifestPath, []byte("version=1\n"), 0o644))
+	t.Setenv(bazel.ManifestFilePathEnv, manifestPath)
+	bazel.ResetForTesting()
+
+	originalGetProviderTagsFunc := getProviderTagsFunc
+	originalGetLocalGitDataFunc := getLocalGitDataFunc
+	originalFetchCommitDataFunc := fetchCommitDataFunc
+	originalApplyEnvironmentalDataIfRequiredFunc := applyEnvironmentalDataIfRequiredFunc
+	t.Cleanup(func() {
+		getProviderTagsFunc = originalGetProviderTagsFunc
+		getLocalGitDataFunc = originalGetLocalGitDataFunc
+		fetchCommitDataFunc = originalFetchCommitDataFunc
+		applyEnvironmentalDataIfRequiredFunc = originalApplyEnvironmentalDataIfRequiredFunc
+	})
+
+	getProviderTagsFunc = func() map[string]string {
+		return map[string]string{}
+	}
+	getLocalGitDataFunc = func() (localGitData, error) {
+		return localGitData{}, nil
+	}
+	fetchCommitDataFunc = func(commitSha string) (localCommitData, error) {
+		return localCommitData{}, nil
+	}
+	applyEnvironmentalDataIfRequiredFunc = func(tags map[string]string) {}
+
+	tags := GetCITags()
+	assert.Equal(t, "bazel", tags[constants.CIProviderName])
+}
+
+func TestGetCITagsDoesNotAddBazelProviderOutsideBazelMode(t *testing.T) {
+	ResetCITags()
+	bazel.ResetForTesting()
+	t.Cleanup(ResetCITags)
+	t.Cleanup(bazel.ResetForTesting)
+
+	originalGetProviderTagsFunc := getProviderTagsFunc
+	originalGetLocalGitDataFunc := getLocalGitDataFunc
+	originalFetchCommitDataFunc := fetchCommitDataFunc
+	originalApplyEnvironmentalDataIfRequiredFunc := applyEnvironmentalDataIfRequiredFunc
+	t.Cleanup(func() {
+		getProviderTagsFunc = originalGetProviderTagsFunc
+		getLocalGitDataFunc = originalGetLocalGitDataFunc
+		fetchCommitDataFunc = originalFetchCommitDataFunc
+		applyEnvironmentalDataIfRequiredFunc = originalApplyEnvironmentalDataIfRequiredFunc
+	})
+
+	getProviderTagsFunc = func() map[string]string {
+		return map[string]string{}
+	}
+	getLocalGitDataFunc = func() (localGitData, error) {
+		return localGitData{}, nil
+	}
+	fetchCommitDataFunc = func(commitSha string) (localCommitData, error) {
+		return localCommitData{}, nil
+	}
+	applyEnvironmentalDataIfRequiredFunc = func(tags map[string]string) {}
+
+	tags := GetCITags()
+	assert.NotContains(t, tags, constants.CIProviderName)
 }
