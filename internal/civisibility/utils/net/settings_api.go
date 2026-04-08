@@ -75,26 +75,11 @@ type (
 	}
 )
 
+// GetSettings loads settings from the Bazel manifest cache when present and otherwise falls back to the live settings endpoint.
 func (c *client) GetSettings() (*SettingsResponseData, error) {
 	if bazel.IsManifestModeEnabled() {
-		if cacheFile, ok := bazel.CacheHTTPFile("settings.json"); ok {
-			cacheFileForLog := bazel.TestOptimizationPathForLog(cacheFile)
-			log.Debug("civisibility.settings: reading %s", cacheFileForLog)
-			if raw, err := os.ReadFile(cacheFile); err == nil {
-				log.Debug("civisibility.settings: read %s (%d bytes)", cacheFileForLog, len(raw))
-				var cachedResponse settingsResponse
-				if err := json.Unmarshal(raw, &cachedResponse); err == nil {
-					log.Debug("civisibility.settings: loaded settings from %s", cacheFileForLog)
-					logSettingsFeatures(&cachedResponse.Data.Attributes)
-					return &cachedResponse.Data.Attributes, nil
-				} else {
-					log.Debug("civisibility.settings: invalid settings file %s: %s", cacheFileForLog, err.Error())
-				}
-			} else {
-				log.Debug("civisibility.settings: cannot read settings file %s: %s", cacheFileForLog, err.Error())
-			}
-		} else {
-			log.Debug("civisibility.settings: manifest mode enabled but settings cache path could not be resolved")
+		if cachedResponse, ok := loadSettingsFromManifestCache(); ok {
+			return cachedResponse, nil
 		}
 		// Compatible with Bazel offline mode: if cache is missing or invalid, features are disabled.
 		log.Debug("civisibility.settings: returning empty settings because manifest cache is unavailable or invalid")
@@ -168,6 +153,37 @@ func (c *client) GetSettings() (*SettingsResponseData, error) {
 	}
 	telemetry.GitRequestsSettingsResponse(settingsResponseType)
 	return &responseObject.Data.Attributes, nil
+}
+
+// loadSettingsFromManifestCache reads and validates the Bazel manifest cache file for settings.
+// It returns the cached settings only when the cache path resolves, the file can be read, and the JSON is valid.
+func loadSettingsFromManifestCache() (*SettingsResponseData, bool) {
+	cacheFile, ok := bazel.CacheHTTPFile("settings.json")
+	if !ok {
+		log.Debug("civisibility.settings: manifest mode enabled but settings cache path could not be resolved")
+		return nil, false
+	}
+
+	cacheFileForLog := bazel.TestOptimizationPathForLog(cacheFile)
+	log.Debug("civisibility.settings: reading %s", cacheFileForLog)
+
+	raw, err := os.ReadFile(cacheFile)
+	if err != nil {
+		log.Debug("civisibility.settings: cannot read settings file %s: %s", cacheFileForLog, err.Error())
+		return nil, false
+	}
+
+	log.Debug("civisibility.settings: read %s (%d bytes)", cacheFileForLog, len(raw))
+
+	var cachedResponse settingsResponse
+	if err := json.Unmarshal(raw, &cachedResponse); err != nil {
+		log.Debug("civisibility.settings: invalid settings file %s: %s", cacheFileForLog, err.Error())
+		return nil, false
+	}
+
+	log.Debug("civisibility.settings: loaded settings from %s", cacheFileForLog)
+	logSettingsFeatures(&cachedResponse.Data.Attributes)
+	return &cachedResponse.Data.Attributes, true
 }
 
 func logSettingsFeatures(settings *SettingsResponseData) {
