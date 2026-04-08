@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
-	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 )
 
 func TestSendPackFilesApiRequest(t *testing.T) {
@@ -182,7 +181,7 @@ func TestSendPackFilesApiRequestManifestModeNoop(t *testing.T) {
 	path := os.Getenv("PATH")
 	defer restoreEnv(origEnv)
 	setCiVisibilityEnv(path, server.URL)
-	os.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	os.Setenv(bazel.ManifestFilePathEnv, manifestPath)
 
 	cInterface := NewClient()
 	bytes, err := cInterface.SendPackFiles("commit-sha", []string{"definitely-missing.pack"})

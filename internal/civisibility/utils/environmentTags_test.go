@@ -190,8 +190,8 @@ func TestGetCITagsSkipsGitEnrichmentInPayloadFilesMode(t *testing.T) {
 	t.Cleanup(ResetCITags)
 	t.Cleanup(bazel.ResetForTesting)
 
-	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
+	t.Setenv(bazel.UndeclaredOutputsDirEnv, t.TempDir())
 	bazel.ResetForTesting()
 
 	originalGetProviderTagsFunc := getProviderTagsFunc

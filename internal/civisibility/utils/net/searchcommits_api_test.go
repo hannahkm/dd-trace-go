@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
-	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 )
 
 func TestSearchCommitsApiRequest(t *testing.T) {
@@ -132,7 +131,7 @@ func TestSearchCommitsApiRequestManifestModeNoop(t *testing.T) {
 	path := os.Getenv("PATH")
 	defer restoreEnv(origEnv)
 	setCiVisibilityEnv(path, server.URL)
-	os.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	os.Setenv(bazel.ManifestFilePathEnv, manifestPath)
 
 	cInterface := NewClient()
 	remoteCommits, err := cInterface.GetCommits([]string{"commit1", "commit2"})

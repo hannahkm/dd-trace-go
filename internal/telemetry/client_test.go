@@ -104,8 +104,8 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestNewClient_FileSinkModeWithoutEndpoints(t *testing.T) {
-	t.Setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
-	t.Setenv("TEST_UNDECLARED_OUTPUTS_DIR", t.TempDir())
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
+	t.Setenv(bazel.UndeclaredOutputsDirEnv, t.TempDir())
 	bazel.ResetForTesting()
 	t.Cleanup(bazel.ResetForTesting)
 

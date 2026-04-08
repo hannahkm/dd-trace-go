@@ -90,8 +90,8 @@ func TestPayloadFilesModeSkipsCIGitOSRuntimeTags(t *testing.T) {
 	mockTracer.Reset()
 	assert := assert.New(t)
 
-	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
+	t.Setenv(bazel.UndeclaredOutputsDirEnv, t.TempDir())
 
 	utils.ResetCITags()
 	utils.ResetCIMetrics()
@@ -140,8 +140,8 @@ func TestPayloadFilesModeUsesAvailableWorkspaceMetadataForWorkingDirectory(t *te
 	assert.NoError(err)
 	assert.NoError(os.WriteFile(envDataPath, rawEnvData, 0o644))
 
-	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
+	t.Setenv(bazel.UndeclaredOutputsDirEnv, t.TempDir())
 	t.Setenv(constants.CIVisibilityEnvironmentDataFilePath, envDataPath)
 	t.Setenv("GITHUB_ACTIONS", "true")
 	t.Setenv("GITHUB_WORKSPACE", workspaceDir)

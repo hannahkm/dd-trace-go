@@ -27,12 +27,12 @@ import (
 )
 
 const (
-	// manifestFilePathEnv points to the runfiles manifest or manifest rlocation used by offline Bazel mode.
-	manifestFilePathEnv = "DD_TEST_OPTIMIZATION_MANIFEST_FILE"
-	// payloadsInFilesEnv enables writing CI Visibility and telemetry payloads to undeclared output files.
-	payloadsInFilesEnv = "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES"
-	// undeclaredOutputsDirEnv points to Bazel's undeclared outputs root where payload files are stored.
-	undeclaredOutputsDirEnv = "TEST_UNDECLARED_OUTPUTS_DIR"
+	// ManifestFilePathEnv points to the runfiles manifest or manifest rlocation used by offline Bazel mode.
+	ManifestFilePathEnv = "DD_TEST_OPTIMIZATION_MANIFEST_FILE"
+	// PayloadsInFilesEnv enables writing CI Visibility and telemetry payloads to undeclared output files.
+	PayloadsInFilesEnv = "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES"
+	// UndeclaredOutputsDirEnv points to Bazel's undeclared outputs root where payload files are stored.
+	UndeclaredOutputsDirEnv = "TEST_UNDECLARED_OUTPUTS_DIR"
 )
 
 // PayloadKind identifies the payload subdirectory and naming strategy used for
@@ -137,8 +137,8 @@ func WritePayloadFile(kind PayloadKind, jsonPayload []byte) error {
 		return errors.New("payload file mode is disabled")
 	}
 	if mode.PayloadsRoot == "" {
-		logger.Debug("civisibility: payload-file mode enabled for %s payloads but %s is empty", kind, undeclaredOutputsDirEnv)
-		return fmt.Errorf("%s is required when %s is enabled", undeclaredOutputsDirEnv, payloadsInFilesEnv)
+		logger.Debug("civisibility: payload-file mode enabled for %s payloads but %s is empty", kind, UndeclaredOutputsDirEnv)
+		return fmt.Errorf("%s is required when %s is enabled", UndeclaredOutputsDirEnv, PayloadsInFilesEnv)
 	}
 
 	outDir := filepath.Join(mode.PayloadsRoot, string(kind))
@@ -177,9 +177,9 @@ func payloadFileName(kind PayloadKind, seq uint64) string {
 func resolveMode() Mode {
 	mode := Mode{}
 
-	manifestRloc := strings.TrimSpace(env.Get(manifestFilePathEnv))
-	payloadFilesEnv := strings.TrimSpace(env.Get(payloadsInFilesEnv))
-	undeclaredOutputsDir := strings.TrimSpace(env.Get(undeclaredOutputsDirEnv))
+	manifestRloc := strings.TrimSpace(env.Get(ManifestFilePathEnv))
+	payloadFilesEnv := strings.TrimSpace(env.Get(PayloadsInFilesEnv))
+	undeclaredOutputsDir := strings.TrimSpace(env.Get(UndeclaredOutputsDirEnv))
 	logger.Debug("civisibility: resolving test optimization mode [manifest_env:%q payload_files_env:%q undeclared_outputs_dir:%q]",
 		manifestRloc, payloadFilesEnv, undeclaredOutputsDir)
 
@@ -201,7 +201,7 @@ func resolveMode() Mode {
 			mode.PayloadsRoot = filepath.Join(undeclaredOutputsDir, "payloads")
 			logger.Debug("civisibility: payload-file mode enabled [root:%s]", absolutePathForLog(mode.PayloadsRoot))
 		} else {
-			logger.Debug("civisibility: payload-file mode enabled but %s is empty", undeclaredOutputsDirEnv)
+			logger.Debug("civisibility: payload-file mode enabled but %s is empty", UndeclaredOutputsDirEnv)
 		}
 	} else if payloadFilesEnv != "" {
 		logger.Debug("civisibility: payload-file mode disabled after parsing value %q", payloadFilesEnv)

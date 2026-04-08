@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
-	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
 
@@ -198,7 +197,7 @@ func TestKnownTestsApiRequestFromManifestCache(t *testing.T) {
 	path := os.Getenv("PATH")
 	defer restoreEnv(origEnv)
 	setCiVisibilityEnv(path, server.URL)
-	os.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	os.Setenv(bazel.ManifestFilePathEnv, manifestPath)
 
 	recordLogger := new(log.RecordLogger)
 	oldLevel := log.GetLevel()
@@ -239,7 +238,7 @@ func TestKnownTestsApiRequestFromManifestCacheMissingFile(t *testing.T) {
 	path := os.Getenv("PATH")
 	defer restoreEnv(origEnv)
 	setCiVisibilityEnv(path, server.URL)
-	os.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	os.Setenv(bazel.ManifestFilePathEnv, manifestPath)
 
 	cInterface := NewClient()
 	responseData, err := cInterface.GetKnownTests()
@@ -275,7 +274,7 @@ func TestKnownTestsApiRequestFromManifestCacheMalformedFile(t *testing.T) {
 	path := os.Getenv("PATH")
 	defer restoreEnv(origEnv)
 	setCiVisibilityEnv(path, server.URL)
-	os.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+	os.Setenv(bazel.ManifestFilePathEnv, manifestPath)
 
 	recordLogger := new(log.RecordLogger)
 	oldLevel := log.GetLevel()

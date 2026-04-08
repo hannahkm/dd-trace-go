@@ -109,8 +109,8 @@ func TestFilterSensitiveInfo(t *testing.T) {
 }
 
 func TestExecGitStringDisabledInPayloadFilesMode(t *testing.T) {
-	t.Setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
-	t.Setenv("TEST_UNDECLARED_OUTPUTS_DIR", t.TempDir())
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
+	t.Setenv(bazel.UndeclaredOutputsDirEnv, t.TempDir())
 
 	bazel.ResetForTesting()
 	t.Cleanup(bazel.ResetForTesting)

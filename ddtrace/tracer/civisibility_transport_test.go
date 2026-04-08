@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/dd-trace-go/v2/internal"
 	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
-
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	internalconfig "github.com/DataDog/dd-trace-go/v2/internal/config"
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
@@ -167,8 +166,8 @@ func TestCiVisibilityTransportPayloadFilesModeWritesJSON(t *testing.T) {
 	t.Cleanup(bazel.ResetForTesting)
 
 	outDir := t.TempDir()
-	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, outDir)
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
+	t.Setenv(bazel.UndeclaredOutputsDirEnv, outDir)
 	bazel.ResetForTesting()
 
 	var hits int
@@ -224,7 +223,7 @@ func TestCiVisibilityTransportPayloadFilesModeMissingOutputDir(t *testing.T) {
 
 	tempDir := t.TempDir()
 	t.Chdir(tempDir)
-	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
 	bazel.ResetForTesting()
 
 	var hits int
@@ -251,7 +250,7 @@ func TestCiVisibilityTransportPayloadFilesModeMissingOutputDir(t *testing.T) {
 
 	_, err = transport.send(p.payload)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), constants.CIVisibilityUndeclaredOutputsDir)
+	assert.Contains(t, err.Error(), bazel.UndeclaredOutputsDirEnv)
 	assert.Equal(t, 0, hits)
 
 	matches, globErr := filepath.Glob(filepath.Join(tempDir, "payloads", "tests", "tests-*.json"))

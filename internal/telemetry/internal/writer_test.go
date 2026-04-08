@@ -303,9 +303,9 @@ func TestWriter_Flush_MarshalFailureDoesNotAttemptFallback(t *testing.T) {
 }
 
 func TestWriter_Flush_FileSinkWritesTelemetryPayload(t *testing.T) {
-	t.Setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
 	outputsDir := t.TempDir()
-	t.Setenv("TEST_UNDECLARED_OUTPUTS_DIR", outputsDir)
+	t.Setenv(bazel.UndeclaredOutputsDirEnv, outputsDir)
 	bazel.ResetForTesting()
 	t.Cleanup(bazel.ResetForTesting)
 
@@ -358,8 +358,8 @@ func TestWriter_Flush_FileSinkWritesTelemetryPayload(t *testing.T) {
 }
 
 func TestWriter_Flush_FileSinkMissingOutputsDir(t *testing.T) {
-	t.Setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
-	t.Setenv("TEST_UNDECLARED_OUTPUTS_DIR", "")
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
+	t.Setenv(bazel.UndeclaredOutputsDirEnv, "")
 	bazel.ResetForTesting()
 	t.Cleanup(bazel.ResetForTesting)
 
@@ -387,13 +387,13 @@ func TestWriter_Flush_FileSinkMissingOutputsDir(t *testing.T) {
 	require.Error(t, err)
 	require.Len(t, results, 1)
 	assert.Equal(t, EndpointSinkFile, results[0].Sink)
-	assert.ErrorContains(t, err, "TEST_UNDECLARED_OUTPUTS_DIR")
+	assert.ErrorContains(t, err, bazel.UndeclaredOutputsDirEnv)
 }
 
 func TestWriter_Flush_FileSinkOrdering(t *testing.T) {
-	t.Setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
 	outputsDir := t.TempDir()
-	t.Setenv("TEST_UNDECLARED_OUTPUTS_DIR", outputsDir)
+	t.Setenv(bazel.UndeclaredOutputsDirEnv, outputsDir)
 	bazel.ResetForTesting()
 	t.Cleanup(bazel.ResetForTesting)
 

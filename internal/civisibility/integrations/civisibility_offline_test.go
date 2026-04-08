@@ -27,7 +27,7 @@ func TestEnsureSettingsInitializationManifestModeSkipsRepositoryUpload(t *testin
 	resetCIVisibilityStateForTesting()
 	t.Cleanup(resetCIVisibilityStateForTesting)
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, writeSettingsManifestCache(t, true, true, true))
+	t.Setenv(bazel.ManifestFilePathEnv, writeSettingsManifestCache(t, true, true, true))
 	bazel.ResetForTesting()
 
 	var uploadCalls int
@@ -48,9 +48,9 @@ func TestEnsureSettingsInitializationPayloadFilesModeSkipsRepositoryUploadAndDis
 	resetCIVisibilityStateForTesting()
 	t.Cleanup(resetCIVisibilityStateForTesting)
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, writeSettingsManifestCache(t, true, true, true))
-	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
+	t.Setenv(bazel.ManifestFilePathEnv, writeSettingsManifestCache(t, true, true, true))
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
+	t.Setenv(bazel.UndeclaredOutputsDirEnv, t.TempDir())
 	bazel.ResetForTesting()
 
 	var uploadCalls int
@@ -71,7 +71,7 @@ func TestEnsureSettingsInitializationManifestModeAppliesSubtestFeaturesEnvOverri
 	resetCIVisibilityStateForTesting()
 	t.Cleanup(resetCIVisibilityStateForTesting)
 
-	t.Setenv(constants.CIVisibilityManifestFilePath, writeSettingsManifestCache(t, true, false, false))
+	t.Setenv(bazel.ManifestFilePathEnv, writeSettingsManifestCache(t, true, false, false))
 	t.Setenv(constants.CIVisibilitySubtestFeaturesEnabled, "false")
 	bazel.ResetForTesting()
 
@@ -117,7 +117,7 @@ func TestEnsureSettingsInitializationOnlineSettingsErrorRegistersCloseAction(t *
 }
 
 func TestShouldInitializeCiVisibilityLogsDisablesManifestMode(t *testing.T) {
-	t.Setenv(constants.CIVisibilityManifestFilePath, writeSettingsManifestCache(t, false, false, false))
+	t.Setenv(bazel.ManifestFilePathEnv, writeSettingsManifestCache(t, false, false, false))
 	bazel.ResetForTesting()
 	t.Cleanup(bazel.ResetForTesting)
 
@@ -126,8 +126,8 @@ func TestShouldInitializeCiVisibilityLogsDisablesManifestMode(t *testing.T) {
 }
 
 func TestShouldInitializeCiVisibilityLogsDisablesPayloadFilesMode(t *testing.T) {
-	t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-	t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
+	t.Setenv(bazel.PayloadsInFilesEnv, "true")
+	t.Setenv(bazel.UndeclaredOutputsDirEnv, t.TempDir())
 	bazel.ResetForTesting()
 	t.Cleanup(bazel.ResetForTesting)
 
@@ -151,7 +151,7 @@ func TestInitializeCiVisibilityLogsSkipsOfflineModes(t *testing.T) {
 	defer log.SetLevel(oldLevel)
 
 	t.Run("manifest", func(t *testing.T) {
-		t.Setenv(constants.CIVisibilityManifestFilePath, writeSettingsManifestCache(t, false, false, false))
+		t.Setenv(bazel.ManifestFilePathEnv, writeSettingsManifestCache(t, false, false, false))
 		bazel.ResetForTesting()
 		t.Cleanup(bazel.ResetForTesting)
 
@@ -161,8 +161,8 @@ func TestInitializeCiVisibilityLogsSkipsOfflineModes(t *testing.T) {
 	})
 
 	t.Run("payload-files", func(t *testing.T) {
-		t.Setenv(constants.CIVisibilityPayloadsInFiles, "true")
-		t.Setenv(constants.CIVisibilityUndeclaredOutputsDir, t.TempDir())
+		t.Setenv(bazel.PayloadsInFilesEnv, "true")
+		t.Setenv(bazel.UndeclaredOutputsDirEnv, t.TempDir())
 		bazel.ResetForTesting()
 		t.Cleanup(bazel.ResetForTesting)
 

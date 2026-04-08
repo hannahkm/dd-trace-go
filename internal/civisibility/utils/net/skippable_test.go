@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
-	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 )
 
 func TestSkippableApiRequest(t *testing.T) {
@@ -180,7 +179,7 @@ func TestSkippableApiRequestFromManifestModeIgnoresCache(t *testing.T) {
 			path := os.Getenv("PATH")
 			defer restoreEnv(origEnv)
 			setCiVisibilityEnv(path, server.URL)
-			os.Setenv(constants.CIVisibilityManifestFilePath, manifestPath)
+			os.Setenv(bazel.ManifestFilePathEnv, manifestPath)
 
 			cInterface := NewClient()
 			correlationID, skippables, err := cInterface.GetSkippableTests()
