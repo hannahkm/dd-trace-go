@@ -406,13 +406,13 @@ func newConfig(opts ...StartOption) (*config, error) {
 	if c.internalConfig.ServiceName() == "" {
 		if v, ok := globalTags["service"]; ok {
 			if s, ok := v.(string); ok {
-			c.internalConfig.SetServiceName(s, c.globalTags.Origin(), internalconfig.ProductTracer)
-			globalconfig.SetServiceName(s)
-		}
-	} else {
-		// There is not an explicit service set, default to binary name.
-		// In this case, don't set a global service name so the contribs continue using their defaults.
-		c.internalConfig.SetServiceName(filepath.Base(os.Args[0]), internalconfig.OriginDefault, internalconfig.ProductTracer)
+				c.internalConfig.SetServiceName(s, c.globalTags.Origin(), internalconfig.ProductTracer)
+				globalconfig.SetServiceName(s)
+			}
+		} else {
+			// There is not an explicit service set, default to binary name.
+			// In this case, don't set a global service name so the contribs continue using their defaults.
+			c.internalConfig.SetServiceName(filepath.Base(os.Args[0]), internalconfig.OriginDefault, internalconfig.ProductTracer)
 		}
 	} else {
 		globalconfig.SetServiceName(c.internalConfig.ServiceName())
