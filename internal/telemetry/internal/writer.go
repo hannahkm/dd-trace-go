@@ -16,6 +16,7 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/internal"
@@ -195,8 +196,8 @@ func (w *writer) setPayloadToBody(payload transport.Payload) {
 	w.body.Payload = payload
 }
 
-// marshalBody encodes the current telemetry body into JSON bytes.
-func (w *writer) marshalBody() (body []byte, err error) {
+// encodePayloadForBazelFile encodes the current telemetry body into JSON bytes for Bazel payload-file mode.
+func (w *writer) encodePayloadForBazelFile() (body []byte, err error) {
 	defer func() {
 		if panicValue := recover(); panicValue != nil {
 			log.Error("telemetry/writer: panic while encoding payload!")
@@ -222,17 +223,50 @@ func (w *writer) marshalBody() (body []byte, err error) {
 }
 
 // newRequest creates a new http.Request with the given payload and the necessary headers.
-func (w *writer) newRequest(endpoint *http.Request, requestType transport.RequestType) (*http.Request, int, error) {
+func (w *writer) newRequest(endpoint *http.Request, requestType transport.RequestType) *http.Request {
 	request := endpoint.Clone(context.Background())
 	request.Header.Set("DD-Telemetry-Request-Type", string(requestType))
 
-	body, err := w.marshalBody()
-	if err != nil {
-		return nil, 0, err
-	}
+	pipeReader, pipeWriter := io.Pipe()
+	request.Body = pipeReader
+	go func() {
+		var err error
+		defer func() {
+			// This should normally never happen but since we are encoding arbitrary data in client configuration values payload we need to be careful.
+			if panicValue := recover(); panicValue != nil {
+				log.Error("telemetry/writer: panic while encoding payload!")
+				if err == nil {
+					panicErr, ok := panicValue.(error) // check if we can use the panic value as an error
+					if ok {
+						log.Error("telemetry/writer: panic while encoding payload: %v", panicErr.Error())
+					}
+					pipeWriter.CloseWithError(panicErr) // CloseWithError with nil as parameter is like Close()
+				}
+			}
+		}()
 
-	request.Body = io.NopCloser(bytes.NewReader(body))
-	return request, len(body), nil
+		// If a previous endpoint is still trying to marshall the body, we need to wait for it to realize the pipe is closed and exit.
+		w.bodyMu.Lock()
+		defer w.bodyMu.Unlock()
+
+		// No need to wait on this because the http client will close the pipeReader which will close the pipeWriter and finish the goroutine
+		err = json.NewEncoder(pipeWriter).Encode(w.body)
+		pipeWriter.CloseWithError(err)
+	}()
+
+	return request
+}
+
+// SumReaderCloser is a ReadCloser that wraps another ReadCloser and counts the number of bytes read.
+type SumReaderCloser struct {
+	io.ReadCloser
+	n atomic.Uint64
+}
+
+func (s *SumReaderCloser) Read(p []byte) (n int, err error) {
+	n, err = s.ReadCloser.Read(p)
+	s.n.Add(uint64(n))
+	return
 }
 
 // WriterStatusCodeError is an error that is returned when the writer receives an unexpected status code from the server.
@@ -253,7 +287,7 @@ func (w *writer) Flush(payload transport.Payload) ([]EndpointRequestResult, erro
 	requestType := payload.RequestType()
 
 	if bazel.IsPayloadFilesModeEnabled() {
-		body, err := w.marshalBody()
+		body, err := w.encodePayloadForBazelFile()
 		if err != nil {
 			return []EndpointRequestResult{{Error: err}}, err
 		}
@@ -269,12 +303,13 @@ func (w *writer) Flush(payload transport.Payload) ([]EndpointRequestResult, erro
 
 	var results []EndpointRequestResult
 	for _, endpoint := range w.endpoints {
-		request, payloadSize, err := w.newRequest(endpoint, requestType)
-		if err != nil {
-			return []EndpointRequestResult{{Error: err}}, err
-		}
+		var (
+			request         = w.newRequest(endpoint, requestType)
+			sumReaderCloser = &SumReaderCloser{ReadCloser: request.Body}
+			now             = time.Now()
+		)
 
-		now := time.Now()
+		request.Body = sumReaderCloser
 		response, err := w.httpClient.Do(request)
 		if err != nil {
 			results = append(results, EndpointRequestResult{Error: err, RequestAttempted: true})
@@ -294,7 +329,7 @@ func (w *writer) Flush(payload transport.Payload) ([]EndpointRequestResult, erro
 		}
 
 		results = append(results, EndpointRequestResult{
-			PayloadByteSize:  payloadSize,
+			PayloadByteSize:  int(sumReaderCloser.n.Load()),
 			RequestAttempted: true,
 			CallDuration:     time.Since(now),
 			StatusCode:       response.StatusCode,

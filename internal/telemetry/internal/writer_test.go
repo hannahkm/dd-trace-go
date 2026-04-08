@@ -7,7 +7,6 @@ package internal
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -260,45 +259,6 @@ func TestWriter_Flush_MultipleEndpoints(t *testing.T) {
 
 	assert.EqualValues(t, 2, marshalJSONCalled.Load())
 	assert.True(t, payloadReceived2.Load())
-}
-
-func TestWriter_Flush_MarshalFailureDoesNotAttemptFallback(t *testing.T) {
-	config := WriterConfig{
-		TracerConfig: TracerConfig{
-			Service: "test-service",
-			Env:     "test-env",
-			Version: "1.0.0",
-		},
-	}
-
-	var httpCalls atomic.Int64
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		httpCalls.Add(1)
-		io.ReadAll(r.Body)
-		r.Body.Close()
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	req, err := http.NewRequest(http.MethodPost, server.URL, nil)
-	require.NoError(t, err)
-
-	config.Endpoints = append(config.Endpoints, req, req)
-	writer, err := NewWriter(config)
-	require.NoError(t, err)
-
-	payload := testPayload{
-		RequestTypeValue: "test",
-		marshalJSON: func() ([]byte, error) {
-			return nil, errors.New("boom")
-		},
-	}
-
-	results, err := writer.Flush(&payload)
-	require.ErrorContains(t, err, "boom")
-	require.Len(t, results, 1)
-	assert.False(t, results[0].RequestAttempted)
-	assert.Zero(t, httpCalls.Load())
 }
 
 func TestWriter_Flush_FileSinkWritesTelemetryPayload(t *testing.T) {
