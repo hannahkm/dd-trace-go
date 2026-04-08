@@ -145,7 +145,7 @@ func (t *ciVisibilityTransport) send(p payload) (body io.ReadCloser, err error) 
 		if err := bazel.WritePayloadFile(bazel.PayloadKindTests, jsonPayload); err != nil {
 			return nil, fmt.Errorf("cannot write test payload file: %w", err)
 		}
-		return io.NopCloser(bytes.NewReader(nil)), nil
+		return http.NoBody, nil
 	}
 
 	log.Debug("civisibility: test event payload transport mode is http; sending payload to %s", urlsanitizer.SanitizeURL(t.testCycleURLPath))
