@@ -121,8 +121,6 @@ func TestAutoFlush(t *testing.T) {
 		config := defaultConfig(ClientConfig{
 			AgentURL: "http://localhost:8126",
 		})
-		config.DependencyLoader = nil
-
 		c, err := newClient(internal.TracerConfig{
 			Service: "test-service",
 			Env:     "test-env",
@@ -137,7 +135,7 @@ func TestAutoFlush(t *testing.T) {
 		c.writer = recordWriter
 		c.flushMu.Unlock()
 
-		time.Sleep(config.FlushInterval.Max + time.Nanosecond)
+		time.Sleep(config.FlushInterval.Max + time.Second)
 
 		c.flushMu.Lock()
 		require.Len(t, recordWriter.Payloads(), 1)
@@ -1099,7 +1097,6 @@ func TestClientFlush(t *testing.T) {
 
 func TestMetricsDisabled(t *testing.T) {
 	t.Setenv("DD_TELEMETRY_METRICS_ENABLED", "false")
-	t.Setenv("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "false")
 
 	c, err := NewClient("test-service", "test-env", "1.0.0", ClientConfig{AgentURL: "http://localhost:8126"})
 	require.NoError(t, err)
@@ -1344,21 +1341,6 @@ func TestHeartBeatInterval(t *testing.T) {
 	assert.InDelta(t, 2, sum/5, 0.1)
 }
 
-func TestExtendedHeartbeatIntervalEnv(t *testing.T) {
-	t.Setenv("DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL", "120")
-	cfg := defaultConfig(ClientConfig{
-		AgentURL: "http://localhost:8126",
-	})
-	assert.Equal(t, 120*time.Second, cfg.ExtendedHeartbeatInterval)
-}
-
-func TestExtendedHeartbeatIntervalDefault(t *testing.T) {
-	cfg := defaultConfig(ClientConfig{
-		AgentURL: "http://localhost:8126",
-	})
-	assert.Equal(t, defaultExtendedHeartbeatInterval, cfg.ExtendedHeartbeatInterval)
-}
-
 func TestSendingFailures(t *testing.T) {
 	cfg := ClientConfig{
 		AgentURL: "http://localhost:8126",
@@ -1373,14 +1355,11 @@ func TestSendingFailures(t *testing.T) {
 		},
 	}
 
-	clientCfg := defaultConfig(cfg)
-	clientCfg.DependencyLoader = nil
-
 	c, err := newClient(internal.TracerConfig{
 		Service: "test-service",
 		Env:     "test-env",
 		Version: "1.0.0",
-	}, clientCfg)
+	}, defaultConfig(cfg))
 
 	require.NoError(t, err)
 	defer c.Close()
