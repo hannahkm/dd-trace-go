@@ -67,30 +67,16 @@ type (
 	KnownTestsResponseDataSuites  map[string][]string
 )
 
+// GetKnownTests loads known tests from the Bazel manifest cache when available,
+// otherwise it paginates the live API until all modules are merged.
 func (c *client) GetKnownTests() (*KnownTestsResponseData, error) {
 	if bazel.IsManifestModeEnabled() {
-		if cacheFile, ok := bazel.CacheHTTPFile("known_tests.json"); ok {
-			cacheFileForLog := bazel.TestOptimizationPathForLog(cacheFile)
-			log.Debug("civisibility.known_tests: reading %s", cacheFileForLog)
-			if raw, err := os.ReadFile(cacheFile); err == nil {
-				log.Debug("civisibility.known_tests: read %s (%d bytes)", cacheFileForLog, len(raw))
-				var cachedResponse knownTestsResponse
-				if err := json.Unmarshal(raw, &cachedResponse); err == nil {
-					modules, suites, tests := knownTestsCounts(cachedResponse.Data.Attributes.Tests)
-					log.Debug("civisibility.known_tests: loaded known tests from %s [modules:%d suites:%d tests:%d]", cacheFileForLog, modules, suites, tests)
-					return &cachedResponse.Data.Attributes, nil
-				} else {
-					log.Debug("civisibility.known_tests: invalid known tests file %s: %s", cacheFileForLog, err.Error())
-				}
-			} else {
-				log.Debug("civisibility.known_tests: cannot read known tests file %s: %s", cacheFileForLog, err.Error())
-			}
-		} else {
-			log.Debug("civisibility.known_tests: manifest mode enabled but known tests cache path could not be resolved")
+		if cachedResponse, ok := loadKnownTestsFromManifestCache(); ok {
+			return cachedResponse, nil
 		}
 		// Compatible with Bazel offline mode: missing or invalid cache means empty known tests response.
 		log.Debug("civisibility.known_tests: returning empty known tests because manifest cache is unavailable or invalid")
-		return &KnownTestsResponseData{Tests: KnownTestsResponseDataModules{}}, nil
+		return emptyKnownTestsResponseData(), nil
 	}
 
 	if c.repositoryURL == "" || c.commitSha == "" {
@@ -178,6 +164,42 @@ func (c *client) GetKnownTests() (*KnownTestsResponseData, error) {
 	}
 	telemetry.KnownTestsResponseTests(float64(testCount))
 	return &accumulated, nil
+}
+
+// loadKnownTestsFromManifestCache reads and validates the Bazel manifest cache file for known tests.
+// It returns the cached response only when the cache path resolves, the file can be read, and the JSON is valid.
+func loadKnownTestsFromManifestCache() (*KnownTestsResponseData, bool) {
+	cacheFile, ok := bazel.CacheHTTPFile("known_tests.json")
+	if !ok {
+		log.Debug("civisibility.known_tests: manifest mode enabled but known tests cache path could not be resolved")
+		return nil, false
+	}
+
+	cacheFileForLog := bazel.TestOptimizationPathForLog(cacheFile)
+	log.Debug("civisibility.known_tests: reading %s", cacheFileForLog)
+
+	raw, err := os.ReadFile(cacheFile)
+	if err != nil {
+		log.Debug("civisibility.known_tests: cannot read known tests file %s: %s", cacheFileForLog, err.Error())
+		return nil, false
+	}
+
+	log.Debug("civisibility.known_tests: read %s (%d bytes)", cacheFileForLog, len(raw))
+
+	var cachedResponse knownTestsResponse
+	if err := json.Unmarshal(raw, &cachedResponse); err != nil {
+		log.Debug("civisibility.known_tests: invalid known tests file %s: %s", cacheFileForLog, err.Error())
+		return nil, false
+	}
+
+	modules, suites, tests := knownTestsCounts(cachedResponse.Data.Attributes.Tests)
+	log.Debug("civisibility.known_tests: loaded known tests from %s [modules:%d suites:%d tests:%d]", cacheFileForLog, modules, suites, tests)
+	return &cachedResponse.Data.Attributes, true
+}
+
+// emptyKnownTestsResponseData builds the empty response returned when Bazel offline cache loading is unavailable or invalid.
+func emptyKnownTestsResponseData() *KnownTestsResponseData {
+	return &KnownTestsResponseData{Tests: KnownTestsResponseDataModules{}}
 }
 
 func knownTestsCounts(modules KnownTestsResponseDataModules) (moduleCount int, suiteCount int, testCount int) {
