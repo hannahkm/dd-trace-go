@@ -35,10 +35,9 @@ concurrency:
 
 jobs:
   generate:
-    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'DataDog/dd-trace-go')
     name: Verify generated files are up-to-date
     # Don't run in workflow_call or workflow_dispatch
-    if: github.event_name == 'workflow_dispatch' || inputs.orchestrion-version == ''
+    if: (github.event_name == 'workflow_dispatch' || inputs.orchestrion-version == '') && (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'DataDog/dd-trace-go'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
