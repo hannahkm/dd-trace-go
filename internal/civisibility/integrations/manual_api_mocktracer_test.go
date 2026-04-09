@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/internal/bazel"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants"
 	"github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils"
+	"github.com/DataDog/dd-trace-go/v2/internal/log"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -373,6 +374,63 @@ func TestWithInnerFunc(t *testing.T) {
 	test.Close(ResultStatusSkip)
 }
 
+func TestSetTestFuncLogsFunctionDeclarationSourceRange(t *testing.T) {
+	mockTracer.Reset()
+	assert := assert.New(t)
+
+	recordLogger := new(log.RecordLogger)
+	oldLevel := log.GetLevel()
+	defer log.UseLogger(recordLogger)()
+	log.SetLevel(log.LevelDebug)
+	defer log.SetLevel(oldLevel)
+
+	now := time.Now()
+	session, module, suite, test := createDDTest(now)
+	defer func() {
+		session.Close(0)
+		module.Close()
+		suite.Close()
+	}()
+
+	pc, _, _, _ := runtime.Caller(0)
+	test.SetTestFunc(runtime.FuncForPC(pc))
+
+	logs := recordLogger.Logs()
+	assert.True(containsSourceResolutionLogLine(logs, "resolving test source location"))
+	assert.True(containsSourceResolutionLogLine(logs, "matched AST function declaration"))
+	assert.True(containsSourceResolutionLogLine(logs, "resolved test source range"))
+}
+
+func TestSetTestFuncLogsFunctionLiteralSourceRange(t *testing.T) {
+	mockTracer.Reset()
+	assert := assert.New(t)
+
+	recordLogger := new(log.RecordLogger)
+	oldLevel := log.GetLevel()
+	defer log.UseLogger(recordLogger)()
+	log.SetLevel(log.LevelDebug)
+	defer log.SetLevel(oldLevel)
+
+	now := time.Now()
+	session, module, suite, test := createDDTest(now)
+	defer func() {
+		session.Close(0)
+		module.Close()
+		suite.Close()
+	}()
+
+	func() {
+		pc, _, _, _ := runtime.Caller(0)
+		test.SetTestFunc(runtime.FuncForPC(pc))
+	}()
+
+	logs := recordLogger.Logs()
+	assert.True(containsSourceResolutionLogLine(logs, "resolving test source location"))
+	assert.True(containsSourceResolutionLogLine(logs, "inspecting AST function literal candidate"))
+	assert.True(containsSourceResolutionLogLine(logs, "matched AST function literal"))
+	assert.True(containsSourceResolutionLogLine(logs, "resolved test source range"))
+}
+
 func testAssertions(assert *assert.Assertions, now time.Time, testSpan *mocktracer.Span) {
 	assert.Equal(now.Unix(), testSpan.StartTime().Unix())
 	assert.Equal("my-module-framework.test", testSpan.OperationName())
@@ -409,4 +467,14 @@ func testAssertions(assert *assert.Assertions, now time.Time, testSpan *mocktrac
 	}
 
 	commonAssertions(assert, testSpan)
+}
+
+// containsSourceResolutionLogLine reports whether any recorded log line contains the expected source-resolution fragment.
+func containsSourceResolutionLogLine(lines []string, want string) bool {
+	for _, line := range lines {
+		if strings.Contains(line, want) {
+			return true
+		}
+	}
+	return false
 }
