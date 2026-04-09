@@ -35,7 +35,7 @@ concurrency:
 
 jobs:
   generate:
-    if: github.event.repository.fork == false
+    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'DataDog/dd-trace-go')
     name: Verify generated files are up-to-date
     # Don't run in workflow_call or workflow_dispatch
     if: github.event_name == 'workflow_dispatch' || inputs.orchestrion-version == ''
@@ -59,7 +59,7 @@ jobs:
         run: git diff --exit-code
 
   go-versions-matrix:
-    if: github.event.repository.fork == false
+    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'DataDog/dd-trace-go')
     name: Go Versions Matrix
     runs-on: ubuntu-latest
     outputs:
@@ -84,7 +84,7 @@ jobs:
           go run ./internal/orchestrion/matrix >> "${GITHUB_OUTPUT}"
 
   service-containers:
-    if: github.event.repository.fork == false
+    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'DataDog/dd-trace-go')
     name: Service containers
     runs-on: ubuntu-latest
     outputs:
@@ -102,7 +102,7 @@ jobs:
           echo "SERVICES_JSON=$(jq -c . ./internal/orchestrion/_integration/ci-services.json)" >> "${GITHUB_OUTPUT}"
 
   integration-test:
-    if: github.event.repository.fork == false
+    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'DataDog/dd-trace-go')
     services: ${{ fromJSON(matrix.runs-on == 'ubuntu' && needs.service-containers.outputs.services_json || '{}') }}
     env:
       # Path to where test results will be saved

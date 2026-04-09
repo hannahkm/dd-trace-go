@@ -39,7 +39,7 @@ permissions:
 
 jobs:
   copyright:
-    if: github.event.repository.fork == false
+    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'DataDog/dd-trace-go')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -62,7 +62,7 @@ jobs:
           make lint/misc
 
   check-github-actions:
-    if: github.event.repository.fork == false
+    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'DataDog/dd-trace-go')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -82,7 +82,7 @@ jobs:
           make lint/action
 
   check-modules:
-    if: github.event.repository.fork == false
+    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'DataDog/dd-trace-go')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -104,7 +104,7 @@ jobs:
         run: git diff --exit-code
 
   check-docs:
-    if: github.event.repository.fork == false
+    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'DataDog/dd-trace-go')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -126,7 +126,7 @@ jobs:
         run: git diff --exit-code
 
   check-format:
-    if: github.event.repository.fork == false
+    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'DataDog/dd-trace-go')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -148,7 +148,7 @@ jobs:
         run: git diff --exit-code
 
   lint:
-    if: github.event.repository.fork == false
+    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'DataDog/dd-trace-go')
     runs-on:
       group: "APM Larger Runners"
     steps:
@@ -190,7 +190,7 @@ jobs:
           filter_mode: nofilter
 
   checklocks:
-    if: github.event.repository.fork == false
+    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'DataDog/dd-trace-go')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
