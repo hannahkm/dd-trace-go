@@ -114,7 +114,10 @@ jobs:
       - test-with-deadlock
       - test-locking-package
     runs-on: ubuntu-latest
-    if: always()
+    if: |                                                                                                                                          
+        needs.test-with-debug.result != 'skipped'                                                           
+        && needs.test-with-deadlock.result != 'skipped'                            
+        && needs.test-locking-package.result != 'skipped'                            
     steps:
       - name: Check all jobs succeeded
         run: |
