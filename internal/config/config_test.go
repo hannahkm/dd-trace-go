@@ -788,3 +788,76 @@ func TestProductConflict(t *testing.T) {
 			"same value from different products should be allowed")
 	})
 }
+
+func TestAdditiveConfigs(t *testing.T) {
+	t.Run("feature flags merge across products", func(t *testing.T) {
+		resetGlobalState()
+		defer resetGlobalState()
+
+		cfg := Get()
+
+		cfg.SetFeatureFlags([]string{"feat_a", "feat_b"}, OriginCode, ProductTracer)
+		cfg.SetFeatureFlags([]string{"feat_c"}, OriginCode, ProductProfiler)
+
+		flags := cfg.FeatureFlags()
+		assert.Contains(t, flags, "feat_a")
+		assert.Contains(t, flags, "feat_b")
+		assert.Contains(t, flags, "feat_c")
+	})
+
+	t.Run("feature flags deduplicate across products", func(t *testing.T) {
+		resetGlobalState()
+		defer resetGlobalState()
+
+		cfg := Get()
+
+		cfg.SetFeatureFlags([]string{"shared_feat"}, OriginCode, ProductTracer)
+		cfg.SetFeatureFlags([]string{"shared_feat"}, OriginCode, ProductProfiler)
+
+		flags := cfg.FeatureFlags()
+		assert.Contains(t, flags, "shared_feat")
+		assert.Len(t, flags, 1, "duplicate flags should be deduplicated")
+	})
+
+	t.Run("service mappings merge across products", func(t *testing.T) {
+		resetGlobalState()
+		defer resetGlobalState()
+
+		cfg := Get()
+
+		cfg.SetServiceMapping("web", "frontend", OriginCode, ProductTracer)
+		cfg.SetServiceMapping("db", "backend", OriginCode, ProductProfiler)
+
+		mappings := cfg.ServiceMappings()
+		assert.Equal(t, "frontend", mappings["web"])
+		assert.Equal(t, "backend", mappings["db"])
+	})
+
+	t.Run("service mappings deduplicate across products", func(t *testing.T) {
+		resetGlobalState()
+		defer resetGlobalState()
+
+		cfg := Get()
+
+		cfg.SetServiceMapping("web", "frontend", OriginCode, ProductTracer)
+		cfg.SetServiceMapping("web", "frontend", OriginCode, ProductProfiler)
+
+		mappings := cfg.ServiceMappings()
+		assert.Equal(t, "frontend", mappings["web"])
+		assert.Len(t, mappings, 1, "identical mapping from two products should not create duplicates")
+	})
+
+	t.Run("service mapping same key different value overwrites", func(t *testing.T) {
+		resetGlobalState()
+		defer resetGlobalState()
+
+		cfg := Get()
+
+		cfg.SetServiceMapping("web", "frontend-v1", OriginCode, ProductTracer)
+		cfg.SetServiceMapping("web", "frontend-v2", OriginCode, ProductProfiler)
+
+		to, ok := cfg.ServiceMapping("web")
+		assert.True(t, ok)
+		assert.Equal(t, "frontend-v2", to, "last write wins for same mapping key")
+	})
+}

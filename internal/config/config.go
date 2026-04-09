@@ -690,6 +690,7 @@ func (c *Config) SetEnv(env string, origin telemetry.Origin, product ...Product)
 	configtelemetry.Report("DD_ENV", env, origin)
 }
 
+// SetFeatureFlags adds to the feature flag set. No cross-product gate because this is additive, not a replacement.
 func (c *Config) SetFeatureFlags(features []string, origin telemetry.Origin, product ...Product) {
 	c.mu.Lock()
 	if c.featureFlags == nil {
@@ -757,6 +758,7 @@ func (c *Config) ServiceMapping(from string) (to string, ok bool) {
 	return to, ok
 }
 
+// SetServiceMapping adds a single service mapping entry. No cross-product gate because this is additive, not a replacement.
 func (c *Config) SetServiceMapping(from, to string, origin telemetry.Origin, product ...Product) {
 	c.mu.Lock()
 	if c.serviceMappings == nil {
