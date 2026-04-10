@@ -147,7 +147,6 @@ func loadConfig() *Config {
 	cfg.runtimeMetricsV2 = p.GetBool("DD_RUNTIME_METRICS_V2_ENABLED", true)
 	cfg.profilerHotspots = p.GetBool("DD_PROFILING_CODE_HOTSPOTS_COLLECTION_ENABLED", true)
 	cfg.profilerEndpoints = p.GetBool("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", true)
-	cfg.spanAttributeSchemaVersion = p.GetInt("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", 0)
 	cfg.peerServiceDefaultsEnabled = p.GetBool("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", false)
 	cfg.peerServiceMappings = p.GetMap("DD_TRACE_PEER_SERVICE_MAPPING", nil, internal.DDTagsDelimiter)
 	cfg.debugAbandonedSpans = p.GetBool("DD_TRACE_DEBUG_ABANDONED_SPANS", false)
@@ -183,6 +182,15 @@ func loadConfig() *Config {
 		}) {
 			cfg.featureFlags[strings.TrimSpace(feat)] = struct{}{}
 		}
+	}
+
+	if schemaStr := p.GetString("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", ""); schemaStr != "" {
+		if v, ok := parseSpanAttributeSchema(schemaStr); ok {
+			cfg.spanAttributeSchemaVersion = v
+		}
+	}
+	if cfg.spanAttributeSchemaVersion >= 1 {
+		cfg.peerServiceDefaultsEnabled = true
 	}
 
 	// AWS_LAMBDA_FUNCTION_NAME being set indicates that we're running in an AWS Lambda environment.
@@ -654,6 +662,74 @@ func (c *Config) SetServiceMapping(from, to string, origin telemetry.Origin) {
 	c.mu.Unlock()
 
 	configtelemetry.Report("DD_SERVICE_MAPPING", strings.Join(all, ","), origin)
+}
+
+func (c *Config) PeerServiceDefaultsEnabled() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.peerServiceDefaultsEnabled
+}
+
+func (c *Config) SetPeerServiceDefaultsEnabled(enabled bool, origin telemetry.Origin) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.peerServiceDefaultsEnabled = enabled
+	configtelemetry.Report("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", enabled, origin)
+}
+
+// PeerServiceMappings returns a copy of the peer service mappings map. If no mappings are set, returns nil.
+// Not intended for hot paths — use PeerServiceMapping for single-key lookups to avoid per-call allocations.
+func (c *Config) PeerServiceMappings() map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.peerServiceMappings == nil {
+		return nil
+	}
+	result := make(map[string]string, len(c.peerServiceMappings))
+	maps.Copy(result, c.peerServiceMappings)
+	return result
+}
+
+// PeerServiceMapping performs a single mapping lookup without copying the underlying map.
+// This is better than PeerServiceMappings() for hot paths to avoid per-call allocations.
+func (c *Config) PeerServiceMapping(from string) (to string, ok bool) {
+	c.mu.RLock()
+	m := c.peerServiceMappings
+	if m == nil {
+		c.mu.RUnlock()
+		return "", false
+	}
+	to, ok = m[from]
+	c.mu.RUnlock()
+	return to, ok
+}
+
+func (c *Config) SetPeerServiceMappings(mappings map[string]string, origin telemetry.Origin) {
+	c.mu.Lock()
+	c.peerServiceMappings = make(map[string]string, len(mappings))
+	maps.Copy(c.peerServiceMappings, mappings)
+	all := make([]string, 0, len(c.peerServiceMappings))
+	for k, v := range c.peerServiceMappings {
+		all = append(all, fmt.Sprintf("%s:%s", k, v))
+	}
+	c.mu.Unlock()
+
+	configtelemetry.Report("DD_TRACE_PEER_SERVICE_MAPPING", strings.Join(all, ","), origin)
+}
+
+func (c *Config) SetPeerServiceMapping(from, to string, origin telemetry.Origin) {
+	c.mu.Lock()
+	if c.peerServiceMappings == nil {
+		c.peerServiceMappings = make(map[string]string)
+	}
+	c.peerServiceMappings[from] = to
+	all := make([]string, 0, len(c.peerServiceMappings))
+	for k, v := range c.peerServiceMappings {
+		all = append(all, fmt.Sprintf("%s:%s", k, v))
+	}
+	c.mu.Unlock()
+
+	configtelemetry.Report("DD_TRACE_PEER_SERVICE_MAPPING", strings.Join(all, ","), origin)
 }
 
 func (c *Config) RetryInterval() time.Duration {
