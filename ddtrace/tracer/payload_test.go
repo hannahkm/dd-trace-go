@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -533,17 +532,20 @@ func assertProcessTags(t *testing.T, payload spanLists) {
 }
 
 func BenchmarkPayloadThroughput(b *testing.B) {
-	b.Run("10K", benchmarkPayloadThroughput(1))
-	b.Run("100K", benchmarkPayloadThroughput(10))
-	b.Run("1MB", benchmarkPayloadThroughput(100))
+	b.Run("10K/v0.4", benchmarkPayloadThroughput(1, traceProtocolV04))
+	b.Run("100K/v0.4", benchmarkPayloadThroughput(10, traceProtocolV04))
+	b.Run("1MB/v0.4", benchmarkPayloadThroughput(100, traceProtocolV04))
+	b.Run("10K/v1.0", benchmarkPayloadThroughput(1, traceProtocolV1))
+	b.Run("100K/v1.0", benchmarkPayloadThroughput(10, traceProtocolV1))
+	b.Run("1MB/v1.0", benchmarkPayloadThroughput(100, traceProtocolV1))
 }
 
 // benchmarkPayloadThroughput benchmarks the throughput of the payload by subsequently
 // pushing a trace containing count spans of approximately 10KB in size each, until the
 // payload is filled.
-func benchmarkPayloadThroughput(count int) func(*testing.B) {
+func benchmarkPayloadThroughput(count int, p float64) func(*testing.B) {
 	return func(b *testing.B) {
-		p := newPayloadV04()
+		p := newPayload(p)
 		s := newBasicSpan("X")
 		s.meta["key"] = strings.Repeat("X", 10*1024)
 		trace := make(spanList, count)
@@ -552,14 +554,8 @@ func benchmarkPayloadThroughput(count int) func(*testing.B) {
 		}
 		b.ReportAllocs()
 		b.ResetTimer()
-		reset := func() {
-			p.header = make([]byte, 8)
-			p.off = 8
-			atomic.StoreUint32(&p.count, 0)
-			p.buf.Reset()
-		}
 		for b.Loop() {
-			reset()
+			p.reset()
 			for p.stats().size < payloadMaxLimit {
 				_, _ = p.push(trace)
 			}
@@ -569,100 +565,124 @@ func benchmarkPayloadThroughput(count int) func(*testing.B) {
 
 // TestPayloadConcurrentAccess tests that payload operations are safe for concurrent use
 func TestPayloadConcurrentAccess(t *testing.T) {
-	p := newPayload(traceProtocolV04)
-
-	// Create some test spans
-	spans := make(spanList, 10)
-	for i := range 10 {
-		spans[i] = newBasicSpan("test-span")
+	tt := []struct {
+		name    string
+		payload payload
+	}{
+		{name: "v0.4", payload: newPayload(traceProtocolV04)},
+		{name: "v1.0", payload: newPayload(traceProtocolV1)},
 	}
 
-	var wg sync.WaitGroup
-
-	// Start multiple goroutines that perform concurrent operations
-	for range 10 {
-		wg.Go(func() {
-
-			// Push some spans
-			for range 5 {
-				_, _ = p.push(spans)
+	for _, tt := range tt {
+		t.Run(tt.name, func(t *testing.T) {
+			p := tt.payload
+			// Create some test spans
+			spans := make(spanList, 10)
+			for i := range 10 {
+				spans[i] = newBasicSpan("test-span")
 			}
 
-			// Read size and item count concurrently
+			var wg sync.WaitGroup
+
+			// Start multiple goroutines that perform concurrent operations
 			for range 10 {
-				stats := p.stats()
-				_ = stats.size
-				_ = stats.itemCount
+				wg.Go(func() {
+
+					// Push some spans
+					for range 5 {
+						_, _ = p.push(spans)
+					}
+
+					// Read size and item count concurrently
+					for range 10 {
+						stats := p.stats()
+						_ = stats.size
+						_ = stats.itemCount
+					}
+				})
+			}
+
+			// Also perform operations from the main goroutine
+			wg.Go(func() {
+				for range 20 {
+					_ = p.stats().size
+				}
+			})
+
+			wg.Wait()
+
+			// Verify the payload is in a consistent state
+			if p.stats().itemCount == 0 {
+				t.Error("Expected payload to have items after concurrent operations")
+			}
+
+			if p.stats().size <= 0 {
+				t.Error("Expected payload size to be positive after concurrent operations")
 			}
 		})
-	}
 
-	// Also perform operations from the main goroutine
-	wg.Go(func() {
-		for range 20 {
-			_ = p.stats().size
-		}
-	})
-
-	wg.Wait()
-
-	// Verify the payload is in a consistent state
-	if p.stats().itemCount == 0 {
-		t.Error("Expected payload to have items after concurrent operations")
-	}
-
-	if p.stats().size <= 0 {
-		t.Error("Expected payload size to be positive after concurrent operations")
 	}
 }
 
 // TestPayloadConcurrentReadWrite tests concurrent read and write operations
 func TestPayloadConcurrentReadWrite(t *testing.T) {
-	p := newPayload(traceProtocolV04)
-
-	// Add some initial data
-	span := newBasicSpan("test")
-	spans := spanList{span}
-	_, _ = p.push(spans)
-
-	var wg sync.WaitGroup
-
-	// Concurrent writers
-	for range 5 {
-		wg.Go(func() {
-			for range 10 {
-				_, _ = p.push(spans)
-			}
-		})
+	tt := []struct {
+		name    string
+		payload payload
+	}{
+		{name: "v0.4", payload: newPayload(traceProtocolV04)},
+		{name: "v1.0", payload: newPayload(traceProtocolV1)},
 	}
 
-	// Concurrent readers
-	for range 5 {
-		wg.Go(func() {
-			buf := make([]byte, 1024)
-			for range 10 {
-				p.reset()
-				_, _ = p.Read(buf)
+	for _, tt := range tt {
+		t.Run(tt.name, func(t *testing.T) {
+			p := tt.payload
+
+			// Add some initial data
+			span := newBasicSpan("test")
+			spans := spanList{span}
+			_, _ = p.push(spans)
+
+			var wg sync.WaitGroup
+
+			// Concurrent writers
+			for range 5 {
+				wg.Go(func() {
+					for range 10 {
+						_, _ = p.push(spans)
+					}
+				})
+			}
+
+			// Concurrent readers
+			for range 5 {
+				wg.Go(func() {
+					buf := make([]byte, 1024)
+					for range 10 {
+						p.reset()
+						_, _ = p.Read(buf)
+					}
+				})
+			}
+
+			// Concurrent size/count checkers
+			for range 3 {
+				wg.Go(func() {
+					for range 20 {
+						stats := p.stats()
+						_ = stats.size
+						_ = stats.itemCount
+					}
+				})
+			}
+
+			wg.Wait()
+
+			// Verify final state
+			if p.stats().itemCount == 0 {
+				t.Error("Expected payload to have items")
 			}
 		})
-	}
-
-	// Concurrent size/count checkers
-	for range 3 {
-		wg.Go(func() {
-			for range 20 {
-				stats := p.stats()
-				_ = stats.size
-				_ = stats.itemCount
-			}
-		})
-	}
-
-	wg.Wait()
-
-	// Verify final state
-	if p.stats().itemCount == 0 {
-		t.Error("Expected payload to have items")
 	}
 }
 
@@ -681,7 +701,7 @@ func BenchmarkPayloadPush(b *testing.B) {
 	}
 
 	for _, size := range sizes {
-		b.Run(size.name, func(b *testing.B) {
+		b.Run(size.name+"/v0.4", func(b *testing.B) {
 			spans := make(spanList, size.numSpans)
 			for i := 0; i < size.numSpans; i++ {
 				span := newBasicSpan("benchmark-span")
@@ -694,6 +714,23 @@ func BenchmarkPayloadPush(b *testing.B) {
 
 			for b.Loop() {
 				p := newPayloadV04()
+				_, _ = p.push(spans)
+			}
+		})
+
+		b.Run(size.name+"/v1.0", func(b *testing.B) {
+			spans := make(spanList, size.numSpans)
+			for i := 0; i < size.numSpans; i++ {
+				span := newBasicSpan("benchmark-span")
+				span.meta["data"] = strings.Repeat("x", size.spanSize*1024)
+				spans[i] = span
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			for b.Loop() {
+				p := newPayloadV1()
 				_, _ = p.push(spans)
 			}
 		})
@@ -713,8 +750,29 @@ func BenchmarkPayloadStats(b *testing.B) {
 	}
 
 	for _, test := range tests {
-		b.Run(test.name, func(b *testing.B) {
+		b.Run(test.name+"/v0.4", func(b *testing.B) {
 			p := newPayload(traceProtocolV04)
+
+			for i := 0; i < test.numTraces; i++ {
+				spans := make(spanList, test.spansPer)
+				for j := 0; j < test.spansPer; j++ {
+					spans[j] = newBasicSpan("test-span")
+				}
+				_, _ = p.push(spans)
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			for b.Loop() {
+				stats := p.stats()
+				_ = stats.size
+				_ = stats.itemCount
+			}
+		})
+
+		b.Run(test.name+"/v1.0", func(b *testing.B) {
+			p := newPayload(traceProtocolV1)
 
 			for i := 0; i < test.numTraces; i++ {
 				spans := make(spanList, test.spansPer)
@@ -740,10 +798,9 @@ func BenchmarkPayloadConcurrentAccess(b *testing.B) {
 	concurrencyLevels := []int{1, 2, 4, 8}
 
 	for _, concurrency := range concurrencyLevels {
-		b.Run(fmt.Sprintf("concurrency_%d", concurrency), func(b *testing.B) {
+		b.Run(fmt.Sprintf("concurrency_%d/v0.4", concurrency), func(b *testing.B) {
 			p := newPayload(traceProtocolV04)
-			span := newBasicSpan("concurrent-test")
-			spans := spanList{span}
+			spans := newDetailedSpanList(10)
 
 			b.ReportAllocs()
 			b.ResetTimer()
@@ -764,6 +821,35 @@ func BenchmarkPayloadConcurrentAccess(b *testing.B) {
 				}
 
 				wg.Wait()
+				io.ReadAll(p)
+				p.clear()
+			}
+		})
+
+		b.Run(fmt.Sprintf("concurrency_%d/v1.0", concurrency), func(b *testing.B) {
+			p := newPayload(traceProtocolV1)
+			spans := newDetailedSpanList(10)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			for b.Loop() {
+				var wg sync.WaitGroup
+
+				for range concurrency {
+					wg.Go(func() {
+						_, _ = p.push(spans)
+					})
+				}
+
+				for range concurrency {
+					wg.Go(func() {
+						_ = p.stats()
+					})
+				}
+
+				wg.Wait()
+				io.ReadAll(p)
 				p.clear()
 			}
 		})
@@ -837,4 +923,222 @@ func BenchmarkPayloadVersions(b *testing.B) {
 			}
 		})
 	}
+}
+
+func BenchmarkPayloads(b *testing.B) {
+	b.Run("v0.4", func(b *testing.B) {
+		b.Run("push/10spans", func(b *testing.B) {
+			p := newPayloadV04()
+			sl := newSpanList(10)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_, _ = p.push(sl)
+			}
+		})
+
+		b.Run("push/1000spans", func(b *testing.B) {
+			p := newPayloadV04()
+			sl := newSpanList(1000)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_, _ = p.push(sl)
+			}
+		})
+
+		b.Run("push/10_detailed_spans", func(b *testing.B) {
+			p := newPayloadV04()
+			sl := newDetailedSpanList(10)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_, _ = p.push(sl)
+			}
+		})
+
+		b.Run("push/1000_detailed_spans", func(b *testing.B) {
+			p := newPayloadV04()
+			sl := newDetailedSpanList(1000)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_, _ = p.push(sl)
+			}
+		})
+
+		b.Run("push/low_cardinality_spans", func(b *testing.B) {
+			p := newPayloadV04()
+			sl := newLowCardinalitySpanList(1000)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_, _ = p.push(sl)
+			}
+		})
+
+		b.Run("push/high_cardinality_spans", func(b *testing.B) {
+			p := newPayloadV04()
+			sl := newHighCardinalitySpanList(1000)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_, _ = p.push(sl)
+			}
+		})
+
+		b.Run("flush/1span", func(b *testing.B) {
+			p := newPayloadV04()
+
+			p.push(newSpanList(1))
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				p.reset()
+				io.ReadAll(p)
+			}
+		})
+
+		b.Run("flush/100spans", func(b *testing.B) {
+			p := newPayloadV04()
+
+			p.push(newSpanList(100))
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				p.reset()
+				io.ReadAll(p)
+			}
+		})
+
+		b.Run("flush/1000spans", func(b *testing.B) {
+			p := newPayloadV04()
+
+			p.push(newSpanList(1000))
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				p.reset()
+				io.ReadAll(p)
+			}
+		})
+	})
+
+	b.Run("v1.0", func(b *testing.B) {
+		b.Run("push/10spans", func(b *testing.B) {
+			p := newPayloadV1()
+			sl := newSpanList(10)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_, _ = p.push(sl)
+			}
+		})
+
+		b.Run("push/1000spans", func(b *testing.B) {
+			p := newPayloadV1()
+			sl := newSpanList(1000)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_, _ = p.push(sl)
+			}
+		})
+
+		b.Run("push/10_detailed_spans", func(b *testing.B) {
+			p := newPayloadV1()
+			sl := newDetailedSpanList(10)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_, _ = p.push(sl)
+			}
+		})
+
+		b.Run("push/1000_detailed_spans", func(b *testing.B) {
+			p := newPayloadV1()
+			sl := newDetailedSpanList(1000)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_, _ = p.push(sl)
+			}
+		})
+
+		b.Run("push/low_cardinality_spans", func(b *testing.B) {
+			p := newPayloadV1()
+			sl := newLowCardinalitySpanList(1000)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_, _ = p.push(sl)
+			}
+		})
+
+		b.Run("push/high_cardinality_spans", func(b *testing.B) {
+			p := newPayloadV1()
+			sl := newHighCardinalitySpanList(1000)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_, _ = p.push(sl)
+			}
+		})
+
+		b.Run("flush/1span", func(b *testing.B) {
+			p := newPayloadV1()
+
+			p.push(newSpanList(1))
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				p.reset()
+				io.ReadAll(p)
+			}
+		})
+
+		b.Run("flush/100spans", func(b *testing.B) {
+			p := newPayloadV1()
+
+			p.push(newSpanList(100))
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				p.reset()
+				io.ReadAll(p)
+			}
+		})
+
+		b.Run("flush/1000spans", func(b *testing.B) {
+			p := newPayloadV1()
+
+			p.push(newSpanList(1000))
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				p.reset()
+				io.ReadAll(p)
+			}
+		})
+	})
+
+	// ... Add more payload versions here...
 }
