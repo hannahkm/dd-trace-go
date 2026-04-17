@@ -165,9 +165,8 @@ func (c *concentrator) newTracerStatSpan(s *Span, obfuscator *obfuscate.Obfuscat
 	if c.shouldObfuscate() {
 		resource = obfuscatedResource(obfuscator, s.spanType, s.resource)
 	}
-
-	httpMethod := s.meta[ext.HTTPMethod]
-	httpEndpoint := s.meta[ext.HTTPEndpoint]
+	httpMethod, _ := s.meta.Get(ext.HTTPMethod)
+	httpEndpoint, _ := s.meta.Get(ext.HTTPEndpoint)
 
 	statSpan, ok := c.spanConcentrator.NewStatSpanWithConfig(stats.StatSpanConfig{
 		Service:      s.service,
@@ -178,7 +177,7 @@ func (c *concentrator) newTracerStatSpan(s *Span, obfuscator *obfuscate.Obfuscat
 		Start:        s.start,
 		Duration:     s.duration,
 		Error:        s.error,
-		Meta:         s.meta,
+		Meta:         s.meta.Map(false), // stats reads span.kind, _dd.svc_src, status codes, peer tags — no promoted keys needed
 		Metrics:      s.metrics,
 		PeerTags:     c.cfg.agent.load().peerTags,
 		HTTPMethod:   httpMethod,
@@ -187,7 +186,7 @@ func (c *concentrator) newTracerStatSpan(s *Span, obfuscator *obfuscate.Obfuscat
 	if !ok {
 		return nil, false
 	}
-	origin := s.meta[keyOrigin]
+	origin, _ := s.meta.Get(keyOrigin)
 	return &tracerStatSpan{
 		statSpan: statSpan,
 		origin:   origin,
