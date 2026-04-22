@@ -56,6 +56,39 @@ func newDetailedSpanList(n int) spanList {
 	return list
 }
 
+// creates a list of n spans, populated with repetitive tags
+func newLowCardinalitySpanList(n int) spanList {
+	itoa := map[int]string{0: "0", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"}
+	list := make([]*Span, n)
+	for i := range n {
+		list[i] = newBasicSpan("span.list." + itoa[i%5+1])
+		list[i].start = fixedTime
+		list[i].service = "high-cardinality-string-value"
+		list[i].resource = "resource." + itoa[i%5+1]
+		list[i].SetTag("tag.1", "high-cardinality-string-value")
+		list[i].SetTag("tag.2", "high-cardinality-string-value")
+		list[i].SetTag("tag.3", "high-cardinality-string-value")
+		list[i].SetTag("tag.4", "high-cardinality-string-value")
+	}
+	return list
+}
+
+// creates a list of n spans, populated with many unique tags
+func newHighCardinalitySpanList(n int) spanList {
+	itoa := map[int]string{0: "0", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"}
+	list := make([]*Span, n)
+	for i := range n {
+		list[i] = newBasicSpan("span.list." + itoa[i%5+1])
+		list[i].start = fixedTime
+		list[i].service = "service." + itoa[i%5+1]
+		list[i].resource = "resource." + itoa[i%5+1]
+		for i := range 50 {
+			list[i].SetTag("tag."+itoa[i%5+1], "value."+itoa[i%5+1])
+		}
+	}
+	return list
+}
+
 // TestPayloadIntegrity tests that whatever we push into the payload
 // allows us to read the same content as would have been encoded by
 // the codec.
@@ -292,6 +325,8 @@ func TestPayloadV1SpanLinkTraceID(t *testing.T) {
 	span.spanLinks = []SpanLink{
 		{TraceID: 123, TraceIDHigh: 456, SpanID: 789},
 	}
+	span.setMeta("_dd.span_links", "test") // should not get serialized
+
 	_, err := p.push(spanList{span})
 	assert.NoError(err)
 
@@ -314,6 +349,9 @@ func TestPayloadV1SpanLinkTraceID(t *testing.T) {
 	assert.Equal(uint64(123), link.TraceID)
 	assert.Equal(uint64(456), link.TraceIDHigh)
 	assert.Equal(uint64(789), link.SpanID)
+
+	span = got.chunks[0].spans[0]
+	assert.False(span.meta.Has("_dd.span_links"))
 }
 
 // TestPayloadV1SpanEventArray tests that a span with a span event containing ArrayValue
@@ -512,7 +550,8 @@ func TestPayloadV1IncrementalChunkEncoding(t *testing.T) {
 		s := got.chunks[i].spans[0]
 		assert.Equal(t, c.service, s.service, "chunk %d: wrong service", i)
 		assert.Equal(t, c.name, s.name, "chunk %d: wrong name", i)
-		assert.Equal(t, c.tagVal, s.meta[c.tagKey], "chunk %d: wrong tag value", i)
+		v, _ := s.meta.Get(c.tagKey)
+		assert.Equal(t, c.tagVal, v, "chunk %d: wrong tag value", i)
 	}
 }
 
@@ -520,7 +559,7 @@ func assertProcessTags(t *testing.T, payload spanLists) {
 	assert := assert.New(t)
 	for i, spanList := range payload {
 		for j, span := range spanList {
-			processTags, ok := span.meta[keyProcessTags]
+			processTags, ok := span.meta.Get(keyProcessTags)
 			if i+j == 0 {
 				assert.True(ok, "process tags should be present on the first span of each chunk only")
 				assert.Contains(processTags, "entrypoint.name", "process tags should have entrypoint.name")
@@ -529,6 +568,79 @@ func assertProcessTags(t *testing.T, payload spanLists) {
 			require.False(t, ok, "process tags should be present on the first span of each chunk only (chunk: %d span: %d)", i, j)
 		}
 	}
+}
+
+func TestPayloadV1SerializationFailure(t *testing.T) {
+	t.Run("nil span", func(t *testing.T) {
+		assert := assert.New(t)
+		p := newPayloadV1()
+		sl := newSpanList(1)
+		sl = append(sl, nil) // add a nil span
+
+		_, err := p.push(sl)
+		assert.NoError(err)
+
+		encoded, err := io.ReadAll(p)
+		assert.NoError(err)
+
+		got := newPayloadV1()
+		buf := bytes.NewBuffer(encoded)
+		_, err = buf.WriteTo(got)
+		assert.NoError(err)
+
+		_, err = got.decodeBuffer()
+		assert.NoError(err)
+
+		require.Len(t, got.chunks, 1)
+		require.Len(t, got.chunks[0].spans, 2)
+		assert.Equal(&Span{}, got.chunks[0].spans[1])
+	})
+
+	t.Run("invalid valueType", func(t *testing.T) {
+		p := newPayloadV1()
+		p.attributes["bad-attr"] = anyValue{valueType: 999, value: "x"}
+		s := newBasicSpan("test-span")
+		_, err := p.push(spanList{s})
+		require.NoError(t, err)
+		encoded, err := io.ReadAll(p)
+		require.NoError(t, err)
+
+		got := newPayloadV1()
+		_, err = bytes.NewBuffer(encoded).WriteTo(got)
+		require.NoError(t, err)
+
+		_, err = got.decodeBuffer()
+		require.NoError(t, err)
+		require.NotNil(t, got.attributes["bad-attr"])
+		assert.Equal(t, StringValueType, got.attributes["bad-attr"].valueType)
+		assert.Equal(t, serializationFailed, got.attributes["bad-attr"].value)
+	})
+
+	t.Run("invalid meta struct value", func(t *testing.T) {
+		p := newPayloadV1()
+		s := newBasicSpan("test-span")
+		s.mu.Lock()
+		s.setMetaStructLocked("bad-key", make(chan int)) // unsupported type
+		s.mu.Unlock()
+		_, err := p.push(spanList{s})
+		require.NoError(t, err)
+		encoded, err := io.ReadAll(p)
+		require.NoError(t, err)
+
+		got := newPayloadV1()
+		_, err = bytes.NewBuffer(encoded).WriteTo(got)
+		require.NoError(t, err)
+
+		_, err = got.decodeBuffer()
+		require.NoError(t, err)
+		require.Len(t, got.chunks, 1)
+		require.Len(t, got.chunks[0].spans, 1)
+		ms := got.chunks[0].spans[0].metaStruct["bad-key"]
+		require.NotNil(t, ms)
+		v, ok := ms.([]byte)
+		assert.True(t, ok)
+		assert.Equal(t, []byte(serializationFailed), v)
+	})
 }
 
 func BenchmarkPayloadThroughput(b *testing.B) {
@@ -547,7 +659,7 @@ func benchmarkPayloadThroughput(count int, p float64) func(*testing.B) {
 	return func(b *testing.B) {
 		p := newPayload(p)
 		s := newBasicSpan("X")
-		s.meta["key"] = strings.Repeat("X", 10*1024)
+		s.meta.Set("key", strings.Repeat("X", 10*1024))
 		trace := make(spanList, count)
 		for i := range count {
 			trace[i] = s
@@ -705,7 +817,7 @@ func BenchmarkPayloadPush(b *testing.B) {
 			spans := make(spanList, size.numSpans)
 			for i := 0; i < size.numSpans; i++ {
 				span := newBasicSpan("benchmark-span")
-				span.meta["data"] = strings.Repeat("x", size.spanSize*1024)
+				span.meta.Set("data", strings.Repeat("x", size.spanSize*1024))
 				spans[i] = span
 			}
 
@@ -862,7 +974,7 @@ func TestMsgsizeAnalysis(t *testing.T) {
 		spans := make(spanList, numSpans)
 		for i := range numSpans {
 			span := newBasicSpan("test")
-			span.meta["data"] = strings.Repeat("x", 1024)
+			span.meta.Set("data", strings.Repeat("x", 1024))
 			spans[i] = span
 		}
 
